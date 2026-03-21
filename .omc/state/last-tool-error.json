@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cargo check --workspace 2>&1\",\"timeout\":120000,\"description\":\"Compile-check the entire workspace\"}",
+  "error": "Exit code 127\n(eval):1: command not found: cargo",
+  "timestamp": "2026-03-20T17:16:30.626Z",
+  "retry_count": 1
+}

@@ -1,0 +1,135 @@
+name: majimi
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+      target: deps
+    command: sh -c "npm run dev"
+    working_dir: /app
+    volumes:
+      - ./apps/web:/app
+      - web_node_modules:/app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+      - WATCHPACK_POLLING=true
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    image: rust:latest
+    working_dir: /app
+    command: >
+      sh -c "apt-get update && apt-get install -y pkg-config libssl-dev curl &&
+             cargo install cargo-watch --locked &&
+             cargo watch -x 'run --bin api'"
+    volumes:
+      - .:/app
+      - cargo_cache:/usr/local/cargo/registry
+      - target_cache:/app/target
+    ports:
+      - "8080:8080"
+    env_file: .env.dev
+    environment:
+      - APP_ENV=local
+      - APP_PORT=8080
+      - DATABASE_URL=postgres://wello:wello@db:5432/wello
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-secret-change-me
+      - RUST_LOG=info,api=debug
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 300s
+
+  worker:
+    image: rust:latest
+    working_dir: /app
+    command: >
+      sh -c "apt-get update && apt-get install -y pkg-config libssl-dev &&
+             cargo install cargo-watch --locked &&
+             cargo watch -x 'run --bin worker'"
+    volumes:
+      - .:/app
+      - cargo_cache:/usr/local/cargo/registry
+      - target_cache:/app/target
+    env_file: .env.dev
+    environment:
+      - APP_ENV=local
+      - DATABASE_URL=postgres://wello:wello@db:5432/wello
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-secret-change-me
+      - RUST_LOG=info,worker=debug
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: wello
+      POSTGRES_USER: wello
+      POSTGRES_PASSWORD: wello
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wello"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata_dev:/data
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/caddy/Caddyfile.dev:/etc/caddy/Caddyfile
+    depends_on:
+      - web
+      - api
+
+  scraper:
+    build:
+      context: ./scripts/scraper
+      dockerfile: Dockerfile
+    env_file: .env.dev
+    environment:
+      - DATABASE_URL=postgres://wello:wello@db:5432/wello
+    depends_on:
+      db:
+        condition: service_healthy
+    # Run-once sidecar — not a persistent daemon.
+    # Trigger manually: docker compose -f compose.dev.yml run --rm scraper
+    restart: "no"
+    profiles:
+      - scraper
+
+volumes:
+  pgdata_dev:
+  redisdata_dev:
+  web_node_modules:
+  cargo_cache:
+  target_cache:

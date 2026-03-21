@@ -1,0 +1,10 @@
+{
+  "active": true,
+  "skill_name": "ccg",
+  "session_id": "1649b6d1-fda2-4de0-b3c6-54893914f814",
+  "started_at": "2026-03-20T17:26:03.934Z",
+  "last_checked_at": "2026-03-20T17:32:08.563Z",
+  "reinforcement_count": 4,
+  "max_reinforcements": 5,
+  "stale_ttl_ms": 900000
+}

@@ -1,0 +1,30 @@
+[package]
+name = "majimi-worker"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "majimi_worker"
+path = "src/lib.rs"
+
+[[bin]]
+name = "worker"
+path = "src/main.rs"
+
+[dependencies]
+majimi-core = { path = "../core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+redis = { workspace = true }
+reqwest = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+dotenvy = { workspace = true }
+tokio-cron-scheduler = "0.13"
+quick-xml = { workspace = true }
+scraper = { workspace = true }

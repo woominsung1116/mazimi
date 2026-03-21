@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #eff6ff;
+  --color-primary-muted: #bfdbfe;
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-success-light: #f0fdf4;
+  --color-warning: #d97706;
+  --color-warning-light: #fffbeb;
+  --color-danger: #dc2626;
+  --color-danger-light: #fef2f2;
+
+  /* Surface */
+  --color-background: #f9fafb;
+  --color-bg: #f9fafb;
+  --color-card: #ffffff;
+  --color-border: #f3f4f6;
+  --color-border-strong: #e5e7eb;
+
+  /* Text */
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+
+  /* Radius */
+  --radius-card: 0.75rem;
+  --radius-button: 0.75rem;
+  --radius-badge: 9999px;
+  --radius-input: 0.75rem;
+
+  /* Spacing */
+  --touch-target-min: 3rem; /* 48px min touch target */
+}
+
+/* ── Base ──────────────────────────────────────── */
+html {
+  -webkit-text-size-adjust: 100%;
+  font-feature-settings: "kern" 1;
+}
+
+body {
+  background-color: #f9fafb;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Focus ─────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Selection ─────────────────────────────────── */
+::selection {
+  background-color: #bfdbfe;
+  color: #1e3a8a;
+}
+
+/* ── Scrollbar (Webkit) ────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+
+/* ── Safe area (모바일 노치/홈 인디케이터) ──────── */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0);
+}

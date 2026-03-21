@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+target/
+
+# Build
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.dev
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Docker volumes
+pgdata*/
+redisdata*/
+
+# Misc
+*.log

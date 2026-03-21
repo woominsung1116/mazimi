@@ -1,0 +1,26 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+majimi-core = { path = "../core" }
+majimi-worker = { path = "../worker" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+tower-http = { workspace = true }
+redis = { workspace = true }
+dotenvy = { workspace = true }
+reqwest = { workspace = true }
+jsonwebtoken = "9"
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "마지미",
+    "slug": "majimi",
+    "version": "1.0.0",
+    "owner": "wooms",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "majimi",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/225a8c33-91f4-4993-beb6-1114b74b58fa"
+    },
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0058bc"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "kr.majimi.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0058bc"
+      },
+      "package": "kr.majimi.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "225a8c33-91f4-4993-beb6-1114b74b58fa"
+      },
+      "router": {
+        "origin": false
+      }
+    }
+  }
+}

@@ -1,0 +1,355 @@
+{
+  "agents": [
+    {
+      "agent_id": "a220b2437f08a22c7",
+      "agent_type": "oh-my-claudecode:executor",
+      "started_at": "2026-03-20T13:21:18.949Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T13:22:33.366Z",
+      "duration_ms": 74417
+    },
+    {
+      "agent_id": "a7c7bd63417a2e792",
+      "agent_type": "oh-my-claudecode:executor",
+      "started_at": "2026-03-20T13:21:34.871Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T13:26:08.040Z",
+      "duration_ms": 273169
+    },
+    {
+      "agent_id": "a5e9bbaad4cb831fc",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:40:13.296Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:41:53.215Z",
+      "duration_ms": 99919
+    },
+    {
+      "agent_id": "a476c77b172278d1a",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:40:24.855Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:43:57.793Z",
+      "duration_ms": 212938
+    },
+    {
+      "agent_id": "a1a7aa56b42e281a5",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:40:39.819Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:42:46.642Z",
+      "duration_ms": 126823
+    },
+    {
+      "agent_id": "a357718940720f754",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:40:49.151Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:43:31.234Z",
+      "duration_ms": 162083
+    },
+    {
+      "agent_id": "ab48f52a49dc24d7e",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T15:41:02.949Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:52:57.637Z",
+      "duration_ms": 714688
+    },
+    {
+      "agent_id": "a8524e42f12021dc5",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T15:41:16.878Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:43:54.626Z",
+      "duration_ms": 157748
+    },
+    {
+      "agent_id": "abc3bf7b3f403bd1f",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:41:31.207Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:45:23.933Z",
+      "duration_ms": 232726
+    },
+    {
+      "agent_id": "a27446a506cbbfd6e",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T15:50:41.516Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:55:11.380Z",
+      "duration_ms": 269864
+    },
+    {
+      "agent_id": "a4b42f20748b20f30",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:50:52.751Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:52:49.573Z",
+      "duration_ms": 116822
+    },
+    {
+      "agent_id": "a700247ec58b041c5",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:53:14.894Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:54:19.072Z",
+      "duration_ms": 64178
+    },
+    {
+      "agent_id": "aeeec4376c6ddb3c0",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:54:36.837Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:58:08.027Z",
+      "duration_ms": 211190
+    },
+    {
+      "agent_id": "a8a0cec83cc9fde2f",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:54:48.355Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:59:08.377Z",
+      "duration_ms": 260022
+    },
+    {
+      "agent_id": "a6892ec752e7f9540",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:58:05.927Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:58:50.623Z",
+      "duration_ms": 44696
+    },
+    {
+      "agent_id": "a045f36297c4d937e",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:58:13.960Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T15:59:58.668Z",
+      "duration_ms": 104708
+    },
+    {
+      "agent_id": "a429864855097f662",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:58:23.444Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:01:55.284Z",
+      "duration_ms": 211840
+    },
+    {
+      "agent_id": "a6666a1c6bcb9411c",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T15:58:33.102Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:00:25.285Z",
+      "duration_ms": 112183
+    },
+    {
+      "agent_id": "ace6ad441a3055723",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T15:58:46.125Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:01:06.618Z",
+      "duration_ms": 140493
+    },
+    {
+      "agent_id": "a499589e286aa4e76",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T15:59:00.825Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:02:47.487Z",
+      "duration_ms": 226662
+    },
+    {
+      "agent_id": "ae93b05486273e666",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T15:59:12.738Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:00:33.868Z",
+      "duration_ms": 81130
+    },
+    {
+      "agent_id": "a8aaefd634351ece2",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T16:00:42.991Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:03:10.109Z",
+      "duration_ms": 147118
+    },
+    {
+      "agent_id": "a0ded307b89d4c590",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T16:08:15.574Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:11:37.443Z",
+      "duration_ms": 201869
+    },
+    {
+      "agent_id": "aae6a58ca7a6e7e6b",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T16:10:49.499Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:13:36.690Z",
+      "duration_ms": 167191
+    },
+    {
+      "agent_id": "a61c30d2edd16eb4a",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T16:10:56.432Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:13:43.892Z",
+      "duration_ms": 167460
+    },
+    {
+      "agent_id": "ad9d1c4bb71e6832f",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T16:49:02.356Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:49:47.385Z",
+      "duration_ms": 45029
+    },
+    {
+      "agent_id": "a574d9c247903f644",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T16:49:08.160Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:49:40.364Z",
+      "duration_ms": 32204
+    },
+    {
+      "agent_id": "a025d1ce0cab9d723",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T16:49:21.120Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:52:33.265Z",
+      "duration_ms": 192145
+    },
+    {
+      "agent_id": "aa47759b75650ce85",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-20T16:49:27.955Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:51:02.007Z",
+      "duration_ms": 94052
+    },
+    {
+      "agent_id": "a09ae24cf3d827b26",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-20T16:49:35.910Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-20T16:50:44.958Z",
+      "duration_ms": 69048
+    },
+    {
+      "agent_id": "aac7d9e46c6dbec04",
+      "agent_type": "rust-backend",
+      "started_at": "2026-03-21T00:01:34.444Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T00:03:54.029Z",
+      "duration_ms": 139585
+    },
+    {
+      "agent_id": "a3bd76ee4ca6dbe34",
+      "agent_type": "data-engineer",
+      "started_at": "2026-03-21T00:48:23.688Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T00:50:08.310Z",
+      "duration_ms": 104622
+    },
+    {
+      "agent_id": "a8013a2f15236f7ef",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T00:48:34.751Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T00:50:39.956Z",
+      "duration_ms": 125205
+    },
+    {
+      "agent_id": "ab1a57e905f42adb0",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T00:48:40.753Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T00:50:01.067Z",
+      "duration_ms": 80314
+    },
+    {
+      "agent_id": "a96762aca0d467924",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T00:57:34.691Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T01:01:24.227Z",
+      "duration_ms": 229536
+    },
+    {
+      "agent_id": "abc843c834b501612",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T01:01:56.610Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T01:03:59.862Z",
+      "duration_ms": 123252
+    },
+    {
+      "agent_id": "a5839c560509b6ee9",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T01:06:00.036Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-03-21T01:06:51.993Z",
+      "duration_ms": 51957
+    },
+    {
+      "agent_id": "af81fd35cb0c740ed",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T01:10:00.704Z",
+      "parent_mode": "none",
+      "status": "running"
+    },
+    {
+      "agent_id": "aceaadc554f96b827",
+      "agent_type": "mobile-app-builder",
+      "started_at": "2026-03-21T01:10:20.650Z",
+      "parent_mode": "none",
+      "status": "running"
+    }
+  ],
+  "total_spawned": 39,
+  "total_completed": 37,
+  "total_failed": 0,
+  "last_updated": "2026-03-21T01:10:20.752Z"
+}

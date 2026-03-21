@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>치얼업 - 지원금 상세</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-container": "#4f5f7f",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f8f9fa",
+                        "secondary-container": "#cadaff",
+                        "primary-container": "#0070eb",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#d9dadb",
+                        "on-tertiary-container": "#f3fffc",
+                        "background": "#f8f9fa",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#4b605d",
+                        "surface-container": "#edeeef",
+                        "surface-tint": "#005bc1",
+                        "tertiary-fixed-dim": "#b5cbc7",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#004493",
+                        "on-primary-fixed": "#001a41",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed": "#d0e7e3",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed": "#0a1f1d",
+                        "primary-fixed": "#d8e2ff",
+                        "secondary": "#4e5f7e",
+                        "outline-variant": "#c1c6d7",
+                        "error": "#ba1a1a",
+                        "secondary-fixed": "#d7e2ff",
+                        "on-secondary-fixed-variant": "#374765",
+                        "on-surface-variant": "#414755",
+                        "primary": "#0058bc",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-tertiary-fixed-variant": "#364b48",
+                        "on-error": "#ffffff",
+                        "surface-container-high": "#e7e8e9",
+                        "on-background": "#191c1d",
+                        "on-secondary-fixed": "#081b38",
+                        "on-surface": "#191c1d",
+                        "primary-fixed-dim": "#adc6ff",
+                        "surface-bright": "#f8f9fa",
+                        "inverse-on-surface": "#f0f1f2",
+                        "tertiary-container": "#647976",
+                        "inverse-primary": "#adc6ff",
+                        "outline": "#717786",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#b6c7eb",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary-container": "#fefcff",
+                        "inverse-surface": "#2e3132"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Manrope', sans-serif; }
+        h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- Top Navigation Bar -->
+<header class="bg-white/80 backdrop-blur-xl sticky top-0 z-50 tonal-transition bg-slate-50/50">
+<div class="flex justify-between items-center w-full px-6 py-4 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-on-surface">arrow_back</span>
+</button>
+<span class="text-2xl font-extrabold tracking-tight text-blue-600">치얼업</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-blue-600">notifications</span>
+</button>
+</div>
+</div>
+</header>
+<main class="max-w-xl mx-auto px-6 py-8">
+<!-- Hero Section: Main Title & Summary -->
+<section class="mb-10">
+<div class="flex items-center gap-2 mb-4">
+<span class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">D-14</span>
+<span class="text-on-surface-variant text-sm font-semibold">2024.03.31 까지</span>
+</div>
+<h1 class="text-3xl font-extrabold text-on-surface leading-tight mb-4">
+                2024년 상반기 <br/>
+<span class="text-primary">부산 청년 월세 지원</span>
+</h1>
+<p class="text-on-surface-variant text-lg font-medium leading-relaxed">
+                월 20만원, 최대 12개월 지원
+            </p>
+</section>
+<!-- Bento Grid: Why this matches & Quick Score -->
+<section class="grid grid-cols-1 gap-4 mb-10">
+<!-- Personalized Match Card -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-[0_-8px_32px_rgba(182,199,235,0.06)] relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">stars</span>
+<h2 class="font-bold text-lg text-on-surface">나에게 맞는 이유</h2>
+</div>
+<ul class="space-y-4">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container mt-1">check_circle</span>
+<span class="text-on-surface font-medium">부산광역시에 거주 중인 만 19~34세 청년</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container mt-1">check_circle</span>
+<span class="text-on-surface font-medium">임차보증금 1억원 이하 및 월세 60만원 이하</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container mt-1">check_circle</span>
+<span class="text-on-surface font-medium">기준중위소득 150% 이하 가구</span>
+</li>
+</ul>
+</div>
+</div>
+</section>
+<!-- Eligibility Icons -->
+<section class="bg-surface-container-low rounded-lg p-6 mb-10 flex justify-between items-center text-center">
+<div class="flex-1">
+<span class="material-symbols-outlined text-tertiary-container mb-2 text-3xl">location_on</span>
+<p class="text-xs font-bold text-on-surface-variant">부산광역시</p>
+</div>
+<div class="w-px h-8 bg-outline-variant/30"></div>
+<div class="flex-1">
+<span class="material-symbols-outlined text-tertiary-container mb-2 text-3xl">person_celebrate</span>
+<p class="text-xs font-bold text-on-surface-variant">만 19~34세</p>
+</div>
+<div class="w-px h-8 bg-outline-variant/30"></div>
+<div class="flex-1">
+<span class="material-symbols-outlined text-tertiary-container mb-2 text-3xl">payments</span>
+<p class="text-xs font-bold text-on-surface-variant">중위소득 150%</p>
+</div>
+</section>
+<!-- Step-by-Step Process -->
+<section class="mb-10">
+<h2 class="text-xl font-bold mb-6 text-on-surface">신청 절차</h2>
+<div class="space-y-6 relative">
+<div class="absolute left-6 top-8 bottom-8 w-1 bg-surface-container-highest rounded-full"></div>
+<div class="flex gap-6 relative z-10 items-center">
+<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg shrink-0">1</div>
+<div>
+<h3 class="font-bold text-on-surface">서류 준비</h3>
+<p class="text-sm text-on-surface-variant">필요 서류를 미리 스캔하여 준비하세요.</p>
+</div>
+</div>
+<div class="flex gap-6 relative z-10 items-center">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant font-bold text-lg shrink-0">2</div>
+<div>
+<h3 class="font-bold text-on-surface">온라인 신청</h3>
+<p class="text-sm text-on-surface-variant">부산 청년 플랫폼에서 신청서를 작성합니다.</p>
+</div>
+</div>
+<div class="flex gap-6 relative z-10 items-center">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant font-bold text-lg shrink-0">3</div>
+<div>
+<h3 class="font-bold text-on-surface">심사 대기</h3>
+<p class="text-sm text-on-surface-variant">신청 후 결과까지 약 4주가 소요됩니다.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Checklist -->
+<section class="bg-surface-container-lowest p-8 rounded-xl mb-12">
+<h2 class="text-xl font-bold mb-6 text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">description</span>
+                필요 서류 체크리스트
+            </h2>
+<div class="space-y-3">
+<label class="flex items-center gap-4 p-4 bg-surface rounded-lg cursor-pointer transition-colors hover:bg-surface-container">
+<input class="w-6 h-6 rounded-md border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+<span class="text-on-surface font-semibold">주민등록등본</span>
+</label>
+<label class="flex items-center gap-4 p-4 bg-surface rounded-lg cursor-pointer transition-colors hover:bg-surface-container">
+<input class="w-6 h-6 rounded-md border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+<span class="text-on-surface font-semibold">임대차계약서</span>
+</label>
+<label class="flex items-center gap-4 p-4 bg-surface rounded-lg cursor-pointer transition-colors hover:bg-surface-container">
+<input class="w-6 h-6 rounded-md border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+<span class="text-on-surface font-semibold">소득증명원</span>
+</label>
+</div>
+</section>
+</main>
+<!-- Floating Action Buttons -->
+<div class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl px-6 py-6 flex gap-3 items-center z-50">
+<button class="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-secondary-container text-secondary font-bold rounded-lg hover:bg-secondary-container/10 transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">bookmark</span>
+            스크랩
+        </button>
+<button class="flex-[2] bg-gradient-to-br from-primary to-primary-container text-white py-4 font-bold rounded-lg shadow-lg active:scale-95 transition-all text-center">
+            신청하러 가기
+        </button>
+</div>
+<!-- Background Decoration -->
+<div class="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden">
+<div class="absolute top-[10%] right-[-5%] w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px]"></div>
+<div class="absolute bottom-[20%] left-[-10%] w-[300px] h-[300px] bg-secondary/5 rounded-full blur-[80px]"></div>
+</div>
+</body></html>

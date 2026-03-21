@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "stitch": {
+      "command": "npx",
+      "args": ["@_davideast/stitch-mcp", "proxy"],
+      "env": {
+        "GOOGLE_CLOUD_QUOTA_PROJECT": "gen-lang-client-0357914073",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/Users/woominseong/.config/gcloud/application_default_credentials.json"
+      }
+    }
+  }
+}

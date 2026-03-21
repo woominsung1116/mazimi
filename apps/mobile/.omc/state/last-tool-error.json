@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"npx eas-cli init 2>&1\",\"timeout\":30000,\"description\":\"Initialize EAS project with correct owner\"}",
+  "error": "Exit code 1\nProject does not exist: @wooms/majimi. Use --force flag to create this project.\n    Error: project:init command failed.",
+  "timestamp": "2026-03-21T01:12:34.777Z",
+  "retry_count": 2
+}
