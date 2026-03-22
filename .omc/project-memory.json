@@ -135,14 +135,14 @@
   "hotPaths": [
     {
       "path": "",
-      "accessCount": 68,
-      "lastAccessed": 1774027641025,
+      "accessCount": 69,
+      "lastAccessed": 1774058033782,
       "type": "directory"
     },
     {
       "path": "crates/core/src/models.rs",
-      "accessCount": 19,
-      "lastAccessed": 1774026964151,
+      "accessCount": 20,
+      "lastAccessed": 1774058135487,
       "type": "file"
     },
     {
@@ -188,6 +188,12 @@
       "type": "file"
     },
     {
+      "path": "crates/core/src/config.rs",
+      "accessCount": 14,
+      "lastAccessed": 1774058005869,
+      "type": "file"
+    },
+    {
       "path": "apps/web/src/app/onboarding/page.tsx",
       "accessCount": 13,
       "lastAccessed": 1774012148251,
@@ -203,12 +209,6 @@
       "path": "apps/web/src/components/RecommendationCard.tsx",
       "accessCount": 13,
       "lastAccessed": 1774018305053,
-      "type": "file"
-    },
-    {
-      "path": "crates/core/src/config.rs",
-      "accessCount": 13,
-      "lastAccessed": 1774053723818,
       "type": "file"
     },
     {
@@ -230,6 +230,12 @@
       "type": "file"
     },
     {
+      "path": "crates/api/src/routes/mod.rs",
+      "accessCount": 12,
+      "lastAccessed": 1774058229061,
+      "type": "file"
+    },
+    {
       "path": "apps/web/src/app/globals.css",
       "accessCount": 11,
       "lastAccessed": 1774017537637,
@@ -245,12 +251,6 @@
       "path": "apps/web/src/lib/api.ts",
       "accessCount": 10,
       "lastAccessed": 1774012147516,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/routes/mod.rs",
-      "accessCount": 9,
-      "lastAccessed": 1774020369864,
       "type": "file"
     },
     {
@@ -356,6 +356,12 @@
       "type": "file"
     },
     {
+      "path": "crates/api/src/routes/my.rs",
+      "accessCount": 4,
+      "lastAccessed": 1774058043096,
+      "type": "file"
+    },
+    {
       "path": ".claude/agents/ui-designer.md",
       "accessCount": 3,
       "lastAccessed": 1774010324085,
@@ -365,12 +371,6 @@
       "path": ".claude/agents/data-engineer.md",
       "accessCount": 3,
       "lastAccessed": 1774010326370,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/routes/my.rs",
-      "accessCount": 3,
-      "lastAccessed": 1774010604429,
       "type": "file"
     },
     {

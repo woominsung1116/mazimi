@@ -12,7 +12,7 @@
  * Data source: api.getProgram(id) → GET /api/v1/programs/:id
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,16 +24,17 @@ import {
   Platform,
   Pressable,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   api,
-  USER_ID,
   formatBenefit,
   type ApiProgram,
   type ApplicationStatus,
+  type ProfileInput,
 } from "@/lib/api";
 import {
   colors,
@@ -43,6 +44,7 @@ import {
   shadows,
   layout,
 } from "@/constants/theme";
+import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -477,6 +479,9 @@ function AiSummaryCard({ program }: { program: ApiProgram }) {
 // Pre-check Diagnosis card
 // ---------------------------------------------------------------------------
 
+/** AsyncStorage key for the document vault */
+const DOCUMENT_VAULT_KEY = "document_vault_v1";
+
 /** Prep time (days) per document keyword — used for deadline analysis. */
 const DOC_PREP_DAYS: Record<string, number> = {
   "재학증명서": 3,
@@ -499,43 +504,132 @@ interface ConditionItem {
   status: "ok" | "warn" | "fail";
 }
 
+interface UserProfile {
+  region: string;
+  age: string;
+  enrollmentStatus: string;
+  employmentStatus: string;
+  incomeBracket: number | null;
+}
+
 interface PreCheckCardProps {
   program: ApiProgram;
   docChecked: Record<string, boolean>;
+  onDocToggle: (id: string) => void;
+  matchScore: number | null;
+  matchScoreLoading: boolean;
+  vaultDocIds: Set<string>;
 }
 
-function buildConditions(program: ApiProgram): ConditionItem[] {
+/**
+ * Build eligibility conditions by comparing the program's requirements
+ * against the user's real profile data from the onboarding store.
+ */
+function buildConditions(program: ApiProgram, user: UserProfile): ConditionItem[] {
   const items: ConditionItem[] = [];
 
-  // Region condition
-  const region = regionLabel(program.region_scope, program.regions);
-  items.push({ label: `${region} 거주`, status: "ok" });
+  // ── Region ──
+  const programRegions: string[] = program.regions ?? [];
+  const isNational =
+    !programRegions.length ||
+    programRegions.includes("national") ||
+    String(program.region_scope) === "national";
 
-  // Age condition
-  if (program.min_age !== null || program.max_age !== null) {
-    const min = program.min_age ?? 19;
-    const max = program.max_age ?? 39;
-    items.push({ label: `만 ${min}세 ~ ${max}세`, status: "ok" });
+  if (isNational) {
+    items.push({ label: "거주지: 전국 가능", status: "ok" });
+  } else if (user.region) {
+    const userRegionKey = user.region.toLowerCase().replace(/\s/g, "");
+    const match = programRegions.some((r) => {
+      const regionMap: Record<string, string[]> = {
+        seoul: ["서울", "seoul"],
+        busan: ["부산", "busan"],
+        daegu: ["대구", "daegu"],
+        incheon: ["인천", "incheon"],
+        gwangju: ["광주", "gwangju"],
+        daejeon: ["대전", "daejeon"],
+        ulsan: ["울산", "ulsan"],
+        sejong: ["세종", "sejong"],
+        gyeonggi: ["경기", "gyeonggi"],
+      };
+      const aliases = regionMap[r] ?? [r];
+      return aliases.some((alias) => userRegionKey.includes(alias.toLowerCase()));
+    });
+    const regionDisplay = regionLabel(program.region_scope, program.regions);
+    if (match) {
+      items.push({ label: `거주지: ${regionDisplay} 거주 확인`, status: "ok" });
+    } else {
+      items.push({ label: `거주지: ${regionDisplay} 거주자 대상 (현재 ${user.region})`, status: "fail" });
+    }
+  } else {
+    const regionDisplay = regionLabel(program.region_scope, program.regions);
+    items.push({ label: `거주지: ${regionDisplay} 거주 — 미입력`, status: "warn" });
   }
 
-  // Enrollment / program type condition
+  // ── Age ──
+  if (program.min_age !== null || program.max_age !== null) {
+    const min = program.min_age ?? 0;
+    const max = program.max_age ?? 999;
+    const userAge = parseInt(user.age, 10);
+    if (user.age && !isNaN(userAge)) {
+      const inRange = userAge >= min && userAge <= max;
+      if (inRange) {
+        items.push({ label: `나이: 만 ${min}~${max}세 조건 충족 (현재 ${userAge}세)`, status: "ok" });
+      } else {
+        items.push({ label: `나이: 만 ${min}~${max}세 대상 (현재 ${userAge}세)`, status: "fail" });
+      }
+    } else {
+      items.push({ label: `나이: 만 ${min}세 ~ ${max}세 — 미입력`, status: "warn" });
+    }
+  }
+
+  // ── Enrollment ──
   if (
     program.program_type === "scholarship" ||
     program.program_type === "welfare"
   ) {
-    items.push({ label: "대학 재학", status: "ok" });
+    const enrolled = user.enrollmentStatus;
+    if (!enrolled) {
+      items.push({ label: "재학 여부: 미입력 — 확인 필요", status: "warn" });
+    } else if (
+      enrolled === "enrolled" ||
+      enrolled === "재학중" ||
+      enrolled === "university"
+    ) {
+      items.push({ label: "재학 여부: 대학 재학 확인", status: "ok" });
+    } else {
+      items.push({ label: `재학 여부: 재학 조건 (현재 ${enrolled})`, status: "warn" });
+    }
   }
 
-  // Income — always unknown without profile
-  items.push({ label: "소득 구간 미입력 — 확인하면 가능성 올라가요", status: "warn" });
+  // ── Income ──
+  if (user.incomeBracket !== null && user.incomeBracket !== undefined) {
+    items.push({ label: `소득 구간: ${user.incomeBracket}분위 입력됨`, status: "ok" });
+  } else {
+    items.push({ label: "소득 구간 미입력 — 입력하면 적합도가 올라가요", status: "warn" });
+  }
 
   return items;
 }
 
-function PreCheckCard({ program, docChecked }: PreCheckCardProps) {
+function PreCheckCard({
+  program,
+  docChecked,
+  onDocToggle,
+  matchScore,
+  matchScoreLoading,
+  vaultDocIds,
+}: PreCheckCardProps) {
   const [expanded, setExpanded] = useState(true);
 
-  const conditions = useMemo(() => buildConditions(program), [program]);
+  // Read user profile from onboarding store
+  const { region, age, enrollmentStatus, employmentStatus, incomeBracket } =
+    useOnboardingStore();
+  const userProfile: UserProfile = { region, age, enrollmentStatus, employmentStatus, incomeBracket };
+
+  const conditions = useMemo(
+    () => buildConditions(program, userProfile),
+    [program, region, age, enrollmentStatus, employmentStatus, incomeBracket]
+  );
   const conditionsMet = conditions.filter((c) => c.status === "ok").length;
   const conditionsTotal = conditions.length;
 
@@ -551,17 +645,35 @@ function PreCheckCard({ program, docChecked }: PreCheckCardProps) {
     : null;
 
   const unpreparedDocs = docs.filter((d) => !docChecked[d.id]);
+  const totalPrepDays = unpreparedDocs.reduce(
+    (sum, d) => sum + getDocPrepDays(d.document_name),
+    0
+  );
   const maxPrepDays = unpreparedDocs.reduce(
     (max, d) => Math.max(max, getDocPrepDays(d.document_name)),
     0
   );
-  const longPrepDocs = unpreparedDocs.filter(
+  // Docs that need 2+ days and are not yet checked — flag specifically
+  const urgentDocs = unpreparedDocs.filter(
     (d) => getDocPrepDays(d.document_name) >= 2
   );
 
   let timeStatus: "ok" | "warn" | "na" = "na";
-  if (daysToDeadline !== null) {
-    timeStatus = daysToDeadline > maxPrepDays + 1 ? "ok" : "warn";
+  let timeWarningDetail: string | null = null;
+  if (daysToDeadline !== null && daysToDeadline > 0) {
+    if (daysToDeadline > totalPrepDays + 1) {
+      timeStatus = "ok";
+    } else {
+      timeStatus = "warn";
+      // Build specific warning: list the bottleneck document
+      if (urgentDocs.length > 0) {
+        const bottleneck = urgentDocs[0];
+        const prepDays = getDocPrepDays(bottleneck.document_name);
+        timeWarningDetail = `${bottleneck.document_name} 발급에 ${prepDays}일 필요, 마감까지 ${daysToDeadline}일`;
+      } else {
+        timeWarningDetail = `서류 준비 ${totalPrepDays}일 필요, 마감까지 ${daysToDeadline}일`;
+      }
+    }
   }
 
   // Overall verdict
@@ -622,21 +734,38 @@ function PreCheckCard({ program, docChecked }: PreCheckCardProps) {
             신청 사전진단
           </Text>
         </View>
-        <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={16}
-          color={vc.textColor}
-        />
+        <View style={styles.preCheckHeaderRight}>
+          {/* Match score badge */}
+          {matchScoreLoading ? (
+            <ActivityIndicator size="small" color={vc.textColor} style={{ marginRight: spacing[2] }} />
+          ) : matchScore !== null ? (
+            <View style={[styles.matchScoreBadge, { backgroundColor: vc.iconColor }]}>
+              <Text style={styles.matchScoreBadgeText}>{matchScore}% 일치</Text>
+            </View>
+          ) : null}
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={vc.textColor}
+          />
+        </View>
       </TouchableOpacity>
 
       {expanded && (
         <View style={styles.preCheckBody}>
-          {/* Overall verdict */}
+          {/* Overall verdict row with match score */}
           <View style={styles.preCheckVerdictRow}>
             <Ionicons name={vc.icon as any} size={22} color={vc.iconColor} />
-            <Text style={[styles.preCheckVerdictLabel, { color: vc.textColor }]}>
-              종합 판정: {vc.label}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.preCheckVerdictLabel, { color: vc.textColor }]}>
+                종합 판정: {vc.label}
+              </Text>
+              {matchScore !== null && (
+                <Text style={[styles.preCheckMatchSubtext, { color: vc.textColor }]}>
+                  룰엔진 매칭 점수 {matchScore}점 / 100
+                </Text>
+              )}
+            </View>
           </View>
 
           <View style={styles.preCheckDivider} />
@@ -676,7 +805,7 @@ function PreCheckCard({ program, docChecked }: PreCheckCardProps) {
 
           <View style={styles.preCheckDivider} />
 
-          {/* Section 2: Documents */}
+          {/* Section 2: Documents — interactive checklist with vault badges */}
           <View style={styles.preCheckSection}>
             <View style={styles.preCheckSectionHeader}>
               <Text style={styles.preCheckSectionTitle}>서류 준비</Text>
@@ -701,33 +830,43 @@ function PreCheckCard({ program, docChecked }: PreCheckCardProps) {
                 ]}
               />
             </View>
-            {/* Long-prep warnings */}
-            {longPrepDocs.map((d) => (
-              <View key={d.id} style={styles.preCheckItemRow}>
-                <Ionicons
-                  name="warning"
-                  size={15}
-                  color="#d97706"
-                  style={styles.preCheckItemIcon}
-                />
-                <Text style={styles.preCheckItemText}>
-                  {d.document_name} ({getDocPrepDays(d.document_name)}-{getDocPrepDays(d.document_name) + 1}일 소요)
-                </Text>
-              </View>
-            ))}
-            {longPrepDocs.length === 0 && docsMet < docsTotal && (
-              <View style={styles.preCheckItemRow}>
-                <Ionicons
-                  name="document-outline"
-                  size={15}
-                  color={colors.onSurfaceVariant}
-                  style={styles.preCheckItemIcon}
-                />
-                <Text style={styles.preCheckItemText}>
-                  미준비 서류 {docsTotal - docsMet}건
-                </Text>
-              </View>
-            )}
+            {/* Document rows — tappable checkboxes */}
+            {docs.map((d) => {
+              const isChecked = docChecked[d.id] ?? false;
+              const fromVault = vaultDocIds.has(d.id) || vaultDocIds.has(d.document_name);
+              return (
+                <Pressable
+                  key={d.id}
+                  style={styles.preCheckDocRow}
+                  onPress={() => onDocToggle(d.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isChecked }}
+                  accessibilityLabel={d.document_name}
+                >
+                  <View style={[styles.preCheckCheckbox, isChecked && styles.preCheckCheckboxChecked]}>
+                    {isChecked && <Ionicons name="checkmark" size={11} color="#fff" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.preCheckDocTitleRow}>
+                      <Text style={[styles.preCheckDocName, isChecked && styles.preCheckDocNameChecked]}>
+                        {d.document_name}
+                      </Text>
+                      {fromVault && (
+                        <View style={styles.vaultBadge}>
+                          <Ionicons name="folder-open-outline" size={10} color="#2563eb" />
+                          <Text style={styles.vaultBadgeText}>보관함에서 가져옴</Text>
+                        </View>
+                      )}
+                    </View>
+                    {!isChecked && getDocPrepDays(d.document_name) >= 2 && (
+                      <Text style={styles.preCheckDocPrepHint}>
+                        발급 {getDocPrepDays(d.document_name)}~{getDocPrepDays(d.document_name) + 1}일 소요
+                      </Text>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
             {docsMet >= docsTotal && (
               <View style={styles.preCheckItemRow}>
                 <Ionicons
@@ -776,20 +915,32 @@ function PreCheckCard({ program, docChecked }: PreCheckCardProps) {
                     style={styles.preCheckItemIcon}
                   />
                   <Text style={styles.preCheckItemText}>
-                    마감까지 {daysToDeadline}일 / 준비 예상 {maxPrepDays}일
+                    마감까지 {daysToDeadline}일 / 서류 준비 예상 {totalPrepDays}일
                   </Text>
                 </View>
-                <View style={styles.preCheckItemRow}>
-                  <Ionicons
-                    name={timeStatus === "ok" ? "checkmark-circle" : "warning"}
-                    size={15}
-                    color={timeStatus === "ok" ? "#16a34a" : "#d97706"}
-                    style={styles.preCheckItemIcon}
-                  />
-                  <Text style={styles.preCheckItemText}>
-                    {timeStatus === "ok" ? "시간 여유 있음" : "시간 부족 위험"}
-                  </Text>
-                </View>
+                {timeWarningDetail ? (
+                  <View style={styles.preCheckItemRow}>
+                    <Ionicons
+                      name="warning"
+                      size={15}
+                      color="#d97706"
+                      style={styles.preCheckItemIcon}
+                    />
+                    <Text style={[styles.preCheckItemText, { color: "#d97706" }]}>
+                      {timeWarningDetail}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.preCheckItemRow}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={15}
+                      color="#16a34a"
+                      style={styles.preCheckItemIcon}
+                    />
+                    <Text style={styles.preCheckItemText}>시간 여유 있음</Text>
+                  </View>
+                )}
               </>
             )}
           </View>
@@ -927,12 +1078,44 @@ export default function ProgramDetailScreen() {
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("support");
 
-  // Document checked state — lifted so PreCheckCard can read it
+  // Document vault: IDs or names of documents the user already has
+  const [vaultDocIds, setVaultDocIds] = useState<Set<string>>(new Set());
+
+  // Document checked state — initialized with vault contents, then user-editable
   const [docChecked, setDocChecked] = useState<Record<string, boolean>>(
     () => Object.fromEntries(DEFAULT_DOCUMENTS.map((d) => [d.id, false]))
   );
-  const handleDocToggle = (id: string) =>
-    setDocChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleDocToggle = (docId: string) =>
+    setDocChecked((prev) => ({ ...prev, [docId]: !prev[docId] }));
+
+  // Load document vault from AsyncStorage and auto-check matching docs
+  useEffect(() => {
+    AsyncStorage.getItem(DOCUMENT_VAULT_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const vault: Record<string, boolean> = JSON.parse(raw);
+        const vaultSet = new Set(Object.keys(vault).filter((k) => vault[k]));
+        setVaultDocIds(vaultSet);
+
+        // Auto-check any DEFAULT_DOCUMENTS whose id or name is in the vault
+        setDocChecked((prev) => {
+          const next = { ...prev };
+          for (const doc of DEFAULT_DOCUMENTS) {
+            if (vaultSet.has(doc.id) || vaultSet.has(doc.document_name)) {
+              next[doc.id] = true;
+            }
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        // Vault not available — proceed with all unchecked
+      });
+  }, []);
+
+  // User profile from onboarding store — used to build the ProfileInput for match score
+  const { region, age, enrollmentStatus, employmentStatus, incomeBracket } =
+    useOnboardingStore();
 
   // Fetch program detail
   const { data: program, isLoading, error } = useQuery({
@@ -944,10 +1127,40 @@ export default function ProgramDetailScreen() {
     retry: 1,
   });
 
+  // Build ProfileInput from onboarding store for the match-score request
+  const profileInput: ProfileInput | null = useMemo(() => {
+    const birthYear = getBirthYear(age);
+    if (!birthYear) return null;
+    return {
+      birth_year: birthYear,
+      region_code: region || "national",
+      enrollment_status: enrollmentStatus || null,
+      employment_status: employmentStatus || null,
+      income_bracket: incomeBracket,
+    };
+  }, [region, age, enrollmentStatus, employmentStatus, incomeBracket]);
+
+  // Fetch match score via getRecommendPreview — extract the score for this program
+  const { data: matchScoreData, isLoading: matchScoreLoading } = useQuery({
+    queryKey: ["matchScore", id, profileInput],
+    queryFn: async (): Promise<number | null> => {
+      if (!profileInput || !id) return null;
+      const result = await api.getRecommendPreview(profileInput);
+      const item = result.items.find((i) => i.program_id === id);
+      return item?.match_score ?? null;
+    },
+    enabled: !!id && !!profileInput,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
+  });
+
+  const matchScore: number | null = matchScoreData ?? null;
+
   // Fetch current application status (null = not tracked yet)
   const { data: applicationDetail } = useQuery({
-    queryKey: ["applicationStatus", id, USER_ID],
-    queryFn: () => api.getApplicationStatus(USER_ID, id!),
+    queryKey: ["applicationStatus", id],
+    queryFn: () => api.getApplicationStatus(id!),
     enabled: !!id,
     staleTime: 2 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
@@ -960,9 +1173,9 @@ export default function ProgramDetailScreen() {
   // Mutation to update status
   const { mutate: updateStatus, isPending: isUpdating } = useMutation({
     mutationFn: (nextStatus: ApplicationStatus) =>
-      api.updateApplicationStatus(USER_ID, id!, nextStatus),
+      api.updateApplicationStatus(id!, nextStatus),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applicationStatus", id, USER_ID] });
+      queryClient.invalidateQueries({ queryKey: ["applicationStatus", id] });
     },
   });
 
@@ -987,14 +1200,14 @@ export default function ProgramDetailScreen() {
     program.application_end_at,
     program.program_status
   );
-  const region = regionLabel(program.region_scope, program.regions);
+  const programRegionLabel = regionLabel(program.region_scope, program.regions);
   const bottomBarHeight = 80 + (insets.bottom > 0 ? insets.bottom : spacing[4]);
 
   async function handleBookmark() {
     if (bookmarkLoading) return;
     setBookmarkLoading(true);
     try {
-      const result = await api.toggleBookmark(program!.id, USER_ID);
+      const result = await api.toggleBookmark(program!.id);
       setBookmarked(result.bookmarked);
     } catch {
       setBookmarked((v) => !v);
@@ -1008,7 +1221,7 @@ export default function ProgramDetailScreen() {
   }
 
   function handleApply() {
-    if (program?.official_url) Linking.openURL(program.official_url);
+    router.push(`/apply-assistant?programId=${program!.id}`);
   }
 
   function handleAutoFill() {
@@ -1068,7 +1281,7 @@ export default function ProgramDetailScreen() {
 
           {/* Info table */}
           <View style={styles.infoTable}>
-            <InfoTableRow label="지역" value={region} />
+            <InfoTableRow label="지역" value={programRegionLabel} />
             <View style={styles.infoRowDivider} />
 
             {program.summary ? (
@@ -1112,7 +1325,14 @@ export default function ProgramDetailScreen() {
 
         {/* ── Pre-check Diagnosis ── */}
         <View style={styles.sectionPad}>
-          <PreCheckCard program={program} docChecked={docChecked} />
+          <PreCheckCard
+            program={program}
+            docChecked={docChecked}
+            onDocToggle={handleDocToggle}
+            matchScore={matchScore}
+            matchScoreLoading={matchScoreLoading}
+            vaultDocIds={vaultDocIds}
+          />
         </View>
 
         {/* Gray strip */}
@@ -1189,11 +1409,10 @@ export default function ProgramDetailScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.applyBtn, !program.official_url && styles.btnDisabled]}
+            style={styles.applyBtn}
             onPress={handleApply}
             activeOpacity={0.85}
-            disabled={!program.official_url}
-            accessibilityRole="link"
+            accessibilityRole="button"
             accessibilityLabel="바로 신청하기"
           >
             <Text style={styles.applyBtnText}>바로 신청하기</Text>
@@ -1564,6 +1783,86 @@ const styles = StyleSheet.create({
   preCheckProgressFill: {
     height: "100%",
     borderRadius: borderRadius.full,
+  },
+  preCheckHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+  },
+  matchScoreBadge: {
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  matchScoreBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: "#fff",
+  },
+  preCheckMatchSubtext: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.regular,
+    opacity: 0.75,
+    marginTop: 2,
+  },
+  preCheckDocRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing[2],
+    paddingVertical: spacing[2],
+    minHeight: layout.touchTargetMin,
+  },
+  preCheckCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.sm,
+    borderWidth: 2,
+    borderColor: colors.outlineVariant,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceContainerLowest,
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  preCheckCheckboxChecked: {
+    backgroundColor: "#16a34a",
+    borderColor: "#16a34a",
+  },
+  preCheckDocTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing[2],
+  },
+  preCheckDocName: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.onSurface,
+  },
+  preCheckDocNameChecked: {
+    color: "#16a34a",
+    textDecorationLine: "line-through",
+    opacity: 0.75,
+  },
+  preCheckDocPrepHint: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.regular,
+    color: "#d97706",
+    marginTop: 2,
+  },
+  vaultBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    backgroundColor: "#dbeafe",
+  },
+  vaultBadgeText: {
+    fontSize: 10,
+    fontWeight: typography.fontWeight.semibold,
+    color: "#2563eb",
   },
 
   // ── Tab navigation ──

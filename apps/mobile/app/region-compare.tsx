@@ -1,16 +1,22 @@
 /**
- * 지역 이동 비교 (Region Hop Comparison)
+ * 조건 시뮬레이터 (What-If Simulator)
  *
- * Shows how benefits change when a user moves between cities.
- * Compares programs available in the current region vs a target region,
- * highlighting what is gained, lost, or kept.
+ * Lets users change any profile condition (region, enrollment status,
+ * employment status, age, income bracket) and see how benefits change.
  *
- * TODO(API): Replace MOCK_REGION_PROGRAMS with real endpoint.
- *   Suggested: GET /api/v1/programs/region-compare?from=<regionCode>&to=<regionCode>
- *   Should return { from: Program[], to: Program[], both: Program[] }
+ * Architecture:
+ *  - "current" profile comes from useOnboardingStore
+ *  - "simulated" profile is a local override state layered on top
+ *  - Both profiles are fed to api.getRecommendPreview() with separate query keys
+ *  - Gain / lose / keep classification is derived by diffing the two result sets
+ *    by program_id
+ *  - Region section retains the existing chip-based region selector (backward compat)
+ *
+ * Fallback: if the recommendation API is unavailable, the region-program mock
+ * data set is used (same as before) so the screen is always useful offline.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -21,8 +27,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
-import { useOnboardingStore } from "../store/onboarding";
+import { useOnboardingStore, getBirthYear } from "../store/onboarding";
+import { api, type ProfileInput, type RecommendationItem } from "../lib/api";
+import OfflineBanner from "../components/OfflineBanner";
 import {
   borderRadius,
   colors,
@@ -34,30 +43,7 @@ import {
 } from "../constants/theme";
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface RegionProgram {
-  id: string;
-  title: string;
-  provider: string;
-  type: "scholarship" | "support" | "welfare";
-  /** Monthly benefit in KRW. null if non-recurring. */
-  benefit_monthly: number | null;
-  /** One-time or semester benefit in KRW. null if not applicable. */
-  benefit_other: number | null;
-  regions: string[];
-}
-
-type BenefitCategory = "lose" | "gain" | "keep";
-
-interface ClassifiedProgram {
-  program: RegionProgram;
-  category: BenefitCategory;
-}
-
-// ---------------------------------------------------------------------------
-// Constants
+// Constants / option sets
 // ---------------------------------------------------------------------------
 
 export const REGION_OPTIONS = [
@@ -72,10 +58,6 @@ export const REGION_OPTIONS = [
 
 type RegionValue = (typeof REGION_OPTIONS)[number]["value"];
 
-/**
- * Maps onboarding region strings (Korean labels) to RegionValue codes.
- * TODO(API): Remove once onboarding stores region codes directly.
- */
 const LABEL_TO_CODE: Record<string, RegionValue> = {
   서울: "seoul",
   부산: "busan",
@@ -86,235 +68,136 @@ const LABEL_TO_CODE: Record<string, RegionValue> = {
   전국: "national",
 };
 
+const ENROLLMENT_OPTIONS = [
+  { label: "재학", value: "enrolled" },
+  { label: "휴학", value: "leave_of_absence" },
+  { label: "졸업", value: "graduated" },
+  { label: "해당없음", value: "none" },
+] as const;
+
+const EMPLOYMENT_OPTIONS = [
+  { label: "미취업", value: "unemployed" },
+  { label: "재직", value: "employed" },
+  { label: "프리랜서", value: "freelancer" },
+] as const;
+
+const INCOME_OPTIONS = [
+  { label: "미입력", value: null },
+  { label: "3분위", value: 3 },
+  { label: "5분위", value: 5 },
+  { label: "8분위", value: 8 },
+] as const;
+
+// Age delta presets — applied on top of current age
+const AGE_OPTIONS = [
+  { label: "현재", value: 0 },
+  { label: "+1년", value: 1 },
+  { label: "+2년", value: 2 },
+  { label: "+3년", value: 3 },
+  { label: "+5년", value: 5 },
+] as const satisfies readonly { label: string; value: number }[];
+
 // ---------------------------------------------------------------------------
-// Mock data
-// TODO(API): Replace with real API call to GET /api/v1/programs/region-compare
+// Scenario presets
 // ---------------------------------------------------------------------------
 
-const MOCK_REGION_PROGRAMS: RegionProgram[] = [
-  // National — available everywhere
-  {
-    id: "nat-1",
-    title: "국가장학금 I유형",
-    provider: "한국장학재단",
-    type: "scholarship",
-    benefit_monthly: null,
-    benefit_other: 3500000,
-    regions: ["national", "seoul", "busan", "daegu", "incheon", "daejeon", "gwangju"],
-  },
-  {
-    id: "nat-2",
-    title: "청년 주거급여 분리지급",
-    provider: "국토교통부",
-    type: "welfare",
-    benefit_monthly: 330000,
-    benefit_other: null,
-    regions: ["national", "seoul", "busan", "daegu", "incheon", "daejeon", "gwangju"],
-  },
-  {
-    id: "nat-3",
-    title: "청년 내일채움공제",
-    provider: "고용노동부",
-    type: "support",
-    benefit_monthly: null,
-    benefit_other: 4000000,
-    regions: ["national", "seoul", "busan", "daegu", "incheon", "daejeon", "gwangju"],
-  },
+interface Scenario {
+  label: string;
+  description: string;
+  overrides: Partial<SimOverrides>;
+}
 
-  // Seoul-specific
+const SCENARIOS: Scenario[] = [
   {
-    id: "sel-1",
-    title: "서울 청년 월세 지원",
-    provider: "서울특별시",
-    type: "welfare",
-    benefit_monthly: 200000,
-    benefit_other: null,
-    regions: ["seoul"],
+    label: "졸업하면?",
+    description: "학적: 재학 → 졸업",
+    overrides: { enrollmentStatus: "graduated" },
   },
   {
-    id: "sel-2",
-    title: "서울장학재단 장학금",
-    provider: "서울장학재단",
-    type: "scholarship",
-    benefit_monthly: null,
-    benefit_other: 2000000,
-    regions: ["seoul"],
+    label: "취업하면?",
+    description: "취업: 미취업 → 재직",
+    overrides: { employmentStatus: "employed" },
   },
   {
-    id: "sel-3",
-    title: "서울 청년 교통비 지원",
-    provider: "서울특별시",
-    type: "support",
-    benefit_monthly: 60000,
-    benefit_other: null,
-    regions: ["seoul"],
-  },
-
-  // Busan-specific
-  {
-    id: "bus-1",
-    title: "부산 청년 월세 지원",
-    provider: "부산광역시",
-    type: "welfare",
-    benefit_monthly: 180000,
-    benefit_other: null,
-    regions: ["busan"],
+    label: "서울로 이사하면?",
+    description: "지역: 현재 → 서울",
+    overrides: { regionCode: "seoul" },
   },
   {
-    id: "bus-2",
-    title: "부산 청년 창업 지원금",
-    provider: "부산광역시",
-    type: "support",
-    benefit_monthly: null,
-    benefit_other: 5000000,
-    regions: ["busan"],
+    label: "대구로 이사하면?",
+    description: "지역: 현재 → 대구",
+    overrides: { regionCode: "daegu" },
   },
   {
-    id: "bus-3",
-    title: "부산인재평생교육진흥원 장학금",
-    provider: "부산인재평생교육진흥원",
-    type: "scholarship",
-    benefit_monthly: null,
-    benefit_other: 1500000,
-    regions: ["busan"],
-  },
-
-  // Daegu-specific
-  {
-    id: "dgu-1",
-    title: "대구 청년 행복주택 지원",
-    provider: "대구광역시",
-    type: "welfare",
-    benefit_monthly: 150000,
-    benefit_other: null,
-    regions: ["daegu"],
-  },
-  {
-    id: "dgu-2",
-    title: "대구 청년 일자리 장려금",
-    provider: "대구광역시",
-    type: "support",
-    benefit_monthly: null,
-    benefit_other: 2400000,
-    regions: ["daegu"],
-  },
-
-  // Incheon-specific
-  {
-    id: "ich-1",
-    title: "인천 청년 보증금 지원",
-    provider: "인천광역시",
-    type: "welfare",
-    benefit_monthly: null,
-    benefit_other: 3000000,
-    regions: ["incheon"],
-  },
-  {
-    id: "ich-2",
-    title: "인천 청년 교통비 지원",
-    provider: "인천광역시",
-    type: "support",
-    benefit_monthly: 50000,
-    benefit_other: null,
-    regions: ["incheon"],
-  },
-
-  // Daejeon-specific
-  {
-    id: "djo-1",
-    title: "대전 청년 월세 지원",
-    provider: "대전광역시",
-    type: "welfare",
-    benefit_monthly: 160000,
-    benefit_other: null,
-    regions: ["daejeon"],
-  },
-  {
-    id: "djo-2",
-    title: "대전 청년 창업 바우처",
-    provider: "대전광역시",
-    type: "support",
-    benefit_monthly: null,
-    benefit_other: 3000000,
-    regions: ["daejeon"],
-  },
-
-  // Gwangju-specific
-  {
-    id: "gwj-1",
-    title: "광주 청년 드림 장학금",
-    provider: "광주광역시",
-    type: "scholarship",
-    benefit_monthly: null,
-    benefit_other: 2000000,
-    regions: ["gwangju"],
-  },
-  {
-    id: "gwj-2",
-    title: "광주 청년 생활비 지원",
-    provider: "광주광역시",
-    type: "welfare",
-    benefit_monthly: 200000,
-    benefit_other: null,
-    regions: ["gwangju"],
+    label: "소득이 생기면?",
+    description: "소득: 미입력 → 5분위",
+    overrides: { incomeBracket: 5 },
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Data logic
+// Sim override type (all optional — only changed fields)
 // ---------------------------------------------------------------------------
 
-function getProgramsForRegion(regionCode: RegionValue): RegionProgram[] {
-  // A program is available in a region if its regions array contains that code
-  // OR contains "national".
-  return MOCK_REGION_PROGRAMS.filter(
-    (p) =>
-      p.regions.includes(regionCode) || p.regions.includes("national")
-  );
+interface SimOverrides {
+  regionCode: RegionValue | null;
+  enrollmentStatus: string | null;
+  employmentStatus: string | null;
+  ageDelta: number;
+  incomeBracket: number | null;
 }
 
-function classifyPrograms(
-  fromCode: RegionValue,
-  toCode: RegionValue
-): ClassifiedProgram[] {
-  const fromPrograms = getProgramsForRegion(fromCode);
-  const toPrograms = getProgramsForRegion(toCode);
+const DEFAULT_OVERRIDES: SimOverrides = {
+  regionCode: null,
+  enrollmentStatus: null,
+  employmentStatus: null,
+  ageDelta: 0,
+  incomeBracket: null,
+};
 
-  const toIds = new Set(toPrograms.map((p) => p.id));
-  const fromIds = new Set(fromPrograms.map((p) => p.id));
+// ---------------------------------------------------------------------------
+// Benefit change classification
+// ---------------------------------------------------------------------------
 
-  const result: ClassifiedProgram[] = [];
+type BenefitCategory = "lose" | "gain" | "keep";
 
-  // Programs only in fromRegion (will lose)
-  for (const p of fromPrograms) {
-    if (!toIds.has(p.id)) {
-      result.push({ program: p, category: "lose" });
+interface ClassifiedItem {
+  item: RecommendationItem;
+  category: BenefitCategory;
+}
+
+function classifyItems(
+  currentItems: RecommendationItem[],
+  simItems: RecommendationItem[]
+): ClassifiedItem[] {
+  const simIds = new Set(simItems.map((i) => i.program_id));
+  const currentIds = new Set(currentItems.map((i) => i.program_id));
+  const result: ClassifiedItem[] = [];
+
+  for (const item of currentItems) {
+    if (!simIds.has(item.program_id)) {
+      result.push({ item, category: "lose" });
     }
   }
-
-  // Programs only in toRegion (will gain)
-  for (const p of toPrograms) {
-    if (!fromIds.has(p.id)) {
-      result.push({ program: p, category: "gain" });
+  for (const item of simItems) {
+    if (!currentIds.has(item.program_id)) {
+      result.push({ item, category: "gain" });
     }
   }
-
-  // Programs in both (keep)
-  for (const p of fromPrograms) {
-    if (toIds.has(p.id)) {
-      result.push({ program: p, category: "keep" });
+  for (const item of currentItems) {
+    if (simIds.has(item.program_id)) {
+      result.push({ item, category: "keep" });
     }
   }
 
   return result;
 }
 
-/** Estimate total monthly benefit (KRW) for a list of programs. */
-function estimateMonthly(programs: RegionProgram[]): number {
-  return programs.reduce((sum, p) => {
-    if (p.benefit_monthly) return sum + p.benefit_monthly;
-    // Amortise one-time/semester benefits: treat semester as ~4 months, once as ~12 months
-    if (p.benefit_other) return sum + Math.round(p.benefit_other / 12);
+function estimateMonthlyFromItems(items: RecommendationItem[]): number {
+  return items.reduce((sum, item) => {
+    if (item.benefit_amount_monthly) return sum + item.benefit_amount_monthly;
+    if (item.benefit_amount_semester)
+      return sum + Math.round(item.benefit_amount_semester / 4);
     return sum;
   }, 0);
 }
@@ -324,66 +207,214 @@ function formatManwon(krw: number): string {
   return `${man}만원`;
 }
 
-function typeLabel(type: RegionProgram["type"]): string {
-  switch (type) {
-    case "scholarship":
-      return "장학금";
-    case "support":
-      return "청년정책";
-    case "welfare":
-      return "복지/생활";
-  }
+// ---------------------------------------------------------------------------
+// Mock fallback — used when both API calls fail
+// ---------------------------------------------------------------------------
+
+// Reuse a slim subset of mock items so offline mode still shows something.
+const MOCK_CURRENT_ITEMS: RecommendationItem[] = [
+  {
+    program_id: "nat-1",
+    title: "국가장학금 I유형",
+    program_type: "scholarship",
+    match_score: 90,
+    benefit_amount_monthly: null,
+    benefit_amount_semester: 3500000,
+    deadline: null,
+    reasons: ["소득분위 기준 충족"],
+    missing_checks: [],
+    official_url: null,
+  },
+  {
+    program_id: "nat-2",
+    title: "청년 주거급여 분리지급",
+    program_type: "welfare",
+    match_score: 75,
+    benefit_amount_monthly: 330000,
+    benefit_amount_semester: null,
+    deadline: null,
+    reasons: ["주거 독립 조건 충족"],
+    missing_checks: [],
+    official_url: null,
+  },
+  {
+    program_id: "bus-1",
+    title: "부산 청년 월세 지원",
+    program_type: "welfare",
+    match_score: 82,
+    benefit_amount_monthly: 180000,
+    benefit_amount_semester: null,
+    deadline: null,
+    reasons: ["부산 거주"],
+    missing_checks: [],
+    official_url: null,
+  },
+];
+
+const MOCK_SIM_ITEMS: RecommendationItem[] = [
+  {
+    program_id: "nat-1",
+    title: "국가장학금 I유형",
+    program_type: "scholarship",
+    match_score: 90,
+    benefit_amount_monthly: null,
+    benefit_amount_semester: 3500000,
+    deadline: null,
+    reasons: ["소득분위 기준 충족"],
+    missing_checks: [],
+    official_url: null,
+  },
+  {
+    program_id: "nat-2",
+    title: "청년 주거급여 분리지급",
+    program_type: "welfare",
+    match_score: 75,
+    benefit_amount_monthly: 330000,
+    benefit_amount_semester: null,
+    deadline: null,
+    reasons: ["주거 독립 조건 충족"],
+    missing_checks: [],
+    official_url: null,
+  },
+  {
+    program_id: "sel-1",
+    title: "서울 청년 월세 지원",
+    program_type: "welfare",
+    match_score: 78,
+    benefit_amount_monthly: 200000,
+    benefit_amount_semester: null,
+    deadline: null,
+    reasons: ["서울 거주"],
+    missing_checks: [],
+    official_url: null,
+  },
+  {
+    program_id: "sel-3",
+    title: "서울 청년 교통비 지원",
+    program_type: "support",
+    match_score: 70,
+    benefit_amount_monthly: 60000,
+    benefit_amount_semester: null,
+    deadline: null,
+    reasons: ["서울 거주"],
+    missing_checks: [],
+    official_url: null,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Profile builder helpers
+// ---------------------------------------------------------------------------
+
+function buildCurrentProfile(
+  region: string,
+  age: string,
+  enrollmentStatus: string,
+  employmentStatus: string,
+  incomeBracket: number | null
+): ProfileInput {
+  const regionCode = (LABEL_TO_CODE[region] as RegionValue) ?? "national";
+  const parsedAge = parseInt(age, 10);
+  const birthYear = isNaN(parsedAge) ? 2001 : new Date().getFullYear() - parsedAge;
+
+  return {
+    birth_year: birthYear,
+    region_code: regionCode,
+    enrollment_status: enrollmentStatus || null,
+    employment_status: employmentStatus || null,
+    income_bracket: incomeBracket,
+  };
 }
 
-function typeColor(type: RegionProgram["type"]): string {
-  switch (type) {
-    case "scholarship":
-      return colors.primary;
-    case "support":
-      return colors.tertiary;
-    case "welfare":
-      return "#6b7280";
+function applyOverrides(
+  base: ProfileInput,
+  overrides: SimOverrides
+): ProfileInput {
+  const result = { ...base };
+
+  if (overrides.regionCode !== null) {
+    result.region_code = overrides.regionCode;
   }
+  if (overrides.enrollmentStatus !== null) {
+    result.enrollment_status = overrides.enrollmentStatus;
+  }
+  if (overrides.employmentStatus !== null) {
+    result.employment_status = overrides.employmentStatus;
+  }
+  if (overrides.ageDelta !== 0) {
+    result.birth_year = base.birth_year - overrides.ageDelta;
+  }
+  if (overrides.incomeBracket !== null) {
+    result.income_bracket = overrides.incomeBracket;
+  }
+
+  return result;
 }
 
-function typeBackground(type: RegionProgram["type"]): string {
-  switch (type) {
-    case "scholarship":
-      return colors.primaryFixed;
-    case "support":
-      return colors.tertiaryFixed;
-    case "welfare":
-      return colors.surfaceContainerHigh;
-  }
+function hasAnyOverride(ov: SimOverrides): boolean {
+  return (
+    ov.regionCode !== null ||
+    ov.enrollmentStatus !== null ||
+    ov.employmentStatus !== null ||
+    ov.ageDelta !== 0 ||
+    ov.incomeBracket !== null
+  );
 }
+
+// ---------------------------------------------------------------------------
+// Category style map
+// ---------------------------------------------------------------------------
+
+const CATEGORY_STYLES: Record<
+  BenefitCategory,
+  { label: string; accent: string; badgeBg: string }
+> = {
+  lose: {
+    label: "변경 후 소멸",
+    accent: colors.error,
+    badgeBg: colors.errorContainer,
+  },
+  gain: {
+    label: "변경 후 신규",
+    accent: "#16a34a",
+    badgeBg: "#dcfce7",
+  },
+  keep: {
+    label: "계속 유지",
+    accent: colors.outline,
+    badgeBg: colors.surfaceContainerHigh,
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-interface RegionSelectorProps {
+/** Single-row chip selector — generic over option type */
+function ChipSelector<T extends string | number | null>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
   label: string;
-  value: RegionValue | null;
-  onChange: (v: RegionValue) => void;
-  excludeValue?: RegionValue | null;
-}
-
-function RegionSelector({ label, value, onChange, excludeValue }: RegionSelectorProps) {
-  const options = REGION_OPTIONS.filter((o) => o.value !== excludeValue);
-
+  options: readonly { label: string; value: T }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
   return (
-    <View style={styles.selectorContainer}>
-      <Text style={styles.selectorLabel}>{label}</Text>
+    <View style={styles.conditionRow}>
+      <Text style={styles.conditionLabel}>{label}</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipRow}
+        contentContainerStyle={styles.chipScrollContent}
       >
         {options.map((opt) => {
           const active = value === opt.value;
           return (
             <Pressable
-              key={opt.value}
+              key={String(opt.value)}
               style={active ? styles.chipActive : styles.chipInactive}
               onPress={() => onChange(opt.value)}
               accessibilityRole="button"
@@ -406,94 +437,89 @@ function RegionSelector({ label, value, onChange, excludeValue }: RegionSelector
   );
 }
 
-interface BenefitCardProps {
-  program: RegionProgram;
-  category: BenefitCategory;
+/** Expandable condition section card */
+function ConditionSection({
+  icon,
+  title,
+  subtitle,
+  expanded,
+  onToggle,
+  children,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.conditionCard}>
+      <Pressable
+        style={styles.conditionHeader}
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        hitSlop={4}
+      >
+        <Text style={styles.conditionIcon}>{icon}</Text>
+        <View style={styles.conditionHeaderText}>
+          <Text style={styles.conditionTitle}>{title}</Text>
+          <Text style={styles.conditionSubtitle}>{subtitle}</Text>
+        </View>
+        <Text style={styles.conditionChevron}>{expanded ? "▲" : "▼"}</Text>
+      </Pressable>
+      {expanded && <View style={styles.conditionBody}>{children}</View>}
+    </View>
+  );
 }
 
-function BenefitCard({ program, category }: BenefitCardProps) {
-  const categoryStyle = CATEGORY_STYLES[category];
+/** A single result item card with gain/lose/keep coloring */
+function ResultItemCard({ classified }: { classified: ClassifiedItem }) {
+  const { item, category } = classified;
+  const catStyle = CATEGORY_STYLES[category];
 
-  const benefitText = program.benefit_monthly
-    ? `월 ${formatManwon(program.benefit_monthly)}`
-    : program.benefit_other
-    ? `최대 ${formatManwon(program.benefit_other)}`
+  const benefitText = item.benefit_amount_monthly
+    ? `월 ${formatManwon(item.benefit_amount_monthly)}`
+    : item.benefit_amount_semester
+    ? `학기 ${formatManwon(item.benefit_amount_semester)}`
     : "혜택 확인";
 
   return (
-    <View style={[styles.benefitCard, { borderLeftColor: categoryStyle.accent }]}>
-      {/* Category badge */}
+    <View style={[styles.resultCard, { borderLeftColor: catStyle.accent }]}>
       <View
-        style={[
-          styles.categoryBadge,
-          { backgroundColor: categoryStyle.badgeBg },
-        ]}
+        style={[styles.resultBadge, { backgroundColor: catStyle.badgeBg }]}
       >
-        <Text style={[styles.categoryBadgeText, { color: categoryStyle.accent }]}>
-          {categoryStyle.label}
+        <Text style={[styles.resultBadgeText, { color: catStyle.accent }]}>
+          {catStyle.label}
         </Text>
       </View>
-
-      <View style={styles.benefitCardBody}>
-        {/* Type tag */}
-        <View
-          style={[
-            styles.typeTag,
-            { backgroundColor: typeBackground(program.type) },
-          ]}
-        >
-          <Text style={[styles.typeTagText, { color: typeColor(program.type) }]}>
-            {typeLabel(program.type)}
-          </Text>
-        </View>
-
-        <Text style={styles.benefitCardTitle} numberOfLines={2}>
-          {program.title}
+      <Text style={styles.resultTitle} numberOfLines={2}>
+        {item.title}
+      </Text>
+      <View style={styles.resultFooter}>
+        <Text style={styles.resultType}>{item.program_type}</Text>
+        <Text style={[styles.resultAmount, { color: catStyle.accent }]}>
+          {benefitText}
         </Text>
-
-        <View style={styles.benefitCardFooter}>
-          <Text style={styles.providerText}>{program.provider}</Text>
-          <Text style={styles.benefitAmountText}>{benefitText}</Text>
-        </View>
       </View>
     </View>
   );
 }
 
-const CATEGORY_STYLES: Record<
-  BenefitCategory,
-  { label: string; accent: string; badgeBg: string }
-> = {
-  lose: {
-    label: "이동 후 소멸",
-    accent: colors.error,
-    badgeBg: colors.errorContainer,
-  },
-  gain: {
-    label: "이동 후 신규",
-    accent: "#16a34a",
-    badgeBg: "#dcfce7",
-  },
-  keep: {
-    label: "계속 유지",
-    accent: colors.outline,
-    badgeBg: colors.surfaceContainerHigh,
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Summary banner
-// ---------------------------------------------------------------------------
-
-interface SummaryBannerProps {
-  fromMonthly: number;
-  toMonthly: number;
-  fromLabel: string;
-  toLabel: string;
-}
-
-function SummaryBanner({ fromMonthly, toMonthly, fromLabel, toLabel }: SummaryBannerProps) {
-  const diff = toMonthly - fromMonthly;
+/** Monthly benefit comparison banner */
+function MonthlyCompareBanner({
+  currentMonthly,
+  simMonthly,
+  currentLabel,
+  simLabel,
+}: {
+  currentMonthly: number;
+  simMonthly: number;
+  currentLabel: string;
+  simLabel: string;
+}) {
+  const diff = simMonthly - currentMonthly;
   const isPositive = diff > 0;
   const isNeutral = diff === 0;
 
@@ -506,151 +532,180 @@ function SummaryBanner({ fromMonthly, toMonthly, fromLabel, toLabel }: SummaryBa
   const diffText = isNeutral
     ? "변화 없음"
     : isPositive
-    ? `${formatManwon(diff)} 증가`
-    : `${formatManwon(Math.abs(diff))} 감소`;
+    ? `+${formatManwon(diff)}`
+    : `-${formatManwon(Math.abs(diff))}`;
 
   return (
-    <View style={styles.summaryBanner}>
-      <Text style={styles.summaryTitle}>월 총 혜택 비교</Text>
-
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryRegionBlock}>
-          <Text style={styles.summaryRegionLabel}>{fromLabel}</Text>
-          <Text style={styles.summaryAmount}>{formatManwon(fromMonthly)}</Text>
+    <View style={styles.monthlyBanner}>
+      <Text style={styles.monthlyBannerTitle}>월간 혜택 금액 비교</Text>
+      <View style={styles.monthlyBannerRow}>
+        <View style={styles.monthlyBlock}>
+          <Text style={styles.monthlyBlockLabel}>{currentLabel}</Text>
+          <Text style={styles.monthlyBlockAmount}>
+            {formatManwon(currentMonthly)}
+          </Text>
         </View>
-
-        <View style={styles.summaryArrowBlock}>
-          <Text style={styles.summaryArrow}>→</Text>
+        <Text style={styles.monthlyArrow}>→</Text>
+        <View style={styles.monthlyBlock}>
+          <Text style={styles.monthlyBlockLabel}>{simLabel}</Text>
+          <Text style={styles.monthlyBlockAmount}>
+            {formatManwon(simMonthly)}
+          </Text>
         </View>
-
-        <View style={styles.summaryRegionBlock}>
-          <Text style={styles.summaryRegionLabel}>{toLabel}</Text>
-          <Text style={styles.summaryAmount}>{formatManwon(toMonthly)}</Text>
+        <View
+          style={[
+            styles.monthlyDiffChip,
+            { backgroundColor: diffColor + "1a" },
+          ]}
+        >
+          <Text style={[styles.monthlyDiffText, { color: diffColor }]}>
+            {diffText}
+          </Text>
         </View>
       </View>
-
-      <View style={[styles.summaryDiffChip, { backgroundColor: diffColor + "1a" }]}>
-        <Text style={[styles.summaryDiffText, { color: diffColor }]}>
-          {diffText}
-        </Text>
-      </View>
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Count diff banner
-// ---------------------------------------------------------------------------
-
-interface CountDiffBannerProps {
-  gainCount: number;
-  loseCount: number;
-}
-
-function CountDiffBanner({ gainCount, loseCount }: CountDiffBannerProps) {
-  const net = gainCount - loseCount;
-  const isPositive = net > 0;
-  const isNeutral = net === 0;
-
-  let message: string;
-  let bgColor: string;
-  let textColor: string;
-
-  if (isNeutral) {
-    message = "혜택 건수 변화 없어요";
-    bgColor = colors.surfaceContainerHigh;
-    textColor = colors.textSecondary;
-  } else if (isPositive) {
-    message = `+${net}건 더 받을 수 있어요`;
-    bgColor = "#dcfce7";
-    textColor = "#16a34a";
-  } else {
-    message = `${net}건 줄어들어요`;
-    bgColor = colors.errorContainer;
-    textColor = colors.error;
-  }
-
-  return (
-    <View style={[styles.countBanner, { backgroundColor: bgColor }]}>
-      <Text style={[styles.countBannerText, { color: textColor }]}>
-        {message}
-      </Text>
-    </View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Column header
-// ---------------------------------------------------------------------------
-
-interface ColumnHeaderProps {
-  label: string;
-  count: number;
-  side: "from" | "to";
-}
-
-function ColumnHeader({ label, count, side }: ColumnHeaderProps) {
-  const bg = side === "from" ? colors.surfaceContainerLow : colors.primaryFixed;
-  const textCol = side === "from" ? colors.textSecondary : colors.primary;
-
-  return (
-    <View style={[styles.columnHeader, { backgroundColor: bg }]}>
-      <Text style={[styles.columnHeaderLabel, { color: textCol }]}>{label}</Text>
-      <Text style={[styles.columnHeaderCount, { color: textCol }]}>{count}건</Text>
-    </View>
-  );
-}
+// Inline OfflineBanner removed — using shared @/components/OfflineBanner
 
 // ---------------------------------------------------------------------------
 // Main screen
 // ---------------------------------------------------------------------------
 
-export default function RegionCompareScreen() {
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes
+
+export default function ConditionSimulatorScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const onboardingRegion = useOnboardingStore((s) => s.region);
 
-  const defaultFrom: RegionValue | null =
-    (LABEL_TO_CODE[onboardingRegion] as RegionValue) ?? null;
+  // Profile from onboarding store
+  const storeRegion = useOnboardingStore((s) => s.region);
+  const storeAge = useOnboardingStore((s) => s.age);
+  const storeEnrollment = useOnboardingStore((s) => s.enrollmentStatus);
+  const storeEmployment = useOnboardingStore((s) => s.employmentStatus);
+  const storeIncomeBracket = useOnboardingStore((s) => s.incomeBracket);
 
-  const [fromRegion, setFromRegion] = useState<RegionValue | null>(defaultFrom);
-  const [toRegion, setToRegion] = useState<RegionValue | null>(null);
+  // Expanded section state
+  const [expandedSection, setExpandedSection] = useState<string | null>("region");
 
-  const canCompare = fromRegion !== null && toRegion !== null;
+  // Simulation overrides (null = unchanged = use store value)
+  const [overrides, setOverrides] = useState<SimOverrides>(DEFAULT_OVERRIDES);
 
-  const classified = useMemo<ClassifiedProgram[]>(() => {
-    if (!canCompare) return [];
-    return classifyPrograms(fromRegion!, toRegion!);
-  }, [fromRegion, toRegion, canCompare]);
+  const toggleSection = useCallback((key: string) => {
+    setExpandedSection((prev) => (prev === key ? null : key));
+  }, []);
+
+  // Region chips — the "current" region is the store value mapped to a code
+  const currentRegionCode: RegionValue =
+    (LABEL_TO_CODE[storeRegion] as RegionValue) ?? "national";
+
+  const simRegionCode: RegionValue = overrides.regionCode ?? currentRegionCode;
+
+  // Current profile
+  const currentProfile = useMemo<ProfileInput>(
+    () =>
+      buildCurrentProfile(
+        storeRegion,
+        storeAge,
+        storeEnrollment,
+        storeEmployment,
+        storeIncomeBracket
+      ),
+    [storeRegion, storeAge, storeEnrollment, storeEmployment, storeIncomeBracket]
+  );
+
+  // Simulated profile
+  const simProfile = useMemo<ProfileInput>(
+    () => applyOverrides(currentProfile, overrides),
+    [currentProfile, overrides]
+  );
+
+  const simActive = hasAnyOverride(overrides);
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+
+  const currentQuery = useQuery({
+    queryKey: ["sim", "current", currentProfile],
+    queryFn: () => api.getRecommendPreview(currentProfile),
+    staleTime: STALE_TIME,
+  });
+
+  const simQuery = useQuery({
+    queryKey: ["sim", "override", simProfile],
+    queryFn: () => api.getRecommendPreview(simProfile),
+    staleTime: STALE_TIME,
+    enabled: simActive,
+  });
+
+  const isLoading = currentQuery.isLoading || (simActive && simQuery.isLoading);
+  const hasError = currentQuery.isError || (simActive && simQuery.isError);
+
+  // ── Resolve data ─────────────────────────────────────────────────────────
+
+  const currentItems: RecommendationItem[] =
+    currentQuery.data?.items ?? (hasError ? MOCK_CURRENT_ITEMS : []);
+
+  const simItems: RecommendationItem[] = simActive
+    ? simQuery.data?.items ?? (simQuery.isError ? MOCK_SIM_ITEMS : [])
+    : currentItems;
+
+  const classified = useMemo<ClassifiedItem[]>(() => {
+    if (!simActive) return [];
+    return classifyItems(currentItems, simItems);
+  }, [currentItems, simItems, simActive]);
 
   const gainItems = classified.filter((c) => c.category === "gain");
   const loseItems = classified.filter((c) => c.category === "lose");
   const keepItems = classified.filter((c) => c.category === "keep");
 
-  const fromPrograms = useMemo(
-    () => (fromRegion ? getProgramsForRegion(fromRegion) : []),
-    [fromRegion]
+  const currentMonthly = useMemo(
+    () => estimateMonthlyFromItems(currentItems),
+    [currentItems]
   );
-  const toPrograms = useMemo(
-    () => (toRegion ? getProgramsForRegion(toRegion) : []),
-    [toRegion]
+  const simMonthly = useMemo(
+    () => estimateMonthlyFromItems(simItems),
+    [simItems]
   );
 
-  const fromMonthly = useMemo(() => estimateMonthly(fromPrograms), [fromPrograms]);
-  const toMonthly = useMemo(() => estimateMonthly(toPrograms), [toPrograms]);
+  // ── Override setters ─────────────────────────────────────────────────────
 
-  const fromLabel =
-    REGION_OPTIONS.find((o) => o.value === fromRegion)?.label ?? "현재 지역";
-  const toLabel =
-    REGION_OPTIONS.find((o) => o.value === toRegion)?.label ?? "이동 지역";
+  const applyScenario = useCallback((scenario: Scenario) => {
+    setOverrides((prev) => ({ ...prev, ...scenario.overrides }));
+  }, []);
+
+  const resetOverrides = useCallback(() => {
+    setOverrides(DEFAULT_OVERRIDES);
+  }, []);
+
+  // ── Label helpers ────────────────────────────────────────────────────────
+
+  const currentLabel = "현재 조건";
+  const simLabel = "변경된 조건";
+
+  // Age display helpers
+  const currentAge = parseInt(storeAge, 10) || 24;
+  const simAge = currentAge + overrides.ageDelta;
+
+  const enrollmentLabel = (v: string | null): string =>
+    ENROLLMENT_OPTIONS.find((o) => o.value === (v ?? storeEnrollment))?.label ??
+    storeEnrollment ??
+    "미설정";
+
+  const employmentLabel = (v: string | null): string =>
+    EMPLOYMENT_OPTIONS.find((o) => o.value === (v ?? storeEmployment))?.label ??
+    storeEmployment ??
+    "미설정";
+
+  const incomeLabel = (v: number | null): string =>
+    v === null
+      ? storeIncomeBracket !== null
+        ? `${storeIncomeBracket}분위`
+        : "미입력"
+      : `${v}분위`;
 
   return (
-    <View
-      style={[
-        styles.root,
-        { paddingTop: insets.top },
-      ]}
-    >
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -659,10 +714,26 @@ export default function RegionCompareScreen() {
           hitSlop={8}
           accessibilityLabel="뒤로 가기"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={styles.backButtonText}>{"←"}</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>지역 이동 비교</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>조건 시뮬레이터</Text>
+          <Text style={styles.headerSubtitle}>
+            조건을 바꿔보고 혜택 변화를 확인하세요
+          </Text>
+        </View>
+        {simActive ? (
+          <Pressable
+            style={styles.resetButton}
+            onPress={resetOverrides}
+            hitSlop={8}
+            accessibilityLabel="초기화"
+          >
+            <Text style={styles.resetButtonText}>초기화</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headerRight} />
+        )}
       </View>
 
       <ScrollView
@@ -673,88 +744,272 @@ export default function RegionCompareScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Region selectors */}
-        <View style={styles.selectorsCard}>
-          <RegionSelector
-            label="현재 지역"
-            value={fromRegion}
-            onChange={setFromRegion}
-            excludeValue={toRegion}
-          />
-
-          <View style={styles.selectorDivider} />
-
-          <RegionSelector
-            label="이동 지역"
-            value={toRegion}
-            onChange={setToRegion}
-            excludeValue={fromRegion}
-          />
+        {/* ── Scenario preset pills ── */}
+        <View style={styles.scenariosSection}>
+          <Text style={styles.scenariosSectionLabel}>시나리오 프리셋</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scenariosScrollContent}
+          >
+            {SCENARIOS.map((scenario) => (
+              <Pressable
+                key={scenario.label}
+                style={({ pressed }) => [
+                  styles.scenarioChip,
+                  pressed && styles.scenarioChipPressed,
+                ]}
+                onPress={() => applyScenario(scenario)}
+                accessibilityRole="button"
+                accessibilityLabel={`시나리오: ${scenario.label}`}
+              >
+                <Text style={styles.scenarioChipLabel}>{scenario.label}</Text>
+                <Text style={styles.scenarioChipDesc}>{scenario.description}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
-        {!canCompare && (
+        {/* ── Condition change cards ── */}
+
+        {/* 1. Region */}
+        <ConditionSection
+          icon="🗺️"
+          title="거주 지역"
+          subtitle={
+            overrides.regionCode
+              ? `${REGION_OPTIONS.find((o) => o.value === currentRegionCode)?.label ?? "현재"} → ${REGION_OPTIONS.find((o) => o.value === overrides.regionCode)?.label}`
+              : REGION_OPTIONS.find((o) => o.value === currentRegionCode)?.label ?? "미설정"
+          }
+          expanded={expandedSection === "region"}
+          onToggle={() => toggleSection("region")}
+        >
+          <Text style={styles.conditionCurrentNote}>
+            현재: {(REGION_OPTIONS.find((o) => o.value === currentRegionCode)?.label ?? storeRegion) || "미설정"}
+          </Text>
+          <ChipSelector
+            label="변경할 지역"
+            options={REGION_OPTIONS}
+            value={simRegionCode}
+            onChange={(v) =>
+              setOverrides((prev) => ({
+                ...prev,
+                regionCode: v === currentRegionCode ? null : v,
+              }))
+            }
+          />
+        </ConditionSection>
+
+        {/* 2. Enrollment status */}
+        <ConditionSection
+          icon="🎓"
+          title="학적 상태"
+          subtitle={
+            overrides.enrollmentStatus
+              ? `${ENROLLMENT_OPTIONS.find((o) => o.value === storeEnrollment)?.label ?? storeEnrollment} → ${ENROLLMENT_OPTIONS.find((o) => o.value === overrides.enrollmentStatus)?.label}`
+              : enrollmentLabel(null)
+          }
+          expanded={expandedSection === "enrollment"}
+          onToggle={() => toggleSection("enrollment")}
+        >
+          <Text style={styles.conditionCurrentNote}>
+            현재: {(ENROLLMENT_OPTIONS.find((o) => o.value === storeEnrollment)?.label ?? storeEnrollment) || "미설정"}
+          </Text>
+          <ChipSelector
+            label="변경할 학적 상태"
+            options={ENROLLMENT_OPTIONS}
+            value={(overrides.enrollmentStatus ?? storeEnrollment) as string}
+            onChange={(v) =>
+              setOverrides((prev) => ({
+                ...prev,
+                enrollmentStatus: v === storeEnrollment ? null : v,
+              }))
+            }
+          />
+        </ConditionSection>
+
+        {/* 3. Employment status */}
+        <ConditionSection
+          icon="💼"
+          title="취업 상태"
+          subtitle={
+            overrides.employmentStatus
+              ? `${EMPLOYMENT_OPTIONS.find((o) => o.value === storeEmployment)?.label ?? storeEmployment} → ${EMPLOYMENT_OPTIONS.find((o) => o.value === overrides.employmentStatus)?.label}`
+              : employmentLabel(null)
+          }
+          expanded={expandedSection === "employment"}
+          onToggle={() => toggleSection("employment")}
+        >
+          <Text style={styles.conditionCurrentNote}>
+            현재: {(EMPLOYMENT_OPTIONS.find((o) => o.value === storeEmployment)?.label ?? storeEmployment) || "미설정"}
+          </Text>
+          <ChipSelector
+            label="변경할 취업 상태"
+            options={EMPLOYMENT_OPTIONS}
+            value={(overrides.employmentStatus ?? storeEmployment) as string}
+            onChange={(v) =>
+              setOverrides((prev) => ({
+                ...prev,
+                employmentStatus: v === storeEmployment ? null : v,
+              }))
+            }
+          />
+        </ConditionSection>
+
+        {/* 4. Age */}
+        <ConditionSection
+          icon="🎂"
+          title="나이 변경"
+          subtitle={
+            overrides.ageDelta !== 0
+              ? `${currentAge}세 → ${simAge}세 (+${overrides.ageDelta}년 후)`
+              : `${currentAge}세 (현재)`
+          }
+          expanded={expandedSection === "age"}
+          onToggle={() => toggleSection("age")}
+        >
+          <Text style={styles.conditionCurrentNote}>
+            현재: {currentAge}세
+          </Text>
+          <ChipSelector
+            label="나이 변경 (미래 시점)"
+            options={AGE_OPTIONS}
+            value={overrides.ageDelta}
+            onChange={(v) =>
+              setOverrides((prev) => ({ ...prev, ageDelta: v }))
+            }
+          />
+        </ConditionSection>
+
+        {/* 5. Income bracket */}
+        <ConditionSection
+          icon="💰"
+          title="소득 분위"
+          subtitle={
+            overrides.incomeBracket !== null
+              ? `${storeIncomeBracket !== null ? `${storeIncomeBracket}분위` : "미입력"} → ${overrides.incomeBracket}분위`
+              : incomeLabel(null)
+          }
+          expanded={expandedSection === "income"}
+          onToggle={() => toggleSection("income")}
+        >
+          <Text style={styles.conditionCurrentNote}>
+            현재:{" "}
+            {storeIncomeBracket !== null
+              ? `${storeIncomeBracket}분위`
+              : "미입력"}
+          </Text>
+          <ChipSelector
+            label="변경할 소득 분위"
+            options={INCOME_OPTIONS}
+            value={overrides.incomeBracket ?? storeIncomeBracket}
+            onChange={(v) =>
+              setOverrides((prev) => ({
+                ...prev,
+                incomeBracket:
+                  v === storeIncomeBracket ? null : (v as number | null),
+              }))
+            }
+          />
+        </ConditionSection>
+
+        {/* ── Offline / error fallback ── */}
+        {hasError && <OfflineBanner />}
+
+        {/* ── Prompt when no sim active ── */}
+        {!simActive && !isLoading && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateIcon}>🗺</Text>
-            <Text style={styles.emptyStateTitle}>두 지역을 선택해 주세요</Text>
+            <Text style={styles.emptyStateIcon}>✨</Text>
+            <Text style={styles.emptyStateTitle}>조건을 바꿔보세요</Text>
             <Text style={styles.emptyStateBody}>
-              현재 지역과 이동할 지역을 선택하면{"\n"}혜택 변화를 바로 확인할 수 있어요
+              위 카드에서 조건을 변경하거나{"\n"}
+              시나리오 프리셋을 눌러보세요
             </Text>
           </View>
         )}
 
-        {canCompare && (
+        {/* ── Loading ── */}
+        {simActive && isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>혜택 변화를 계산하는 중...</Text>
+          </View>
+        )}
+
+        {/* ── Simulation results ── */}
+        {simActive && !isLoading && (
           <>
-            {/* Side-by-side count headers */}
-            <View style={styles.columnHeaderRow}>
-              <View style={styles.columnHeaderCell}>
-                <ColumnHeader
-                  label={`${fromLabel} 혜택`}
-                  count={fromPrograms.length}
-                  side="from"
-                />
+            {/* Monthly comparison banner */}
+            <MonthlyCompareBanner
+              currentMonthly={currentMonthly}
+              simMonthly={simMonthly}
+              currentLabel={currentLabel}
+              simLabel={simLabel}
+            />
+
+            {/* Count summary row */}
+            <View style={styles.countSummaryRow}>
+              <View style={[styles.countChip, { backgroundColor: "#dcfce7" }]}>
+                <Text style={[styles.countChipText, { color: "#16a34a" }]}>
+                  +{gainItems.length} 신규
+                </Text>
               </View>
-              <View style={styles.columnHeaderCell}>
-                <ColumnHeader
-                  label={`${toLabel} 혜택`}
-                  count={toPrograms.length}
-                  side="to"
-                />
+              <View
+                style={[
+                  styles.countChip,
+                  { backgroundColor: colors.errorContainer },
+                ]}
+              >
+                <Text
+                  style={[styles.countChipText, { color: colors.error }]}
+                >
+                  -{loseItems.length} 소멸
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.countChip,
+                  { backgroundColor: colors.surfaceContainerHigh },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countChipText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {keepItems.length} 유지
+                </Text>
               </View>
             </View>
 
-            {/* Count diff banner */}
-            <CountDiffBanner
-              gainCount={gainItems.length}
-              loseCount={loseItems.length}
-            />
-
-            {/* Monthly total summary */}
-            <SummaryBanner
-              fromMonthly={fromMonthly}
-              toMonthly={toMonthly}
-              fromLabel={fromLabel}
-              toLabel={toLabel}
-            />
-
             {/* Gain section */}
             {gainItems.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={[styles.sectionDot, { backgroundColor: "#16a34a" }]} />
-                  <Text style={styles.sectionTitle}>
-                    {toLabel}에서 새로 받을 수 있어요
+              <View style={styles.resultSection}>
+                <View style={styles.resultSectionHeader}>
+                  <View
+                    style={[styles.resultDot, { backgroundColor: "#16a34a" }]}
+                  />
+                  <Text style={styles.resultSectionTitle}>
+                    변경 후 새로 받을 수 있어요
                   </Text>
-                  <View style={[styles.sectionCount, { backgroundColor: "#dcfce7" }]}>
-                    <Text style={[styles.sectionCountText, { color: "#16a34a" }]}>
+                  <View
+                    style={[
+                      styles.resultCount,
+                      { backgroundColor: "#dcfce7" },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.resultCountText, { color: "#16a34a" }]}
+                    >
                       +{gainItems.length}
                     </Text>
                   </View>
                 </View>
-                {gainItems.map(({ program }) => (
-                  <BenefitCard
-                    key={program.id}
-                    program={program}
-                    category="gain"
+                {gainItems.map(({ item }) => (
+                  <ResultItemCard
+                    key={item.program_id}
+                    classified={{ item, category: "gain" }}
                   />
                 ))}
               </View>
@@ -762,23 +1017,37 @@ export default function RegionCompareScreen() {
 
             {/* Lose section */}
             {loseItems.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={[styles.sectionDot, { backgroundColor: colors.error }]} />
-                  <Text style={styles.sectionTitle}>
-                    {fromLabel}에서만 받을 수 있어요
+              <View style={styles.resultSection}>
+                <View style={styles.resultSectionHeader}>
+                  <View
+                    style={[
+                      styles.resultDot,
+                      { backgroundColor: colors.error },
+                    ]}
+                  />
+                  <Text style={styles.resultSectionTitle}>
+                    변경 후 잃는 혜택이에요
                   </Text>
-                  <View style={[styles.sectionCount, { backgroundColor: colors.errorContainer }]}>
-                    <Text style={[styles.sectionCountText, { color: colors.error }]}>
+                  <View
+                    style={[
+                      styles.resultCount,
+                      { backgroundColor: colors.errorContainer },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.resultCountText,
+                        { color: colors.error },
+                      ]}
+                    >
                       -{loseItems.length}
                     </Text>
                   </View>
                 </View>
-                {loseItems.map(({ program }) => (
-                  <BenefitCard
-                    key={program.id}
-                    program={program}
-                    category="lose"
+                {loseItems.map(({ item }) => (
+                  <ResultItemCard
+                    key={item.program_id}
+                    classified={{ item, category: "lose" }}
                   />
                 ))}
               </View>
@@ -786,31 +1055,45 @@ export default function RegionCompareScreen() {
 
             {/* Keep section */}
             {keepItems.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={[styles.sectionDot, { backgroundColor: colors.outline }]} />
-                  <Text style={styles.sectionTitle}>두 지역 모두 받을 수 있어요</Text>
-                  <View style={[styles.sectionCount, { backgroundColor: colors.surfaceContainerHigh }]}>
-                    <Text style={[styles.sectionCountText, { color: colors.outline }]}>
+              <View style={styles.resultSection}>
+                <View style={styles.resultSectionHeader}>
+                  <View
+                    style={[
+                      styles.resultDot,
+                      { backgroundColor: colors.outline },
+                    ]}
+                  />
+                  <Text style={styles.resultSectionTitle}>
+                    어떤 조건이든 계속 받을 수 있어요
+                  </Text>
+                  <View
+                    style={[
+                      styles.resultCount,
+                      { backgroundColor: colors.surfaceContainerHigh },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.resultCountText,
+                        { color: colors.outline },
+                      ]}
+                    >
                       {keepItems.length}
                     </Text>
                   </View>
                 </View>
-                {keepItems.map(({ program }) => (
-                  <BenefitCard
-                    key={program.id}
-                    program={program}
-                    category="keep"
+                {keepItems.map(({ item }) => (
+                  <ResultItemCard
+                    key={item.program_id}
+                    classified={{ item, category: "keep" }}
                   />
                 ))}
               </View>
             )}
 
-            {/* API integration note — visible in dev only */}
-            {/* TODO(API): Remove this disclaimer once real API is integrated. */}
             <View style={styles.disclaimerCard}>
               <Text style={styles.disclaimerText}>
-                현재 예시 데이터를 기반으로 표시됩니다. 실제 혜택은 신청 조건에 따라 다를 수 있어요.
+                실제 혜택은 신청 조건 및 예산에 따라 다를 수 있어요.
               </Text>
             </View>
           </>
@@ -834,8 +1117,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    height: layout.headerHeight,
+    minHeight: layout.headerHeight,
     paddingHorizontal: layout.pagePadding,
+    paddingVertical: spacing[3],
     backgroundColor: "rgba(248,249,250,0.92)",
     ...shadows.header,
   },
@@ -849,14 +1133,33 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     color: colors.onSurface,
   },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
-    textAlign: "center",
+    alignItems: "center",
+    gap: spacing[0.5],
+  },
+  headerTitle: {
     ...typography.styles.sectionTitle,
     color: colors.onSurface,
   },
+  headerSubtitle: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textMuted,
+    fontWeight: typography.fontWeight.regular,
+  },
   headerRight: {
     width: layout.touchTargetMin,
+  },
+  resetButton: {
+    width: layout.touchTargetMin,
+    height: layout.touchTargetMin,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  resetButtonText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.error,
+    fontWeight: typography.fontWeight.semibold,
   },
 
   // Scroll
@@ -866,23 +1169,101 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: layout.pagePadding,
     paddingTop: spacing[5],
-    gap: spacing[4],
+    gap: spacing[3],
   },
 
-  // Selectors card
-  selectorsCard: {
-    ...componentStyles.cardLg,
-    gap: 0,
-  },
-  selectorContainer: {
+  // Scenario presets
+  scenariosSection: {
     gap: spacing[2],
   },
-  selectorLabel: {
+  scenariosSectionLabel: {
     ...typography.styles.label,
     color: colors.textSecondary,
     fontSize: typography.fontSize.sm,
   },
-  chipRow: {
+  scenariosScrollContent: {
+    flexDirection: "row",
+    gap: spacing[2],
+    paddingVertical: spacing[1],
+  },
+  scenarioChip: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2.5],
+    gap: spacing[0.5],
+    ...shadows.card,
+    minWidth: 110,
+  },
+  scenarioChipPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
+  },
+  scenarioChipLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
+  },
+  scenarioChipDesc: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textMuted,
+  },
+
+  // Condition section card
+  conditionCard: {
+    ...componentStyles.cardLg,
+    gap: 0,
+    padding: 0,
+    overflow: "hidden",
+  },
+  conditionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: layout.cardPaddingLg,
+    gap: spacing[3],
+  },
+  conditionIcon: {
+    fontSize: 22,
+  },
+  conditionHeaderText: {
+    flex: 1,
+    gap: spacing[0.5],
+  },
+  conditionTitle: {
+    ...typography.styles.label,
+    color: colors.onSurface,
+  },
+  conditionSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: typography.fontWeight.regular,
+  },
+  conditionChevron: {
+    fontSize: typography.fontSize.xs,
+    color: colors.outline,
+  },
+  conditionBody: {
+    paddingHorizontal: layout.cardPaddingLg,
+    paddingBottom: layout.cardPaddingLg,
+    gap: spacing[3],
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  conditionCurrentNote: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textMuted,
+    fontWeight: typography.fontWeight.regular,
+  },
+
+  // Chip row (inside condition body)
+  conditionRow: {
+    gap: spacing[2],
+  },
+  conditionLabel: {
+    ...typography.styles.label,
+    color: colors.textSecondary,
+    fontSize: typography.fontSize.sm,
+  },
+  chipScrollContent: {
     flexDirection: "row",
     gap: spacing[2],
     paddingVertical: spacing[1],
@@ -902,16 +1283,11 @@ const styles = StyleSheet.create({
   chipTextInactive: {
     color: colors.textSecondary,
   },
-  selectorDivider: {
-    height: 1,
-    backgroundColor: colors.surfaceContainerHigh,
-    marginVertical: spacing[3],
-  },
 
   // Empty state
   emptyState: {
     alignItems: "center",
-    paddingVertical: spacing[16],
+    paddingVertical: spacing[12],
     gap: spacing[3],
   },
   emptyStateIcon: {
@@ -927,165 +1303,141 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Column headers
-  columnHeaderRow: {
-    flexDirection: "row",
-    gap: spacing[2],
-  },
-  columnHeaderCell: {
-    flex: 1,
-  },
-  columnHeader: {
-    borderRadius: borderRadius.lg,
-    padding: spacing[3],
+  // Loading
+  loadingContainer: {
     alignItems: "center",
-    gap: spacing[1],
-  },
-  columnHeaderLabel: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.semibold,
-  },
-  columnHeaderCount: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-  },
-
-  // Count banner
-  countBanner: {
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[4],
-    alignItems: "center",
-  },
-  countBannerText: {
-    ...typography.styles.label,
-    fontWeight: typography.fontWeight.bold,
-  },
-
-  // Summary banner
-  summaryBanner: {
-    ...componentStyles.cardLg,
+    paddingVertical: spacing[12],
     gap: spacing[3],
-    alignItems: "center",
   },
-  summaryTitle: {
+  loadingText: {
+    ...typography.styles.bodyBase,
+    color: colors.textSecondary,
+  },
+
+  // Monthly compare banner
+  monthlyBanner: {
+    ...componentStyles.cardLg,
+    gap: spacing[4],
+  },
+  monthlyBannerTitle: {
     ...typography.styles.caption,
     color: colors.textMuted,
+    textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  summaryRow: {
+  monthlyBannerRow: {
     flexDirection: "row",
     alignItems: "center",
-    width: "100%",
+    justifyContent: "center",
+    gap: spacing[3],
+    flexWrap: "wrap",
   },
-  summaryRegionBlock: {
-    flex: 1,
+  monthlyBlock: {
     alignItems: "center",
-    gap: spacing[1],
+    gap: spacing[0.5],
   },
-  summaryRegionLabel: {
+  monthlyBlockLabel: {
     ...typography.styles.caption,
     color: colors.textSecondary,
   },
-  summaryAmount: {
+  monthlyBlockAmount: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.extrabold,
     color: colors.onSurface,
   },
-  summaryArrowBlock: {
-    paddingHorizontal: spacing[3],
-  },
-  summaryArrow: {
+  monthlyArrow: {
     fontSize: typography.fontSize.xl,
     color: colors.outline,
   },
-  summaryDiffChip: {
+  monthlyDiffChip: {
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[1.5],
   },
-  summaryDiffText: {
+  monthlyDiffText: {
     ...typography.styles.label,
     fontWeight: typography.fontWeight.bold,
   },
 
-  // Sections
-  section: {
+  // Count summary row
+  countSummaryRow: {
+    flexDirection: "row",
+    gap: spacing[2],
+    justifyContent: "center",
+  },
+  countChip: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+  },
+  countChipText: {
+    ...typography.styles.label,
+    fontWeight: typography.fontWeight.bold,
+  },
+
+  // Result sections
+  resultSection: {
     gap: spacing[3],
   },
-  sectionHeader: {
+  resultSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[2],
   },
-  sectionDot: {
+  resultDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  sectionTitle: {
+  resultSectionTitle: {
     ...typography.styles.sectionTitle,
     flex: 1,
     color: colors.onSurface,
   },
-  sectionCount: {
+  resultCount: {
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing[2.5],
     paddingVertical: spacing[0.5],
     minWidth: 28,
     alignItems: "center",
   },
-  sectionCountText: {
+  resultCountText: {
     ...typography.styles.badge,
     fontWeight: typography.fontWeight.bold,
   },
 
-  // Benefit card
-  benefitCard: {
+  // Result item card
+  resultCard: {
     ...componentStyles.card,
     borderLeftWidth: 3,
     gap: spacing[2],
   },
-  categoryBadge: {
+  resultBadge: {
     alignSelf: "flex-start",
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing[2],
     paddingVertical: spacing[0.5],
   },
-  categoryBadgeText: {
+  resultBadgeText: {
     ...typography.styles.badge,
   },
-  benefitCardBody: {
-    gap: spacing[1.5],
-  },
-  typeTag: {
-    alignSelf: "flex-start",
-    borderRadius: borderRadius.md,
-    paddingHorizontal: layout.badgePaddingHorizontal,
-    paddingVertical: layout.badgePaddingVertical,
-  },
-  typeTagText: {
-    ...typography.styles.badge,
-  },
-  benefitCardTitle: {
+  resultTitle: {
     ...typography.styles.cardTitle,
     color: colors.onSurface,
   },
-  benefitCardFooter: {
+  resultFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: spacing[1],
   },
-  providerText: {
+  resultType: {
     ...typography.styles.caption,
     color: colors.textMuted,
-    flex: 1,
   },
-  benefitAmountText: {
+  resultAmount: {
     ...typography.styles.label,
-    color: colors.primary,
   },
 
   // Disclaimer
@@ -1098,4 +1450,5 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
   },
+
 });

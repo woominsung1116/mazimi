@@ -1,0 +1,335 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774142727770,
+  "projectRoot": "/Users/woominseong/Desktop/창업/apps/mobile",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.0",
+        "category": "frontend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run start",
+    "scripts": {
+      "start": "expo start",
+      "android": "expo start --android",
+      "ios": "expo start --ios",
+      "web": "expo start --web",
+      "build:dev": "eas build --profile development --platform ios",
+      "build:dev-device": "eas build --profile development-device --platform ios",
+      "build:preview": "eas build --profile preview --platform all"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "app",
+      "assets",
+      "components",
+      "lib"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "app": {
+      "path": "app",
+      "purpose": "Application code",
+      "fileCount": 12,
+      "lastAccessed": 1774142727753,
+      "keyFiles": [
+        "_layout.tsx",
+        "apply-assistant.tsx",
+        "auto-fill.tsx",
+        "calculator.tsx",
+        "document-vault.tsx"
+      ]
+    },
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 4,
+      "lastAccessed": 1774142727754,
+      "keyFiles": [
+        "adaptive-icon.png",
+        "favicon.png",
+        "icon.png",
+        "splash.png"
+      ]
+    },
+    "components": {
+      "path": "components",
+      "purpose": "UI components",
+      "fileCount": 3,
+      "lastAccessed": 1774142727756,
+      "keyFiles": [
+        "BenefitAmount.tsx",
+        "DeadlineBadge.tsx",
+        "RecommendationCard.tsx"
+      ]
+    },
+    "constants": {
+      "path": "constants",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1774142727757,
+      "keyFiles": [
+        "theme.ts"
+      ]
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 2,
+      "lastAccessed": 1774142727757,
+      "keyFiles": [
+        "assetmap.json",
+        "metadata.json"
+      ]
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 6,
+      "lastAccessed": 1774142727758,
+      "keyFiles": [
+        "api.ts",
+        "cache.ts",
+        "crypto.ts",
+        "logger.ts",
+        "notifications.ts"
+      ]
+    },
+    "store": {
+      "path": "store",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1774142727758,
+      "keyFiles": [
+        "auth.ts",
+        "notifications.ts",
+        "onboarding.ts"
+      ]
+    },
+    "dist/assets": {
+      "path": "dist/assets",
+      "purpose": "Static assets",
+      "fileCount": 49,
+      "lastAccessed": 1774142727759,
+      "keyFiles": [
+        "02bc1fa7c0313217bde2d65ccbff40c9",
+        "069d99eb1fa6712c0b9034a58c6b57dd",
+        "0747a1317bbe9c6fc340b889ef8ab3ae"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "app/region-compare.tsx",
+      "accessCount": 41,
+      "lastAccessed": 1774182064039,
+      "type": "file"
+    },
+    {
+      "path": "lib/api.ts",
+      "accessCount": 28,
+      "lastAccessed": 1774182267486,
+      "type": "file"
+    },
+    {
+      "path": "app/(tabs)/manage.tsx",
+      "accessCount": 25,
+      "lastAccessed": 1774182058289,
+      "type": "file"
+    },
+    {
+      "path": "app/(tabs)/index.tsx",
+      "accessCount": 21,
+      "lastAccessed": 1774182059985,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 19,
+      "lastAccessed": 1774181879482,
+      "type": "directory"
+    },
+    {
+      "path": "app/(tabs)/profile.tsx",
+      "accessCount": 16,
+      "lastAccessed": 1774182062778,
+      "type": "file"
+    },
+    {
+      "path": "app/programs/[id].tsx",
+      "accessCount": 13,
+      "lastAccessed": 1774181410223,
+      "type": "file"
+    },
+    {
+      "path": "app/_layout.tsx",
+      "accessCount": 13,
+      "lastAccessed": 1774181605039,
+      "type": "file"
+    },
+    {
+      "path": "app/(tabs)/explore.tsx",
+      "accessCount": 11,
+      "lastAccessed": 1774182061275,
+      "type": "file"
+    },
+    {
+      "path": "app/apply-assistant.tsx",
+      "accessCount": 10,
+      "lastAccessed": 1774181434721,
+      "type": "file"
+    },
+    {
+      "path": "app/auto-fill.tsx",
+      "accessCount": 8,
+      "lastAccessed": 1774181400643,
+      "type": "file"
+    },
+    {
+      "path": "app/generated-form.tsx",
+      "accessCount": 8,
+      "lastAccessed": 1774181401003,
+      "type": "file"
+    },
+    {
+      "path": "store/notifications.ts",
+      "accessCount": 7,
+      "lastAccessed": 1774181349246,
+      "type": "file"
+    },
+    {
+      "path": "lib/pdf-generator.ts",
+      "accessCount": 5,
+      "lastAccessed": 1774181460866,
+      "type": "file"
+    },
+    {
+      "path": "app/document-vault.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1774181463777,
+      "type": "file"
+    },
+    {
+      "path": "constants/theme.ts",
+      "accessCount": 4,
+      "lastAccessed": 1774181896468,
+      "type": "file"
+    },
+    {
+      "path": "lib/notifications.ts",
+      "accessCount": 3,
+      "lastAccessed": 1774181267312,
+      "type": "file"
+    },
+    {
+      "path": "app/stack-calculator.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1774181388714,
+      "type": "file"
+    },
+    {
+      "path": "lib/crypto.ts",
+      "accessCount": 3,
+      "lastAccessed": 1774181460841,
+      "type": "file"
+    },
+    {
+      "path": "app",
+      "accessCount": 3,
+      "lastAccessed": 1774181878978,
+      "type": "directory"
+    },
+    {
+      "path": "store/onboarding.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774180791942,
+      "type": "file"
+    },
+    {
+      "path": "store/auth.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774181354290,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 2,
+      "lastAccessed": 1774181879826,
+      "type": "file"
+    },
+    {
+      "path": "components/OfflineBanner.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1774182106834,
+      "type": "file"
+    },
+    {
+      "path": "components/ErrorMessage.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1774182107097,
+      "type": "file"
+    },
+    {
+      "path": "components",
+      "accessCount": 1,
+      "lastAccessed": 1774181879816,
+      "type": "directory"
+    },
+    {
+      "path": "components/RecommendationCard.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1774181883682,
+      "type": "file"
+    },
+    {
+      "path": "constants",
+      "accessCount": 1,
+      "lastAccessed": 1774181892910,
+      "type": "directory"
+    }
+  ],
+  "userDirectives": []
+}

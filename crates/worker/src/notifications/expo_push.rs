@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 const EXPO_PUSH_URL: &str = "https://exp.host/--/api/v2/push/send";
+// TODO: used when receipt-checking is implemented
+#[allow(dead_code)]
 const EXPO_RECEIPTS_URL: &str = "https://exp.host/--/api/v2/push/getReceipts";
 
 /// 배치당 최대 메시지 수 (Expo 제한)
@@ -103,16 +105,22 @@ pub struct ExpoPushTicket {
     pub details: Option<serde_json::Value>,
 }
 
+// TODO: used when receipt-checking is implemented
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 struct ReceiptRequest {
     ids: Vec<String>,
 }
 
+// TODO: used when receipt-checking is implemented
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ReceiptResponse {
     data: std::collections::HashMap<String, ReceiptEntry>,
 }
 
+// TODO: used when receipt-checking is implemented
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ReceiptEntry {
     status: String,
@@ -222,6 +230,8 @@ impl ExpoPushClient {
     /// 호출자가 삭제 로직을 처리할 수 있도록 해당 토큰 목록을 함께 반환한다.
     ///
     /// 반환: `(ok_count, error_ticket_ids)`
+    // TODO: wire up in a scheduled job once receipt-checking is needed
+    #[allow(dead_code)]
     pub async fn check_receipts(
         &self,
         ticket_ids: &[String],

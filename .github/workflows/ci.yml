@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -11,11 +13,38 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  DATABASE_URL: postgres://wello:wello@localhost:5432/wello
+  PNPM_VERSION: "9"
 
 jobs:
-  rust:
-    name: Rust Check & Test
+  lint-rust:
+    name: Rust lint (fmt + clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: rust-lint-
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test-rust:
+    name: Rust tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -31,27 +60,32 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
-
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
+      - name: Cache Cargo registry & build
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: rust-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: rust-
+          key: rust-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: rust-test-
 
-      - name: Run cargo check
-        run: cargo check --workspace
-
-      - name: Run cargo test
+      - name: cargo test --workspace
         run: cargo test --workspace
         env:
           DATABASE_URL: postgres://wello:wello@localhost:5432/wello
@@ -59,33 +93,63 @@ jobs:
           JWT_SECRET: ci-test-secret
           APP_ENV: test
 
-  frontend:
-    name: Next.js Build
+  lint-web:
+    name: Web lint & typecheck
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/web
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: ESLint
         run: pnpm lint
 
-      - name: Build
-        run: pnpm build
+      - name: TypeScript typecheck
+        run: pnpm exec tsc --noEmit
+
+  build-docker:
+    name: Build Docker images
+    runs-on: ubuntu-latest
+    # Only run on pushes to main, not on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint-rust, test-rust, lint-web]
+    strategy:
+      matrix:
+        include:
+          - service: api
+            dockerfile: infra/docker/Dockerfile.api
+          - service: web
+            dockerfile: infra/docker/Dockerfile.web
+          - service: worker
+            dockerfile: infra/docker/Dockerfile.worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: majimi-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

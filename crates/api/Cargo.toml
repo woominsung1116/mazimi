@@ -21,6 +21,7 @@ redis = { workspace = true }
 dotenvy = { workspace = true }
 reqwest = { workspace = true }
 jsonwebtoken = "9"
+tower_governor = "0.8"
 
 [dev-dependencies]
 tokio = { workspace = true }

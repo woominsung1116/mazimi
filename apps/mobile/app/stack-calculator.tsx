@@ -44,7 +44,7 @@ import {
   spacing,
   typography,
 } from "@/constants/theme";
-import { api, USER_ID, type ApiProgram } from "@/lib/api";
+import { api, type ApiProgram } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Types

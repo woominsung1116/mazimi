@@ -1,9 +1,9 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, http::StatusCode, Extension, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::{auth::create_token, AppState};
+use crate::{auth::{create_token, AuthUser}, AppState};
 
 // ── Request / Response types ──
 
@@ -108,5 +108,44 @@ pub async fn kakao_login(
             "nickname": nickname,
             "image": image_url
         }
+    })))
+}
+
+/// GET /api/v1/auth/me
+///
+/// Returns the authenticated user's basic info. JWT is already verified by
+/// the auth middleware; `AuthUser` is injected via request extensions.
+pub async fn me(
+    State(state): State<AppState>,
+    Extension(auth_user): Extension<AuthUser>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let err_internal = |msg: String| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": msg })),
+        )
+    };
+    let err_not_found = || {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "User not found" })),
+        )
+    };
+
+    let row = sqlx::query_as::<_, (uuid::Uuid, Option<String>, String)>(
+        r#"SELECT id, email, role FROM users WHERE id = $1"#,
+    )
+    .bind(auth_user.id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| err_internal(format!("DB query failed: {e}")))?
+    .ok_or_else(err_not_found)?;
+
+    Ok(Json(json!({
+        "id":       row.0,
+        "email":    row.1,
+        "nickname": null,
+        "image":    null,
+        "role":     row.2,
     })))
 }

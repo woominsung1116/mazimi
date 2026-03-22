@@ -9,12 +9,9 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-// ── Notification preferences types ──────────────────────────────────────────
+use crate::auth::AuthUser;
 
-#[derive(Debug, Deserialize)]
-pub struct NotifPrefQuery {
-    pub user_id: Uuid,
-}
+// ── Notification preferences types ──────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 pub struct NotifChannels {
@@ -26,7 +23,6 @@ pub struct NotifChannels {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateNotifPrefRequest {
-    pub user_id: Uuid,
     pub deadline: bool,
     pub new_program: bool,
     pub profile_update: bool,
@@ -49,8 +45,7 @@ struct NotifPrefRow {
 // ── Request / Response types ────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
-pub struct UserQuery {
-    pub user_id: Uuid,
+pub struct PaginationQuery {
     #[serde(default = "default_limit")]
     pub limit: i64,
     #[serde(default)]
@@ -63,7 +58,6 @@ fn default_limit() -> i64 {
 
 #[derive(Debug, Deserialize)]
 pub struct AlertPreferenceRequest {
-    pub user_id: Uuid,
     pub program_id: Uuid,
     pub enabled: bool,
 }
@@ -91,12 +85,14 @@ struct AlertSubscriptionRow {
 
 // ── Handlers ────────────────────────────────────────────────────────────────
 
-/// GET /api/v1/alerts?user_id=UUID&limit=20&offset=0
-/// 해당 유저의 최근 알림 발송 목록 (program 정보 포함).
+/// GET /api/v1/alerts?limit=20&offset=0
+/// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
 pub async fn list_alerts(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
-    Query(q): Query<UserQuery>,
+    Query(q): Query<PaginationQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
     let limit = q.limit.clamp(1, 100);
     let offset = q.offset.max(0);
 
@@ -119,7 +115,7 @@ pub async fn list_alerts(
         LIMIT $2 OFFSET $3
         "#,
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .bind(limit)
     .bind(offset)
     .fetch_all(&pool)
@@ -134,7 +130,7 @@ pub async fn list_alerts(
     let total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM alert_deliveries WHERE user_id = $1",
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| {
@@ -153,11 +149,14 @@ pub async fn list_alerts(
 }
 
 /// POST /api/v1/alerts/preferences
-/// 알림 구독 설정: 없으면 INSERT, 있으면 enabled 업데이트.
+/// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
 pub async fn upsert_preferences(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Json(payload): Json<AlertPreferenceRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
     // program 존재 확인
     let program_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM programs WHERE id = $1 AND is_active = true)",
@@ -190,7 +189,7 @@ pub async fn upsert_preferences(
         "#,
     )
     .bind(Uuid::new_v4())
-    .bind(payload.user_id)
+    .bind(user_id)
     .bind(payload.program_id)
     .bind(payload.enabled)
     .execute(&pool)
@@ -215,7 +214,7 @@ pub async fn upsert_preferences(
         ORDER BY asub.updated_at DESC
         "#,
     )
-    .bind(payload.user_id)
+    .bind(user_id)
     .fetch_all(&pool)
     .await
     .map_err(|e| {
@@ -226,7 +225,7 @@ pub async fn upsert_preferences(
     })?;
 
     Ok(Json(json!({
-        "user_id": payload.user_id,
+        "user_id": user_id,
         "updated": {
             "program_id": payload.program_id,
             "enabled": payload.enabled
@@ -235,18 +234,19 @@ pub async fn upsert_preferences(
     })))
 }
 
-/// GET /api/v1/alerts/notification-preferences?user_id=UUID
-/// 유저의 알림 수신 설정(이벤트 종류 + 채널) 조회.
-/// 행이 없으면 기본값 행을 즉시 생성하고 반환한다.
+/// GET /api/v1/alerts/notification-preferences
+/// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
 pub async fn get_notification_preferences(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
-    Query(q): Query<NotifPrefQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
     // Ensure a default row exists (no-op if already present).
     sqlx::query(
         "INSERT INTO notification_preferences (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING",
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .execute(&pool)
     .await
     .map_err(|e| {
@@ -272,7 +272,7 @@ pub async fn get_notification_preferences(
         WHERE user_id = $1
         "#,
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| {
@@ -298,12 +298,15 @@ pub async fn get_notification_preferences(
 }
 
 /// PUT /api/v1/alerts/notification-preferences
-/// 알림 수신 설정 전체 갱신 (upsert).
-/// Body: { user_id, deadline, new_program, profile_update, channels: { in_app, push, kakao, email } }
+/// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
+/// Body: { deadline, new_program, profile_update, channels: { in_app, push, kakao, email } }
 pub async fn update_notification_preferences(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Json(payload): Json<UpdateNotifPrefRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
     let row = sqlx::query_as::<_, NotifPrefRow>(
         r#"
         INSERT INTO notification_preferences (
@@ -339,7 +342,7 @@ pub async fn update_notification_preferences(
             updated_at
         "#,
     )
-    .bind(payload.user_id)
+    .bind(user_id)
     .bind(payload.deadline)
     .bind(payload.new_program)
     .bind(payload.profile_update)

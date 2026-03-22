@@ -19,7 +19,7 @@
  */
 
 import { PDFDocument, rgb, StandardFonts, PDFFont, degrees } from "pdf-lib";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 // ---------------------------------------------------------------------------
 // Domain types (mirrors merged-profile from auto-fill.tsx)

@@ -1,0 +1,43 @@
+{
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Fix expo-file-system v55 API changes",
+      "acceptanceCriteria": [
+        "document-vault.tsx uses 'expo-file-system/legacy' import",
+        "crypto.ts uses 'expo-file-system/legacy' import",
+        "pdf-generator.ts uses 'expo-file-system/legacy' import",
+        "No TS2339 errors for documentDirectory/cacheDirectory/EncodingType"
+      ],
+      "passes": true
+    },
+    {
+      "id": "US-002",
+      "title": "Fix AuthState.userId reference",
+      "acceptanceCriteria": [
+        "api.ts getCurrentUserId uses user?.id not userId",
+        "No TS2339 error for userId on AuthState"
+      ],
+      "passes": true
+    },
+    {
+      "id": "US-003",
+      "title": "Fix region-compare.tsx errors",
+      "acceptanceCriteria": [
+        "No TS5076 operator precedence errors",
+        "AGE_OPTIONS uses 'value' not 'delta' key"
+      ],
+      "passes": true
+    },
+    {
+      "id": "US-004",
+      "title": "Fix remaining API contract mismatches",
+      "acceptanceCriteria": [
+        "All screens compile without TS errors",
+        "npx tsc --noEmit returns 0 errors",
+        "cargo check --workspace returns 0 errors"
+      ],
+      "passes": true
+    }
+  ]
+}

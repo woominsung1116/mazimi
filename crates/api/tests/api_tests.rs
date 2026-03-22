@@ -14,7 +14,7 @@ async fn start_test_server() -> String {
         .await
         .expect("Failed to connect to test database");
 
-    let app = api::build_app(pool);
+    let app = api::build_app(pool, "test-secret".to_string());
 
     let listener = TcpListener::bind("127.0.0.1:0")
         .await

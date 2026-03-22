@@ -20,3 +20,20 @@
 - Codex: 단계별 로드맵 + 매출 시나리오 + B2B SaaS 티어 + Unit Economics
 - Gemini: 금융 CPA 상세 + B2G + 데이터 판매 + 해외 레퍼런스 + IR 문구
 - Output: docs/ccg-business-model.md, docs/ir-bm-slide-draft.md
+## Session 8: Expo Go 연결 문제 (2026-03-21)
+- Codex: ✅ 7가지 해결방법 + AP 격리 원인 확정
+- Gemini: 미사용 (Codex 단독 충분)
+- Claude: ngrok 복구 확인 (All Systems Operational)
+- 해결: --tunnel 재시도 (ngrok 복구됨)
+- Output: memory/feedback_expo_testing.md
+## Session 9: 최종 프로젝트 검토 (2026-03-22)
+- Codex: ✅ 10개 이슈 발견 (API 계약, RLS, Dockerfile, Worker, 테스트)
+- Gemini: ✅ UX/품질 6개 이슈 (Error Boundary, 오프라인, 접근성, 성능)
+- Claude Verifier: ✅ 빌드 검증
+- 수정: 치명적 3개 + 높음 2개 에이전트로 즉시 수정
+- Output: docs/ccg-final-review.md
+## Session 10: 최종 재점검 — PASS (2026-03-22)
+- Codex: ✅ 0 errors, 0 warnings, OfflineBanner 5곳 연결 확인
+- ErrorMessage: 정의됨, 사용처 연결은 추후
+- 빌드 상태: TypeScript 0 errors, Rust 0 errors 0 warnings
+- 판정: PASS — 추가 수정 사항 없음

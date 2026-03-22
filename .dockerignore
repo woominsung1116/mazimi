@@ -1,0 +1,43 @@
+# Version control
+.git
+.gitignore
+
+# Node
+node_modules
+.pnpm-store
+
+# Rust build artifacts
+target
+
+# Next.js build output
+.next
+
+# Mobile app (not deployed via Docker)
+apps/mobile
+
+# Environment files (never bake secrets into images)
+.env
+.env.*
+!.env.production.example
+
+# Documentation
+docs
+*.md
+!apps/web/README.md
+
+# Scraper scripts (not needed in production images)
+scripts/scraper
+
+# IDE / OS
+.DS_Store
+.idea
+.vscode
+*.swp
+*.swo
+
+# Test artifacts
+coverage
+*.lcov
+
+# CI
+.github

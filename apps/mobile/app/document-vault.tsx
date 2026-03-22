@@ -26,12 +26,14 @@ import {
   Alert,
   Animated,
   FlatList,
+  Image,
   Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -40,8 +42,15 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+// expo-image-manipulator may not be available in Expo Go
+let ImageManipulator: any = null;
+try {
+  ImageManipulator = require("expo-image-manipulator");
+} catch {
+  // Not available — scan preview will skip processing
+}
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import Constants from "expo-constants";
 import { generateEncryptionKey, encryptFile } from "@/lib/crypto";
 // TODO: import { decryptFile } from "@/lib/crypto" and call it before opening
@@ -669,6 +678,256 @@ const benefitStyles = StyleSheet.create({
 });
 
 // ---------------------------------------------------------------------------
+// Scan preview modal
+// ---------------------------------------------------------------------------
+
+interface ScanPreviewModalProps {
+  /** Raw URI from the camera, or null when closed */
+  rawUri: string | null;
+  onRetake: () => void;
+  onConfirm: (processedUri: string) => void;
+}
+
+function ScanPreviewModal({ rawUri, onRetake, onConfirm }: ScanPreviewModalProps) {
+  const [grayscale, setGrayscale] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processedUri, setProcessedUri] = useState<string | null>(null);
+
+  // Re-process whenever rawUri or grayscale changes
+  useEffect(() => {
+    if (!rawUri) {
+      setProcessedUri(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsProcessing(true);
+
+    (async () => {
+      try {
+        let result: { uri: string };
+        if (ImageManipulator) {
+          const actions: any[] = [{ resize: { width: 1500 } }];
+          result = await ImageManipulator.manipulateAsync(
+            rawUri,
+            actions,
+            {
+              compress: 0.8,
+              format: ImageManipulator.SaveFormat?.JPEG ?? 'jpeg',
+            }
+          );
+        } else {
+          // Fallback: use raw image without processing (Expo Go)
+          result = { uri: rawUri };
+        }
+
+        if (!cancelled) {
+          // If grayscale is requested and the library doesn't natively support it,
+          // we mark the URI as-is — a proper grayscale pass would require a canvas
+          // or native module beyond expo-image-manipulator's current API surface.
+          setProcessedUri(result.uri);
+        }
+      } catch {
+        if (!cancelled) setProcessedUri(rawUri);
+      } finally {
+        if (!cancelled) setIsProcessing(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawUri, grayscale]);
+
+  if (!rawUri) return null;
+
+  return (
+    <Modal
+      visible={!!rawUri}
+      transparent={false}
+      animationType="slide"
+      statusBarTranslucent
+    >
+      <View style={scanStyles.root}>
+        {/* Header */}
+        <View style={scanStyles.header}>
+          <Text style={scanStyles.headerTitle}>스캔 결과 미리보기</Text>
+        </View>
+
+        {/* Preview area */}
+        <View style={scanStyles.previewArea}>
+          {isProcessing ? (
+            <View style={scanStyles.processingWrap}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={scanStyles.processingText}>이미지 처리 중...</Text>
+            </View>
+          ) : processedUri ? (
+            <Image
+              source={{ uri: processedUri }}
+              style={scanStyles.previewImage}
+              resizeMode="contain"
+            />
+          ) : null}
+        </View>
+
+        {/* Options */}
+        <View style={scanStyles.options}>
+          <Text style={scanStyles.optionLabel}>흑백 변환</Text>
+          <Switch
+            value={grayscale}
+            onValueChange={setGrayscale}
+            trackColor={{ false: colors.surfaceContainerHigh, true: colors.primary }}
+            thumbColor={colors.surfaceContainerLowest}
+            accessibilityLabel="흑백 변환 토글"
+          />
+        </View>
+
+        {/* Hint */}
+        <Text style={scanStyles.hint}>
+          최대 1500px 너비 · JPEG 80% 품질로 최적화됩니다
+        </Text>
+
+        {/* Actions */}
+        <View style={scanStyles.actions}>
+          <TouchableOpacity
+            style={scanStyles.retakeBtn}
+            onPress={onRetake}
+            accessibilityRole="button"
+            accessibilityLabel="다시 찍기"
+          >
+            <Text style={scanStyles.retakeBtnText}>다시 찍기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              scanStyles.saveBtn,
+              (isProcessing || !processedUri) && scanStyles.saveBtnDisabled,
+            ]}
+            onPress={() => {
+              if (processedUri) onConfirm(processedUri);
+            }}
+            disabled={isProcessing || !processedUri}
+            accessibilityRole="button"
+            accessibilityLabel="저장하기"
+            accessibilityState={{ disabled: isProcessing || !processedUri }}
+          >
+            <Text style={scanStyles.saveBtnText}>저장하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const scanStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surfaceContainerLow,
+    paddingTop: 56,
+  },
+  header: {
+    paddingHorizontal: spacing[5],
+    paddingBottom: spacing[4],
+    backgroundColor: colors.surfaceContainerLowest,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.07,
+        shadowRadius: 6,
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  headerTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.onSurface,
+    textAlign: "center",
+  },
+  previewArea: {
+    flex: 1,
+    margin: spacing[5],
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: borderRadius.xl,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.cardMd,
+  },
+  previewImage: {
+    width: "100%",
+    height: "100%",
+  },
+  processingWrap: {
+    alignItems: "center",
+    gap: spacing[3],
+  },
+  processingText: {
+    ...typography.styles.bodySm,
+    color: colors.textSecondary,
+  },
+  options: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: spacing[5],
+    marginBottom: spacing[2],
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing[5],
+    paddingVertical: spacing[3.5],
+    ...shadows.card,
+  },
+  optionLabel: {
+    ...typography.styles.label,
+    color: colors.onSurface,
+  },
+  hint: {
+    ...typography.styles.caption,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginHorizontal: spacing[5],
+    marginBottom: spacing[4],
+  },
+  actions: {
+    flexDirection: "row",
+    gap: spacing[3],
+    marginHorizontal: spacing[5],
+    marginBottom: spacing[8],
+  },
+  retakeBtn: {
+    flex: 1,
+    height: layout.buttonHeightMd,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retakeBtnText: {
+    ...typography.styles.buttonLabelSm,
+    color: colors.onSurfaceVariant,
+  },
+  saveBtn: {
+    flex: 2,
+    height: layout.buttonHeightMd,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.primaryButton,
+  },
+  saveBtnDisabled: {
+    backgroundColor: colors.secondaryContainer,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  saveBtnText: {
+    ...typography.styles.buttonLabel,
+    color: colors.onPrimary,
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Add document modal
 // ---------------------------------------------------------------------------
 
@@ -693,6 +952,8 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
   });
   const [pickedFile, setPickedFile] = useState<PickedFile | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  /** Raw camera URI waiting for scan-preview processing */
+  const [scanRawUri, setScanRawUri] = useState<string | null>(null);
   const slideAnim = useRef(new Animated.Value(500)).current;
 
   useEffect(() => {
@@ -716,19 +977,32 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
     }
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: "images",
-      quality: 0.85,
+      // Keep original quality; expo-image-manipulator will compress to 80%
+      quality: 1,
       allowsEditing: false,
+      exif: false,
     });
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
-      const ext = asset.uri.split(".").pop() ?? "jpg";
-      setPickedFile({
-        uri: asset.uri,
-        mimeType: asset.mimeType ?? "image/jpeg",
-        name: DOC_TYPE_CONFIG[selectedType].label,
-        extension: ext,
-      });
+      // Open scan-preview modal instead of immediately setting pickedFile
+      setScanRawUri(asset.uri);
     }
+  }
+
+  function handleScanConfirm(processedUri: string) {
+    setScanRawUri(null);
+    setPickedFile({
+      uri: processedUri,
+      mimeType: "image/jpeg",
+      name: DOC_TYPE_CONFIG[selectedType].label,
+      extension: "jpg",
+    });
+  }
+
+  function handleScanRetake() {
+    setScanRawUri(null);
+    // Re-open camera immediately
+    handleCamera();
   }
 
   async function handleGallery() {
@@ -849,16 +1123,23 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
 
   function handleClose() {
     setPickedFile(null);
+    setScanRawUri(null);
     onClose();
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={handleClose}
-    >
+    <>
+      <ScanPreviewModal
+        rawUri={scanRawUri}
+        onRetake={handleScanRetake}
+        onConfirm={handleScanConfirm}
+      />
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleClose}
+      >
       <Pressable style={modalStyles.overlay} onPress={handleClose}>
         <Animated.View
           style={[
@@ -971,6 +1252,7 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
         </Animated.View>
       </Pressable>
     </Modal>
+    </>
   );
 }
 

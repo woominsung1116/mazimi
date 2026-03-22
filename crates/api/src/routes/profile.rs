@@ -8,31 +8,18 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use majimi_core::models::{ProfileInput, UserProfile};
 
+use crate::auth::AuthUser;
+
 /// POST /api/v1/profile
-/// Accepts an optional `user_id` field; creates a new user when absent.
+///
+/// Upserts the authenticated user's profile.
+/// The user's ID is taken from the JWT — the client must be authenticated.
 pub async fn save_profile(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Json(payload): Json<SaveProfileRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let user_id = match payload.user_id {
-        Some(id) => id,
-        None => {
-            // Create a new anonymous user
-            let row = sqlx::query_scalar::<_, Uuid>(
-                "INSERT INTO users (auth_provider) VALUES ('anonymous') RETURNING id",
-            )
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("Failed to create user: {e}") })),
-                )
-            })?;
-            row
-        }
-    };
-
+    let user_id = auth_user.id;
     let input = &payload.profile;
 
     // Upsert into user_profiles
@@ -100,11 +87,55 @@ pub async fn save_profile(
     })))
 }
 
-/// GET /api/v1/profile/:user_id
+/// GET /api/v1/profile
+///
+/// Fetches the authenticated user's own profile using JWT identity.
+pub async fn get_my_profile(
+    auth_user: AuthUser,
+    State(pool): State<PgPool>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
+    let profile = sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("DB error: {e}") })),
+            )
+        })?;
+
+    match profile {
+        Some(p) => Ok(Json(json!({
+            "user_id": user_id,
+            "profile": p
+        }))),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Profile not found" })),
+        )),
+    }
+}
+
+/// GET /api/v1/profile/{user_id}
+///
+/// Fetches a profile by user_id from the path. Only the authenticated user
+/// may fetch their own profile — other user IDs are rejected with 403.
 pub async fn get_profile(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    // Enforce ownership: callers may only read their own profile
+    if auth_user.id != user_id && auth_user.role != "admin" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Forbidden: you may only access your own profile" })),
+        ));
+    }
+
     let profile = sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
         .bind(user_id)
         .fetch_optional(&pool)
@@ -132,7 +163,6 @@ pub async fn get_profile(
 
 #[derive(Debug, serde::Deserialize)]
 pub struct SaveProfileRequest {
-    pub user_id: Option<Uuid>,
     #[serde(flatten)]
     pub profile: ProfileInput,
 }

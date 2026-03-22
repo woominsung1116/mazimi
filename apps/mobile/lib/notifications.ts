@@ -2,9 +2,9 @@
 // Push notification utilities
 //
 // Usage order on app start:
-//   1. requestPermissions()        — ask the OS for permission
-//   2. registerForPushNotifications(userId) — get Expo token, send to backend
-//   3. setupNotificationHandlers() — wire up foreground + tap handlers
+//   1. requestPermissions()              — ask the OS for permission
+//   2. registerForPushNotifications()    — get Expo token, send to backend
+//   3. setupNotificationHandlers()       — wire up foreground + tap handlers
 //
 // Local deadline reminders:
 //   scheduleLocalNotification(title, body, data, triggerDate)
@@ -90,11 +90,10 @@ export async function requestPermissions(): Promise<boolean> {
  * Retrieves the Expo push token and POSTs it to the backend.
  * Returns the token string on success, null on failure.
  *
- * @param userId  UUID of the authenticated user (from auth store).
+ * The authenticated user's identity is derived from the JWT on the server —
+ * no userId parameter is needed here.
  */
-export async function registerForPushNotifications(
-  userId: string
-): Promise<string | null> {
+export async function registerForPushNotifications(): Promise<string | null> {
   if (!Device.isDevice) return null;
 
   try {
@@ -105,9 +104,10 @@ export async function registerForPushNotifications(
     });
 
     const token = tokenData.data;
+    const platform = Platform.OS; // "ios" | "android"
 
     // Persist to backend — fire-and-forget; non-fatal if the request fails.
-    api.registerPushToken(userId, token).catch((err) => {
+    api.registerPushToken(token, platform).catch((err) => {
       console.warn("[notifications] Failed to register push token:", err);
     });
 

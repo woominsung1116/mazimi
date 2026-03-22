@@ -38,7 +38,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, USER_ID, type UserProfile } from "@/lib/api";
+import { api, type UserProfile } from "@/lib/api";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import {
   colors,
@@ -907,8 +907,8 @@ export default function AutoFillScreen() {
 
   // Fetch server-side profile
   const { data: profileResponse } = useQuery({
-    queryKey: ["profile", USER_ID],
-    queryFn: () => api.getProfile(USER_ID),
+    queryKey: ["profile", "me"],
+    queryFn: () => api.getProfile(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
@@ -1168,7 +1168,37 @@ export default function AutoFillScreen() {
           )}
         </View>
 
-        {/* ── Section 4: 도움말 ── */}
+        {/* ── Section 4: 신청서 PDF 생성 ── */}
+        <SectionDivider />
+        <View style={styles.section}>
+          <SectionHeader title="신청서 PDF 생성" />
+          <TouchableOpacity
+            style={pdfStyles.card}
+            onPress={() => {
+              if (programId) {
+                router.push(`/generated-form?programId=${programId}`);
+              }
+            }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="신청서 PDF 자동 생성 화면으로 이동"
+          >
+            <View style={pdfStyles.left}>
+              <View style={pdfStyles.iconWrap}>
+                <Text style={pdfStyles.icon}>📑</Text>
+              </View>
+              <View style={pdfStyles.textGroup}>
+                <Text style={pdfStyles.title}>신청서 PDF 자동 생성</Text>
+                <Text style={pdfStyles.subtitle}>
+                  프로필 정보로 신청서를 만들고 공유·인쇄하세요
+                </Text>
+              </View>
+            </View>
+            <Text style={pdfStyles.arrow}>→</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Section 5: 도움말 ── */}
         <View style={[styles.section, styles.tipSection]}>
           <Text style={styles.tipTitle}>이렇게 사용하세요</Text>
           <View style={styles.tipList}>
@@ -1205,6 +1235,18 @@ export default function AutoFillScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.bottomPdfBtn]}
+          onPress={() => {
+            if (programId) router.push(`/generated-form?programId=${programId}`);
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="신청서 PDF 생성"
+        >
+          <Text style={styles.bottomPdfText}>PDF 생성</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.bottomOpenBtn, !hasOfficialUrl && styles.bottomBtnDisabled]}
           onPress={handleOpenSiteInApp}
           activeOpacity={0.85}
@@ -1219,7 +1261,7 @@ export default function AutoFillScreen() {
             style={styles.bottomOpenGradient}
           >
             <Text style={[styles.bottomOpenText, !hasOfficialUrl && styles.bottomOpenTextDisabled]}>
-              신청 사이트 열기
+              신청 사이트
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -1527,5 +1569,79 @@ const styles = StyleSheet.create({
   },
   bottomOpenTextDisabled: {
     color: colors.onSurfaceVariant,
+  },
+
+  // ── PDF button in bottom bar ──
+  bottomPdfBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing[4],
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: "#1d6b44",
+    minHeight: layout.buttonHeightMd,
+    backgroundColor: "#d1fae5",
+  },
+  bottomPdfText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: "#1d6b44",
+  },
+});
+
+// ---------------------------------------------------------------------------
+// PDF promo card styles
+// ---------------------------------------------------------------------------
+
+const pdfStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[4],
+    minHeight: layout.touchTargetMin + 12,
+    ...shadows.card,
+  },
+  left: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    flex: 1,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryFixed,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  icon: {
+    fontSize: 20,
+  },
+  textGroup: {
+    flex: 1,
+    gap: spacing[0.5],
+  },
+  title: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.onSurface,
+  },
+  subtitle: {
+    fontSize: typography.fontSize.xs,
+    color: colors.onSurfaceVariant,
+    lineHeight: 16,
+  },
+  arrow: {
+    fontSize: 18,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.bold,
+    marginLeft: spacing[2],
   },
 });

@@ -40,6 +40,7 @@ import {
   programStatusLabel,
   type ApiProgram,
 } from "@/lib/api";
+import OfflineBanner from "@/components/OfflineBanner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -173,16 +174,6 @@ function getStatusBadgeColors(status: string): { bg: string; text: string } {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function OfflineBanner() {
-  return (
-    <View style={styles.offlineBanner}>
-      <Text style={styles.offlineBannerText}>
-        오프라인 모드 — 최근 데이터를 표시합니다
-      </Text>
-    </View>
-  );
-}
-
 interface SearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
@@ -292,7 +283,7 @@ interface ProgramCardProps {
   onPress: () => void;
 }
 
-function ProgramCard({ item, onPress }: ProgramCardProps) {
+const ProgramCard = React.memo(function ProgramCard({ item, onPress }: ProgramCardProps) {
   const catColors = getCategoryBadgeColors(item.category);
   const statusColors = getStatusBadgeColors(item.status);
 
@@ -335,7 +326,7 @@ function ProgramCard({ item, onPress }: ProgramCardProps) {
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 function EmptyState() {
   return (
@@ -489,19 +480,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-
-  // Offline banner
-  offlineBanner: {
-    backgroundColor: colors.surfaceContainerHighest,
-    paddingVertical: spacing[2],
-    paddingHorizontal: layout.pagePadding,
-    alignItems: "center",
-  },
-  offlineBannerText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.onSurfaceVariant,
-    fontWeight: typography.fontWeight.medium,
   },
 
   // Loading center

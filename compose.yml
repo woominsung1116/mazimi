@@ -6,28 +6,39 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.web
     restart: unless-stopped
+    env_file: .env.production
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://api:8080
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXT_PUBLIC_API_BASE_URL=https://${DOMAIN}/api
+      - NEXTAUTH_URL=https://${DOMAIN}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}
       - KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   api:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.production
     environment:
       - APP_ENV=production
       - APP_PORT=8080
       - RUST_LOG=info
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
@@ -35,25 +46,29 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   worker:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.worker
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.production
     environment:
       - APP_ENV=production
       - RUST_LOG=info
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - KAKAO_BIZAPI_KEY=${KAKAO_BIZAPI_KEY:-}
       - KAKAO_ALIMTALK_SENDER_KEY=${KAKAO_ALIMTALK_SENDER_KEY:-}
@@ -63,7 +78,17 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep worker || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   db:
     image: postgres:16-alpine
@@ -71,7 +96,7 @@ services:
     environment:
       POSTGRES_DB: wello
       POSTGRES_USER: wello
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-wello_secret}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -79,12 +104,26 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
   caddy:
     image: caddy:2-alpine
@@ -92,13 +131,22 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"
+    environment:
+      - DOMAIN=${DOMAIN}
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
-      - api
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
 volumes:
   pgdata:

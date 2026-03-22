@@ -38,7 +38,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, USER_ID, type ApiProgram, type ApplicationStatus } from "@/lib/api";
+import { api, type ApiProgram, type ApplicationStatus } from "@/lib/api";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import {
   borderRadius,
@@ -1416,8 +1416,8 @@ export default function ApplyAssistantScreen() {
   const localStore = useOnboardingStore();
 
   const { data: profileResponse } = useQuery({
-    queryKey: ["profile", USER_ID],
-    queryFn: () => api.getProfile(USER_ID),
+    queryKey: ["profile", "me"],
+    queryFn: () => api.getProfile(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
@@ -1460,10 +1460,10 @@ export default function ApplyAssistantScreen() {
   // Status mutation — update to "applying" on Step 5
   const { mutate: updateStatus } = useMutation({
     mutationFn: (status: ApplicationStatus) =>
-      api.updateApplicationStatus(USER_ID, programId!, status),
+      api.updateApplicationStatus(programId!, status),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["applicationStatus", programId, USER_ID],
+        queryKey: ["applicationStatus", programId],
       });
     },
   });
@@ -1484,7 +1484,8 @@ export default function ApplyAssistantScreen() {
   }
 
   function handleHome() {
-    router.replace("/(tabs)/");
+    // Cast needed: Expo Router's typed replace doesn't accept the tab group path directly
+    router.replace("/(tabs)" as any);
   }
 
   const conditions = program ? buildConditions(program) : [];
@@ -1522,7 +1523,7 @@ export default function ApplyAssistantScreen() {
         </View>
 
         <Step4
-          url={program?.official_url}
+          url={program?.official_url ?? undefined}
           profile={profile}
           insetTop={0}
           insetBottom={insets.bottom}

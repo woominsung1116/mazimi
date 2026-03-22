@@ -3,7 +3,7 @@
  *
  * Data sources:
  *   - api.getRecommendPreview()  → scholarship / support recommendations
- *   - api.getDashboard(USER_ID)  → overall score, deadline items
+ *   - api.getDashboard()         → overall score, deadline items (JWT auth)
  *
  * On API failure the screen falls back to static mock data and shows an
  * "오프라인 모드" banner.
@@ -36,11 +36,11 @@ import {
 } from "@/constants/theme";
 import {
   api,
-  USER_ID,
   formatBenefit,
   type RecommendationItem,
   type DashboardData,
 } from "@/lib/api";
+import OfflineBanner from "@/components/OfflineBanner";
 
 // ---------------------------------------------------------------------------
 // Mock fallback data
@@ -396,7 +396,7 @@ function SectionHeader({
 // ScholarshipCard
 // ---------------------------------------------------------------------------
 
-function ScholarshipCard({ item }: { item: ScholarshipItem }) {
+const ScholarshipCard = React.memo(function ScholarshipCard({ item }: { item: ScholarshipItem }) {
   return (
     <View style={styles.scholarshipCard}>
       <View style={styles.scholarshipTop}>
@@ -450,7 +450,7 @@ function ScholarshipCard({ item }: { item: ScholarshipItem }) {
       </View>
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // HousingCard
@@ -513,7 +513,7 @@ function LifestyleIconView({ item }: { item: LifestyleItem }) {
   return <MaterialCommunityIcons name={item.iconName as any} size={24} color={colors.onSecondaryContainer} />;
 }
 
-function LifestyleCard({ item }: { item: LifestyleItem }) {
+const LifestyleCard = React.memo(function LifestyleCard({ item }: { item: LifestyleItem }) {
   return (
     <View style={styles.lifestyleCard}>
       <View style={styles.lifestyleTop}>
@@ -529,7 +529,7 @@ function LifestyleCard({ item }: { item: LifestyleItem }) {
       <Text style={styles.lifestyleQuote}>"{item.quote}"</Text>
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -553,8 +553,8 @@ export default function ManageScreen() {
   });
 
   const dashboardQuery = useQuery({
-    queryKey: ["dashboard", USER_ID],
-    queryFn: () => api.getDashboard(USER_ID),
+    queryKey: ["dashboard", "me"],
+    queryFn: () => api.getDashboard(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
@@ -591,13 +591,7 @@ export default function ManageScreen() {
       showsVerticalScrollIndicator={false}
     >
       {/* Offline banner */}
-      {isOffline && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineBannerText}>
-            오프라인 모드 — 최근 데이터를 표시합니다
-          </Text>
-        </View>
-      )}
+      {isOffline && <OfflineBanner forceVisible />}
 
       {/* Hero Section */}
       <View style={styles.heroSection}>
@@ -721,20 +715,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: layout.pagePadding,
     paddingTop: spacing[8],
-  },
-
-  offlineBanner: {
-    backgroundColor: colors.surfaceContainerHighest,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[4],
-    marginBottom: spacing[4],
-    alignItems: "center",
-  },
-  offlineBannerText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.onSurfaceVariant,
-    fontWeight: typography.fontWeight.medium,
   },
 
   loadingCard: {

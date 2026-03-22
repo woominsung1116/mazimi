@@ -1,24 +1,23 @@
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
     Json,
 };
-use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 use majimi_core::models::Program;
 
-#[derive(Debug, Deserialize)]
-pub struct DashboardQuery {
-    pub user_id: Uuid,
-}
+use crate::auth::AuthUser;
 
-/// GET /api/v1/dashboard?user_id=UUID
+/// GET /api/v1/dashboard
+/// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
 pub async fn get_dashboard(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
-    Query(q): Query<DashboardQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
     let db_err = |e: sqlx::Error| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -30,7 +29,7 @@ pub async fn get_dashboard(
     let bookmarked_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM user_bookmarks WHERE user_id = $1",
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(db_err)?;
@@ -39,7 +38,7 @@ pub async fn get_dashboard(
     let applying_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM user_program_states WHERE user_id = $1 AND state IN ('applying','applied','waiting')",
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(db_err)?;
@@ -56,7 +55,7 @@ pub async fn get_dashboard(
         LIMIT 5
         "#,
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_all(&pool)
     .await
     .map_err(db_err)?;
@@ -72,13 +71,13 @@ pub async fn get_dashboard(
         WHERE ub.user_id = $1 AND p.is_active = true
         "#,
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(db_err)?;
 
     // Todo items: check for missing profile fields
-    let todo_items = build_todo_items(&pool, q.user_id).await.map_err(db_err)?;
+    let todo_items = build_todo_items(&pool, user_id).await.map_err(db_err)?;
 
     Ok(Json(json!({
         "bookmarked_count": bookmarked_count,

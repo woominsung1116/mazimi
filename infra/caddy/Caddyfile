@@ -1,18 +1,50 @@
+# Redirect www to apex domain
+www.{$DOMAIN:localhost} {
+    redir https://{$DOMAIN}{uri} permanent
+}
+
 {$DOMAIN:localhost} {
+    # API routing — strip /api prefix before proxying to Axum
     handle /api/* {
-        reverse_proxy api:8080
+        uri strip_prefix /api
+        reverse_proxy api:8080 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
+    # All other traffic goes to Next.js
     handle {
-        reverse_proxy web:3000
+        reverse_proxy web:3000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     encode gzip
 
+    # Security headers
     header {
         X-Frame-Options DENY
         X-Content-Type-Options nosniff
         Referrer-Policy strict-origin-when-cross-origin
         Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-XSS-Protection "1; mode=block"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    # Rate limiting via response headers (Caddy OSS — informational only)
+    # For hard rate limiting, use the caddy-ratelimit plugin or an upstream WAF.
+    header /api/* {
+        X-RateLimit-Policy "100r/m per IP"
+    }
+
+    log {
+        output stdout
+        format json
+        level INFO
     }
 }

@@ -1,10 +1,16 @@
 use axum::{
     extract::State,
-    middleware,
+    http::{header, HeaderValue, Method, Request, StatusCode},
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post, put},
     Router,
 };
 use sqlx::PgPool;
+use std::sync::Arc;
+use tower_governor::{
+    governor::GovernorConfigBuilder, key_extractor::PeerIpKeyExtractor, GovernorLayer,
+};
 use tower_http::cors::CorsLayer;
 
 pub mod auth;
@@ -19,6 +25,8 @@ mod routes;
 pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: String,
+    /// "local" | "staging" | "production"
+    pub app_env: String,
 }
 
 impl axum::extract::FromRef<AppState> for PgPool {
@@ -34,38 +42,98 @@ impl axum::extract::FromRef<AppState> for String {
 }
 
 pub fn build_app(pool: PgPool, jwt_secret: String) -> Router {
-    let state = AppState { pool, jwt_secret };
+    build_app_with_env(pool, jwt_secret, std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()))
+}
 
-    // ── Public routes (no auth required) ──
-    let public = Router::new()
+pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> Router {
+    let state = AppState { pool, jwt_secret, app_env };
+
+    // ── Rate limiter configs ──
+    //
+    // GovernorConfigBuilder uses a token-bucket model:
+    //   per_second(N)      — replenish 1 token every N seconds
+    //   per_millisecond(N) — replenish 1 token every N milliseconds
+    //   burst_size(B)      — max burst allowed before throttling kicks in
+    //
+    // Auth endpoints:   5 req/min  → replenish every 12 s, burst 5
+    // Admin endpoints: 30 req/min  → replenish every  2 s, burst 30
+    // General API:    100 req/min  → replenish every 600 ms, burst 100
+
+    let auth_governor_conf = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(12)
+            .burst_size(5)
+            .key_extractor(PeerIpKeyExtractor)
+            .finish()
+            .expect("auth rate-limiter config"),
+    );
+
+    let admin_governor_conf = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(2)
+            .burst_size(30)
+            .key_extractor(PeerIpKeyExtractor)
+            .finish()
+            .expect("admin rate-limiter config"),
+    );
+
+    let api_governor_conf = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_millisecond(600)
+            .burst_size(100)
+            .key_extractor(PeerIpKeyExtractor)
+            .finish()
+            .expect("api rate-limiter config"),
+    );
+
+    // ── Auth routes: strict limit (5/min per IP) ──
+    let auth_routes = Router::new()
+        .route("/api/v1/auth/kakao", post(routes::auth::kakao_login))
+        .layer(GovernorLayer::new(Arc::clone(&auth_governor_conf)));
+
+    // ── Admin routes: moderate limit (30/min per IP) + JWT auth ──
+    // Role enforcement (admin-only) is done inside each handler via AdminUser extractor.
+    let admin_routes = Router::new()
+        .route("/api/v1/admin/programs", get(routes::admin::list_admin_programs))
+        .route("/api/v1/admin/programs", post(routes::admin::create_program))
+        .route("/api/v1/admin/programs/{id}", put(routes::admin::update_program))
+        .route(
+            "/api/v1/admin/programs/{id}/publish",
+            post(routes::admin::toggle_publish),
+        )
+        .route("/api/v1/admin/stats", get(routes::admin::get_stats))
+        .route("/api/v1/admin/sync", post(routes::admin::trigger_sync))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .layer(GovernorLayer::new(Arc::clone(&admin_governor_conf)));
+
+    // ── General public routes: relaxed limit (100/min per IP) ──
+    let public_routes = Router::new()
         .route("/health", get(routes::health::health))
         .route("/api/v1/health", get(routes::health::health_detail))
-        // Auth
-        .route("/api/v1/auth/kakao", post(routes::auth::kakao_login))
-        // Programs (read-only, public)
         .route("/api/v1/programs", get(routes::programs::list_programs))
         .route("/api/v1/programs/{id}", get(routes::programs::get_program))
-        // Recommend preview (no account needed)
-        .route("/api/v1/recommend/preview", post(routes::recommend::preview));
+        .route("/api/v1/recommend/preview", post(routes::recommend::preview))
+        .layer(GovernorLayer::new(Arc::clone(&api_governor_conf)));
 
-    // ── Protected routes (require valid JWT) ──
-    let protected = Router::new()
-        // Profile
-        .route("/api/v1/profile", post(routes::profile::save_profile))
+    // ── Protected routes: general limit (100/min per IP) + JWT auth ──
+    let protected_routes = Router::new()
+        .route("/api/v1/auth/me", get(routes::auth::me))
+        .route(
+            "/api/v1/push/register",
+            post(routes::push::register_push_token)
+                .delete(routes::push::unregister_push_token),
+        )
+        .route("/api/v1/profile", post(routes::profile::save_profile).get(routes::profile::get_my_profile))
         .route("/api/v1/profile/{user_id}", get(routes::profile::get_profile))
-        // Bookmark
         .route(
             "/api/v1/programs/{program_id}/bookmark",
             post(routes::bookmark::toggle_bookmark),
         )
-        // Program state
         .route(
             "/api/v1/programs/{program_id}/state",
             post(routes::state::upsert_state),
         )
-        // Dashboard
         .route("/api/v1/dashboard", get(routes::dashboard::get_dashboard))
-        // Alerts
         .route("/api/v1/alerts", get(routes::alerts::list_alerts))
         .route(
             "/api/v1/alerts/preferences",
@@ -79,7 +147,6 @@ pub fn build_app(pool: PgPool, jwt_secret: String) -> Router {
             "/api/v1/alerts/notification-preferences",
             put(routes::alerts::update_notification_preferences),
         )
-        // My
         .route("/api/v1/my/saved", get(routes::my::get_saved))
         .route("/api/v1/my/applications", get(routes::state::list_applications))
         .route(
@@ -90,26 +157,58 @@ pub fn build_app(pool: PgPool, jwt_secret: String) -> Router {
             "/api/v1/my/applications/{program_id}",
             put(routes::state::update_application),
         )
-        // Admin
-        .route("/api/v1/admin/programs", get(routes::admin::list_admin_programs))
-        .route("/api/v1/admin/programs", post(routes::admin::create_program))
-        .route("/api/v1/admin/programs/{id}", put(routes::admin::update_program))
-        .route(
-            "/api/v1/admin/programs/{id}/publish",
-            post(routes::admin::toggle_publish),
-        )
-        .route("/api/v1/admin/stats", get(routes::admin::get_stats))
-        .route("/api/v1/admin/sync", post(routes::admin::trigger_sync))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth_middleware,
-        ));
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .layer(GovernorLayer::new(Arc::clone(&api_governor_conf)));
 
     Router::new()
-        .merge(public)
-        .merge(protected)
-        .layer(CorsLayer::permissive())
+        .merge(auth_routes)
+        .merge(admin_routes)
+        .merge(public_routes)
+        .merge(protected_routes)
+        // Apply security headers to every response
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            security_headers_middleware,
+        ))
+        // Apply error sanitization to every response
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            error_sanitization_middleware,
+        ))
+        .layer(build_cors_layer())
         .with_state(state)
+}
+
+// ── CORS ──
+//
+// Allows requests from localhost:3000 (dev) and the production domain
+// supplied via the DOMAIN environment variable.  Only the necessary
+// HTTP methods and headers are permitted; credentials (cookies/tokens)
+// may be sent from these origins.
+
+fn build_cors_layer() -> CorsLayer {
+    let mut origins: Vec<HeaderValue> = vec![
+        "http://localhost:3000".parse().unwrap(),
+        "http://127.0.0.1:3000".parse().unwrap(),
+    ];
+
+    if let Ok(domain) = std::env::var("DOMAIN") {
+        // Accept both http and https variants of the production domain
+        let https = format!("https://{domain}");
+        let http = format!("http://{domain}");
+        if let Ok(v) = https.parse() {
+            origins.push(v);
+        }
+        if let Ok(v) = http.parse() {
+            origins.push(v);
+        }
+    }
+
+    CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+        .allow_credentials(true)
 }
 
 // ── Auth middleware ──
@@ -120,8 +219,8 @@ pub fn build_app(pool: PgPool, jwt_secret: String) -> Router {
 async fn auth_middleware(
     State(state): State<AppState>,
     mut req: axum::extract::Request,
-    next: middleware::Next,
-) -> Result<axum::response::Response, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+    next: Next,
+) -> Result<Response, (StatusCode, axum::Json<serde_json::Value>)> {
     use axum::http::StatusCode;
     use serde_json::json;
 
@@ -153,8 +252,118 @@ async fn auth_middleware(
         role: claims.role,
     };
 
+    // Set the session-local GUC so that RLS policies can read the caller's
+    // identity via current_setting('app.current_user_id', true).
+    //
+    // SET LOCAL is transaction-scoped; SQLx's PgPool will run this on a
+    // connection that it checks out for this invocation. We fire-and-forget
+    // failures here (a warn! is emitted) so that a transient DB hiccup does
+    // not lock every authenticated request out of the API — RLS policies
+    // degrade gracefully to NULL when the GUC is absent.
+    let set_uid_sql = format!(
+        "SET LOCAL app.current_user_id = '{}'",
+        auth_user.id
+    );
+    if let Err(e) = sqlx::query(&set_uid_sql).execute(&state.pool).await {
+        tracing::warn!(
+            user_id = %auth_user.id,
+            error = %e,
+            "Failed to SET LOCAL app.current_user_id; RLS will treat request as unauthenticated"
+        );
+    }
+
     // Make AuthUser available to handlers via request extensions
     req.extensions_mut().insert(auth_user);
 
     Ok(next.run(req).await)
+}
+
+// ── Security headers middleware ──
+//
+// Adds defensive HTTP headers to every outbound response:
+//   - X-Content-Type-Options: nosniff       — prevents MIME-type sniffing
+//   - X-Frame-Options: DENY                 — blocks clickjacking via iframes
+//   - Strict-Transport-Security             — HSTS for HTTPS deployments
+//   - X-Powered-By is removed if present    — hides implementation details
+
+async fn security_headers_middleware(
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    let mut response = next.run(req).await;
+    let headers = response.headers_mut();
+
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "x-frame-options",
+        HeaderValue::from_static("DENY"),
+    );
+    // max-age=63072000 = 2 years; includeSubDomains covers all subdomains
+    headers.insert(
+        "strict-transport-security",
+        HeaderValue::from_static("max-age=63072000; includeSubDomains"),
+    );
+    // Remove x-powered-by if any upstream layer added it
+    headers.remove("x-powered-by");
+
+    response
+}
+
+// ── Error sanitization middleware ──
+//
+// In non-local environments (APP_ENV != "local") this middleware rewrites
+// 5xx JSON error bodies so that internal DB errors and stack traces are
+// never sent to clients.  In "local" the full error is preserved for
+// easier debugging.
+//
+// It works by inspecting the response status code; when it is a 5xx the
+// body is replaced with a generic message.  4xx errors (auth failures,
+// validation errors, not-found) are passed through unchanged.
+
+async fn error_sanitization_middleware(
+    State(state): State<AppState>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    use axum::body::Body;
+
+    let response = next.run(req).await;
+
+    // Local dev: preserve full error details
+    if state.app_env == "local" {
+        return response;
+    }
+
+    let status = response.status();
+
+    // Only sanitize 5xx responses
+    if !status.is_server_error() {
+        return response;
+    }
+
+    // Log the full error server-side before replacing it
+    tracing::error!(
+        status = status.as_u16(),
+        "Internal server error (body redacted in response)"
+    );
+
+    // Replace body with a generic message; do not leak DB errors or traces
+    let generic_body = serde_json::json!({
+        "error": "An internal server error occurred. Please try again later."
+    })
+    .to_string();
+
+    Response::builder()
+        .status(status)
+        .header("content-type", "application/json")
+        .body(Body::from(generic_body))
+        .unwrap_or_else(|_| {
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::empty())
+                .unwrap()
+        })
 }

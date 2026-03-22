@@ -1,7 +1,7 @@
 /**
  * 내 정보 (Profile) Screen
  *
- * Data source: api.getProfile(userId)
+ * Data source: api.getProfile() — user identity from JWT
  *
  * On API failure the screen falls back to static mock profile data and shows
  * an "오프라인 모드" banner. Alert preferences are still editable and saved
@@ -23,9 +23,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useAuthStore } from "../../store/auth";
 import { useQuery } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api, USER_ID, type UserProfile, type AlertListResponse } from "@/lib/api";
+import { api, type UserProfile, type AlertListResponse } from "@/lib/api";
+import OfflineBanner from "@/components/OfflineBanner";
 import {
   colors,
   typography,
@@ -219,15 +221,6 @@ function InfoRow({
   );
 }
 
-function OfflineBanner() {
-  return (
-    <View style={styles.offlineBanner}>
-      <Text style={styles.offlineBannerText}>
-        오프라인 모드 — 최근 프로필 정보를 표시합니다
-      </Text>
-    </View>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -258,8 +251,8 @@ export default function ProfileScreen() {
   }, []);
 
   const profileQuery = useQuery({
-    queryKey: ["profile", USER_ID],
-    queryFn: () => api.getProfile(USER_ID),
+    queryKey: ["profile", "me"],
+    queryFn: () => api.getProfile(),
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
@@ -310,7 +303,12 @@ export default function ProfileScreen() {
   }
 
   function handleLogout() {
-    // TODO: call useAuthStore.getState().logout() + navigate to /onboarding
+    useAuthStore.getState().logout();
+    router.push("/login");
+  }
+
+  function handleLogin() {
+    router.push("/login");
   }
 
   return (
@@ -483,11 +481,42 @@ export default function ProfileScreen() {
         <SectionLabel>앱 정보</SectionLabel>
         <View style={styles.card}>
           <InfoRow label="버전" value="1.0.0" />
-          <InfoRow label="지원 지역" value="부산 · 대구" isLast />
+          <InfoRow label="지원 지역" value="부산 · 대구" />
+          <TouchableOpacity
+            style={[styles.infoRow, styles.infoRowDivider]}
+            onPress={() => router.push("/privacy-policy")}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="개인정보처리방침 보기"
+          >
+            <Text style={styles.infoRowLabel}>개인정보처리방침</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.infoRow}
+            onPress={() => router.push("/terms")}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="이용약관 보기"
+          >
+            <Text style={styles.infoRowLabel}>이용약관</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* 로그아웃 */}
+      {/* 로그인/로그아웃 */}
+      {!useAuthStore.getState().token ? (
+        <TouchableOpacity
+          style={[styles.logoutBtn, { backgroundColor: colors.primary }]}
+          onPress={handleLogin}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="카카오로 로그인"
+        >
+          <Text style={[styles.logoutBtnText, { color: colors.onPrimary }]}>카카오로 로그인</Text>
+        </TouchableOpacity>
+      ) : null}
       <TouchableOpacity
         style={styles.logoutBtn}
         onPress={handleLogout}
@@ -514,20 +543,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.pagePadding,
     paddingTop: spacing[6],
     gap: layout.sectionGap,
-  },
-
-  offlineBanner: {
-    backgroundColor: colors.surfaceContainerHighest,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[3],
-    alignItems: "center",
-    marginBottom: spacing[2],
-  },
-  offlineBannerText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.onSurfaceVariant,
-    fontWeight: typography.fontWeight.medium,
   },
 
   profileHeader: {

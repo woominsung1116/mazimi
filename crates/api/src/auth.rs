@@ -10,8 +10,11 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-// ── Token lifetime: 30 days ──
-const TOKEN_EXPIRY_SECS: usize = 30 * 24 * 60 * 60;
+// ── Token lifetime: 7 days ──
+// TODO: Implement refresh token flow so short-lived access tokens can be
+// renewed without forcing the user to re-authenticate. Access tokens should
+// stay at 7 days (or shorter) once refresh tokens are in place.
+const TOKEN_EXPIRY_SECS: usize = 7 * 24 * 60 * 60; // 604800 seconds
 
 // ── Claims stored inside the JWT ──
 
@@ -32,6 +35,36 @@ pub struct Claims {
 pub struct AuthUser {
     pub id: Uuid,
     pub role: String,
+}
+
+// ── AdminUser extractor — rejects non-admin callers with 403 ──
+//
+// Add `admin: AdminUser` to any handler signature to enforce role=admin.
+// The middleware has already injected AuthUser into extensions; this extractor
+// simply reads it and checks the role, returning 403 Forbidden if the role is
+// anything other than "admin".
+
+#[derive(Debug, Clone)]
+pub struct AdminUser(pub AuthUser);
+
+impl FromRequestParts<AppState> for AdminUser {
+    type Rejection = (StatusCode, Json<serde_json::Value>);
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth_user = AuthUser::from_request_parts(parts, state).await?;
+
+        if auth_user.role != "admin" {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(json!({ "error": "Forbidden: admin access required" })),
+            ));
+        }
+
+        Ok(AdminUser(auth_user))
+    }
 }
 
 // ── Token helpers ──

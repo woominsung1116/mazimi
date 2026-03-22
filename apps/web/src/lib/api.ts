@@ -1,24 +1,93 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 
+// ── Auth token helpers ──
+//
+// JWT is stored either in localStorage (key: "wello_token") or as a cookie
+// (name: "wello_token"). The helper below checks both locations so that SSR
+// and CSR callers each get the token via whichever mechanism was used at
+// sign-in time.
+
+function getAuthToken(): string | null {
+  // localStorage is only available in browser contexts
+  if (typeof window !== "undefined") {
+    const fromStorage = window.localStorage.getItem("wello_token");
+    if (fromStorage) return fromStorage;
+
+    // Fall back to cookie
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("wello_token="));
+    if (match) return match.split("=")[1] ?? null;
+  }
+  return null;
+}
+
+// ── API error class ──
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly statusText: string,
+    public readonly body?: unknown
+  ) {
+    super(`API error: ${status} ${statusText}`);
+    this.name = "ApiError";
+  }
+}
+
+// ── Core fetch wrapper ──
+
 async function request<T>(
   path: string,
-  options?: RequestInit
+  options?: RequestInit,
+  authenticated = false
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+
+  if (authenticated) {
+    const token = getAuthToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      body = undefined;
+    }
+    throw new ApiError(res.status, res.statusText, body);
+  }
+
+  // 204 No Content — nothing to parse
+  if (res.status === 204) {
+    return undefined as unknown as T;
   }
 
   return res.json();
 }
+
+// Convenience wrappers to avoid passing the boolean everywhere
+function publicRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  return request<T>(path, options, false);
+}
+
+function authRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  return request<T>(path, options, true);
+}
+
+// ── Domain types ──
 
 export interface Program {
   id: string;
@@ -92,46 +161,64 @@ export interface DashboardData {
   todos: TodoItem[];
 }
 
+// Backend paginated list response shape for /api/v1/programs
+export interface ProgramListResponse {
+  items: Program[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+}
+
 export const USER_ID = "00000000-0000-0000-0000-000000000001";
 
 export const api = {
-  getPrograms: (params?: { type?: string; region?: string }) => {
+  // Returns the paginated envelope from the backend.
+  // Callers that previously expected `{ programs }` must use `.items` instead.
+  getPrograms: (params?: {
+    type?: string;
+    region?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ProgramListResponse> => {
     const query = new URLSearchParams();
-    if (params?.type) query.set("type", params.type);
+    if (params?.type) query.set("category", params.type);
     if (params?.region) query.set("region", params.region);
+    if (params?.page != null) query.set("page", String(params.page));
+    if (params?.per_page != null) query.set("per_page", String(params.per_page));
     const qs = query.toString();
-    return request<{ programs: Program[] }>(
+    return publicRequest<ProgramListResponse>(
       `/api/v1/programs${qs ? `?${qs}` : ""}`
     );
   },
 
   getProgram: (id: string) =>
-    request<Program>(`/api/v1/programs/${id}`),
+    publicRequest<Program>(`/api/v1/programs/${id}`),
 
   getPreview: (profile: ProfilePayload) =>
-    request<PreviewResponse>("/api/v1/recommend/preview", {
+    publicRequest<PreviewResponse>("/api/v1/recommend/preview", {
       method: "POST",
       body: JSON.stringify(profile),
     }),
 
   getProgramCount: (region?: string) => {
     const qs = region ? `?region=${region}` : "";
-    return request<{ count: number }>(`/api/v1/programs/count${qs}`);
+    return publicRequest<{ count: number }>(`/api/v1/programs/count${qs}`);
   },
 
   getDashboard: (userId: string) =>
-    request<DashboardData>(`/api/v1/dashboard?user_id=${userId}`),
+    authRequest<DashboardData>(`/api/v1/dashboard?user_id=${userId}`),
 
   getSaved: (userId: string) =>
-    request<{ saved: SavedProgram[] }>(`/api/v1/my/saved?user_id=${userId}`),
+    authRequest<{ saved: SavedProgram[] }>(`/api/v1/my/saved?user_id=${userId}`),
 
   getApplications: (userId: string) =>
-    request<{ applications: ApplicationItem[] }>(
+    authRequest<{ applications: ApplicationItem[] }>(
       `/api/v1/my/applications?user_id=${userId}`
     ),
 
   toggleBookmark: (programId: string, userId: string) =>
-    request<{ bookmarked: boolean }>(
+    authRequest<{ bookmarked: boolean }>(
       `/api/v1/programs/${programId}/bookmark`,
       {
         method: "POST",
@@ -139,22 +226,23 @@ export const api = {
       }
     ),
 
+  // Backend route is PUT /api/v1/my/applications/{program_id}
   updateApplicationStatus: (
     applicationId: string,
     status: ApplicationStatus,
     memo: string,
     userId: string
   ) =>
-    request<ApplicationItem>(`/api/v1/my/applications/${applicationId}`, {
-      method: "PATCH",
+    authRequest<ApplicationItem>(`/api/v1/my/applications/${applicationId}`, {
+      method: "PUT",
       body: JSON.stringify({ status, memo, user_id: userId }),
     }),
 
   getAlerts: (userId: string) =>
-    request<Alert[]>(`/api/v1/alerts?user_id=${userId}`),
+    authRequest<Alert[]>(`/api/v1/alerts?user_id=${userId}`),
 
   updateAlertPreferences: (userId: string, prefs: AlertPreferences) =>
-    request<void>("/api/v1/alerts/preferences", {
+    authRequest<void>("/api/v1/alerts/preferences", {
       method: "POST",
       body: JSON.stringify({ user_id: userId, ...prefs }),
     }),
@@ -214,6 +302,14 @@ export interface AdminStats {
   total_users: number;
 }
 
+// Backend list response shape for GET /api/v1/admin/programs
+export interface AdminProgramListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: AdminProgram[];
+}
+
 export interface CreateProgramInput {
   program_type: string;
   title: string;
@@ -251,35 +347,46 @@ export interface UpdateProgramInput {
 }
 
 export const adminApi = {
-  getStats: () => request<AdminStats>("/api/v1/admin/stats"),
+  getStats: () => authRequest<AdminStats>("/api/v1/admin/stats"),
 
-  listPrograms: (params?: { limit?: number; offset?: number }) => {
+  triggerSync: () =>
+    authRequest<{ status: string; message: string }>("/api/v1/admin/sync", {
+      method: "POST",
+    }),
+
+  // Returns { total, limit, offset, items } — matches backend list_admin_programs response
+  listPrograms: (params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<AdminProgramListResponse> => {
     const query = new URLSearchParams();
     if (params?.limit != null) query.set("limit", String(params.limit));
     if (params?.offset != null) query.set("offset", String(params.offset));
     const qs = query.toString();
-    return request<{ total: number; limit: number; offset: number; items: AdminProgram[] }>(
+    return authRequest<AdminProgramListResponse>(
       `/api/v1/admin/programs${qs ? `?${qs}` : ""}`
     );
   },
 
+  // Single program detail: uses the public /api/v1/programs/{id} endpoint
   getProgram: (id: string) =>
-    request<AdminProgram>(`/api/v1/programs/${id}`),
+    authRequest<AdminProgram>(`/api/v1/programs/${id}`),
 
   createProgram: (input: CreateProgramInput) =>
-    request<AdminProgram>("/api/v1/admin/programs", {
+    authRequest<AdminProgram>("/api/v1/admin/programs", {
       method: "POST",
       body: JSON.stringify(input),
     }),
 
+  // Backend handler is PUT /api/v1/admin/programs/{id}
   updateProgram: (id: string, input: UpdateProgramInput) =>
-    request<AdminProgram>(`/api/v1/admin/programs/${id}`, {
+    authRequest<AdminProgram>(`/api/v1/admin/programs/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
 
   togglePublish: (id: string) =>
-    request<{ id: string; is_active: boolean }>(
+    authRequest<{ id: string; is_active: boolean }>(
       `/api/v1/admin/programs/${id}/publish`,
       { method: "POST" }
     ),

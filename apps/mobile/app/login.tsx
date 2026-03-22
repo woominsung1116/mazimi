@@ -8,8 +8,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useAuthRequest, makeRedirectUri } from "expo-auth-session";
-import { useEffect, useState } from "react";
+import { makeRedirectUri } from "expo-auth-session";
+import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuthStore } from "../store/auth";
@@ -19,49 +19,59 @@ WebBrowser.maybeCompleteAuthSession();
 
 const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_CLIENT_ID ?? "";
 
-const discovery = {
-  authorizationEndpoint: "https://kauth.kakao.com/oauth/authorize",
-  tokenEndpoint: "https://kauth.kakao.com/oauth/token",
-};
-
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { login, isLoading } = useAuthStore();
   const [authLoading, setAuthLoading] = useState(false);
 
-  const redirectUri = makeRedirectUri({ scheme: "wello", path: "login" });
+  const redirectUri = makeRedirectUri({ scheme: "majimi", path: "login" });
 
-  const [request, response, promptAsync] = useAuthRequest(
-    {
-      clientId: KAKAO_CLIENT_ID,
-      scopes: ["profile_nickname", "profile_image"],
-      redirectUri,
-      usePKCE: false,
-    },
-    discovery
-  );
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const accessToken = response.params.access_token ?? response.authentication?.accessToken;
-      if (accessToken) {
-        handleKakaoSuccess(accessToken);
-      } else {
-        Alert.alert("로그인 오류", "카카오 인증에 실패했습니다. 다시 시도해 주세요.");
-      }
-    } else if (response?.type === "error") {
-      Alert.alert("로그인 오류", "카카오 인증에 실패했습니다. 다시 시도해 주세요.");
-    }
-  }, [response]);
-
-  async function handleKakaoSuccess(accessToken: string) {
+  async function handleKakaoLogin() {
     setAuthLoading(true);
     try {
-      await login(accessToken);
-      router.replace("/(tabs)");
-    } catch {
-      Alert.alert("로그인 오류", "서버 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      // Build Kakao OAuth URL manually and open in system browser
+      const authUrl =
+        `https://kauth.kakao.com/oauth/authorize` +
+        `?client_id=${KAKAO_CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&response_type=code` +
+        `&scope=profile_nickname,profile_image`;
+
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+
+      if (result.type === "success" && result.url) {
+        // Extract authorization code from redirect URL
+        const url = new URL(result.url);
+        const code = url.searchParams.get("code");
+
+        if (code) {
+          // Exchange code for access token
+          const tokenResp = await fetch("https://kauth.kakao.com/oauth/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "authorization_code",
+              client_id: KAKAO_CLIENT_ID,
+              redirect_uri: redirectUri,
+              code,
+            }).toString(),
+          });
+
+          const tokenData = await tokenResp.json();
+
+          if (tokenData.access_token) {
+            await login(tokenData.access_token);
+            router.replace("/(tabs)");
+          } else {
+            Alert.alert("로그인 오류", "카카오 토큰 발급에 실패했습니다.");
+          }
+        } else {
+          Alert.alert("로그인 오류", "인증 코드를 받지 못했습니다.");
+        }
+      }
+    } catch (e) {
+      Alert.alert("로그인 오류", "카카오 로그인 중 오류가 발생했습니다.");
     } finally {
       setAuthLoading(false);
     }
@@ -80,10 +90,8 @@ export default function LoginScreen() {
         { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
       ]}
     >
-      {/* Decorative background blob */}
       <View style={styles.blob} pointerEvents="none" />
 
-      {/* Logo / title area */}
       <View style={styles.heroSection}>
         <LinearGradient
           colors={[colors.primary, colors.primaryContainer]}
@@ -100,19 +108,17 @@ export default function LoginScreen() {
         </Text>
       </View>
 
-      {/* Bottom action area */}
       <View style={styles.actionSection}>
         <Text style={styles.loginPrompt}>시작하려면 로그인하세요</Text>
 
-        {/* Kakao login button */}
         <Pressable
           style={({ pressed }) => [
             styles.kakaoButton,
             pressed && styles.kakaoButtonPressed,
             busy && styles.buttonDisabled,
           ]}
-          onPress={() => promptAsync()}
-          disabled={!request || busy}
+          onPress={handleKakaoLogin}
+          disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="카카오로 시작하기"
         >
@@ -126,7 +132,6 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
-        {/* Skip button */}
         <Pressable
           style={({ pressed }) => [styles.skipButton, pressed && styles.skipButtonPressed]}
           onPress={handleSkip}
@@ -138,14 +143,31 @@ export default function LoginScreen() {
         </Pressable>
 
         <Text style={styles.legalNote}>
-          시작하면 서비스 이용약관 및 개인정보 처리방침에{"\n"}동의하는 것으로 간주됩니다.
+          {"시작하면 "}
+          <Text
+            style={styles.legalNoteLink}
+            onPress={() => router.push("/terms")}
+            accessibilityRole="link"
+            accessibilityLabel="이용약관 보기"
+          >
+            서비스 이용약관
+          </Text>
+          {" 및 "}
+          <Text
+            style={styles.legalNoteLink}
+            onPress={() => router.push("/privacy-policy")}
+            accessibilityRole="link"
+            accessibilityLabel="개인정보 처리방침 보기"
+          >
+            개인정보 처리방침
+          </Text>
+          {"에\n동의하는 것으로 간주됩니다."}
         </Text>
       </View>
     </View>
   );
 }
 
-/** Minimal inline Kakao chat-bubble icon rendered in pure RN */
 function KakaoIcon() {
   return (
     <View style={kakaoIconStyle.wrap}>
@@ -189,7 +211,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.pagePadding,
     justifyContent: "space-between",
   },
-
   blob: {
     position: "absolute",
     top: -80,
@@ -199,14 +220,12 @@ const styles = StyleSheet.create({
     borderRadius: 160,
     backgroundColor: colors.decorativeBlob,
   },
-
   heroSection: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingBottom: 40,
   },
-
   logoMark: {
     width: 80,
     height: 80,
@@ -216,14 +235,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     ...shadows.primaryButton,
   },
-
   logoLetter: {
     fontSize: 36,
     fontWeight: "900",
     color: colors.onPrimary,
     letterSpacing: -0.5,
   },
-
   appTitle: {
     fontSize: typography.fontSize["4xl"],
     fontWeight: typography.fontWeight.black,
@@ -231,7 +248,6 @@ const styles = StyleSheet.create({
     letterSpacing: typography.letterSpacing.tight,
     marginBottom: 12,
   },
-
   appSubtitle: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.regular,
@@ -239,11 +255,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-
   actionSection: {
     gap: 12,
   },
-
   loginPrompt: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
@@ -251,7 +265,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 4,
   },
-
   kakaoButton: {
     height: layout.buttonHeightLg,
     backgroundColor: "#FEE500",
@@ -261,38 +274,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
   },
-
   kakaoButtonPressed: {
     backgroundColor: "#F0D800",
   },
-
   kakaoButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.extrabold,
     color: "#191919",
     letterSpacing: -0.2,
   },
-
   buttonDisabled: {
     opacity: 0.6,
   },
-
   skipButton: {
     height: layout.buttonHeightMd,
     alignItems: "center",
     justifyContent: "center",
   },
-
   skipButtonPressed: {
     opacity: 0.6,
   },
-
   skipButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     color: colors.textSecondary,
   },
-
   legalNote: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.regular,
@@ -300,5 +306,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 16,
     marginTop: 4,
+  },
+  legalNoteLink: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+    textDecorationLine: "underline",
   },
 });

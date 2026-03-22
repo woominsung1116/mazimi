@@ -9,8 +9,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use majimi_core::models::Program;
 
+use crate::auth::AdminUser;
+
 /// POST /api/v1/admin/sync
 pub async fn trigger_sync(
+    _admin: AdminUser,
     State(pool): State<PgPool>,
 ) -> Json<Value> {
     tokio::spawn(async move {
@@ -96,6 +99,7 @@ pub struct UpdateProgramInput {
 
 /// GET /api/v1/admin/programs
 pub async fn list_admin_programs(
+    _admin: AdminUser,
     State(pool): State<PgPool>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
@@ -136,6 +140,7 @@ pub async fn list_admin_programs(
 
 /// POST /api/v1/admin/programs
 pub async fn create_program(
+    _admin: AdminUser,
     State(pool): State<PgPool>,
     Json(input): Json<CreateProgramInput>,
 ) -> Result<Json<Program>, (StatusCode, Json<Value>)> {
@@ -211,6 +216,7 @@ pub async fn create_program(
 
 /// PUT /api/v1/admin/programs/{id}
 pub async fn update_program(
+    _admin: AdminUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateProgramInput>,
@@ -318,6 +324,7 @@ pub async fn update_program(
 
 /// POST /api/v1/admin/programs/{id}/publish
 pub async fn toggle_publish(
+    _admin: AdminUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
@@ -364,6 +371,7 @@ pub async fn toggle_publish(
 
 /// GET /api/v1/admin/stats
 pub async fn get_stats(
+    _admin: AdminUser,
     State(pool): State<PgPool>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let total_programs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM programs")

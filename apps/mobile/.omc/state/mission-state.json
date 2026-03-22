@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-21T01:10:20.650Z",
+  "updatedAt": "2026-03-22T12:22:39.941Z",
   "missions": [
     {
       "id": "session:80481495-2953-4e35-8e9f-b0f99184561f:none",
@@ -81,15 +81,15 @@
       "name": "none",
       "objective": "Session mission",
       "createdAt": "2026-03-20T15:40:13.296Z",
-      "updatedAt": "2026-03-21T01:10:20.650Z",
+      "updatedAt": "2026-03-22T12:22:39.941Z",
       "status": "running",
-      "workerCount": 37,
+      "workerCount": 67,
       "taskCounts": {
-        "total": 37,
+        "total": 67,
         "pending": 0,
         "blocked": 0,
         "inProgress": 2,
-        "completed": 35,
+        "completed": 65,
         "failed": 0
       },
       "agents": [
@@ -462,32 +462,348 @@
           "latestUpdate": null,
           "completedSummary": null,
           "updatedAt": "2026-03-21T01:10:20.650Z"
+        },
+        {
+          "name": "mobile-app-builder:a5798c0",
+          "role": "mobile-app-builder",
+          "ownership": "a5798c0851fd501e7",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-21T13:59:18.165Z"
+        },
+        {
+          "name": "rust-backend:ac38a6c",
+          "role": "rust-backend",
+          "ownership": "ac38a6c1e0768236e",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-21T13:58:21.636Z"
+        },
+        {
+          "name": "mobile-app-builder:a423cd5",
+          "role": "mobile-app-builder",
+          "ownership": "a423cd536a1f03722",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-21T14:00:42.689Z"
+        },
+        {
+          "name": "mobile-app-builder:a0409e8",
+          "role": "mobile-app-builder",
+          "ownership": "a0409e88c8df18f99",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-21T14:00:31.281Z"
+        },
+        {
+          "name": "mobile-app-builder:a0d33db",
+          "role": "mobile-app-builder",
+          "ownership": "a0d33dbeef7f9e593",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-21T14:05:05.068Z"
+        },
+        {
+          "name": "explore:a558961",
+          "role": "explore",
+          "ownership": "a558961ff2ac6d3cd",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-21T14:04:07.179Z"
+        },
+        {
+          "name": "security-reviewer:a97d91e",
+          "role": "security-reviewer",
+          "ownership": "a97d91e6817c6bc64",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T01:17:09.957Z"
+        },
+        {
+          "name": "rust-backend:a06455c",
+          "role": "rust-backend",
+          "ownership": "a06455cf5191431eb",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T01:16:22.448Z"
+        },
+        {
+          "name": "rust-backend:a1dba91",
+          "role": "rust-backend",
+          "ownership": "a1dba91c35b1b5986",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T01:15:03.596Z"
+        },
+        {
+          "name": "rust-backend:ad05ae0",
+          "role": "rust-backend",
+          "ownership": "ad05ae03d478625da",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T01:20:45.330Z"
+        },
+        {
+          "name": "rust-backend:ab2289c",
+          "role": "rust-backend",
+          "ownership": "ab2289cc2a3b5cb17",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T01:19:59.617Z"
+        },
+        {
+          "name": "rust-backend:ae70af0",
+          "role": "rust-backend",
+          "ownership": "ae70af0a7cdfee17e",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T01:22:21.680Z"
+        },
+        {
+          "name": "mobile-app-builder:a4d0dea",
+          "role": "mobile-app-builder",
+          "ownership": "a4d0dea80cdd297e2",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T11:50:27.900Z"
+        },
+        {
+          "name": "mobile-app-builder:a258b53",
+          "role": "mobile-app-builder",
+          "ownership": "a258b53b0af9ebfce",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T11:56:16.224Z"
+        },
+        {
+          "name": "rust-backend:ae2e5c4",
+          "role": "rust-backend",
+          "ownership": "ae2e5c4294c285351",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T11:55:22.740Z"
+        },
+        {
+          "name": "nextjs-frontend:ada356d",
+          "role": "nextjs-frontend",
+          "ownership": "ada356d26437ea575",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T11:55:26.733Z"
+        },
+        {
+          "name": "verifier:a0be744",
+          "role": "verifier",
+          "ownership": "a0be7443a600e86ca",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:00:56.209Z"
+        },
+        {
+          "name": "mobile-app-builder:ab33508",
+          "role": "mobile-app-builder",
+          "ownership": "ab33508d163782aa5",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:09:49.543Z"
+        },
+        {
+          "name": "rust-backend:a128d4e",
+          "role": "rust-backend",
+          "ownership": "a128d4e7461fcb2f6",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:07:32.395Z"
+        },
+        {
+          "name": "mobile-app-builder:af035be",
+          "role": "mobile-app-builder",
+          "ownership": "af035be3a27495e64",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:07:05.595Z"
+        },
+        {
+          "name": "mobile-app-builder:a49abc8",
+          "role": "mobile-app-builder",
+          "ownership": "a49abc8aa37f252d2",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:11:57.898Z"
+        },
+        {
+          "name": "executor:a56d06d",
+          "role": "executor",
+          "ownership": "a56d06d72feb1a434",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:11:11.475Z"
+        },
+        {
+          "name": "executor:a0df4b9",
+          "role": "executor",
+          "ownership": "a0df4b9c97d4f9d76",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:11:39.937Z"
+        },
+        {
+          "name": "executor:a05d097",
+          "role": "executor",
+          "ownership": "a05d097adb654751b",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:11:53.038Z"
+        },
+        {
+          "name": "verifier:a776004",
+          "role": "verifier",
+          "ownership": "a7760042f4d9db2d6",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:13:51.184Z"
+        },
+        {
+          "name": "executor:a850df8",
+          "role": "executor",
+          "ownership": "a850df8774f9bb48a",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:20:04.608Z"
+        },
+        {
+          "name": "executor:a3561b3",
+          "role": "executor",
+          "ownership": "a3561b3338ee07da9",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:21:32.533Z"
+        },
+        {
+          "name": "executor:a60365c",
+          "role": "executor",
+          "ownership": "a60365ca58bc15bd3",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:19:02.696Z"
+        },
+        {
+          "name": "executor:a5e7a2a",
+          "role": "executor",
+          "ownership": "a5e7a2aa31700331e",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:18:58.124Z"
+        },
+        {
+          "name": "verifier:a03378d",
+          "role": "verifier",
+          "ownership": "a03378dfc43bbf669",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-03-22T12:22:39.941Z"
         }
       ],
       "timeline": [
         {
-          "id": "session-stop:a5839c560509b6ee9:2026-03-21T01:06:51.993Z",
-          "at": "2026-03-21T01:06:51.993Z",
+          "id": "session-stop:a60365ca58bc15bd3:2026-03-22T12:19:02.696Z",
+          "at": "2026-03-22T12:19:02.696Z",
           "kind": "completion",
-          "agent": "mobile-app-builder:a5839c5",
+          "agent": "executor:a60365c",
           "detail": "completed",
-          "sourceKey": "session-stop:a5839c560509b6ee9"
+          "sourceKey": "session-stop:a60365ca58bc15bd3"
         },
         {
-          "id": "session-start:af81fd35cb0c740ed:2026-03-21T01:10:00.704Z",
-          "at": "2026-03-21T01:10:00.704Z",
-          "kind": "update",
-          "agent": "mobile-app-builder:af81fd3",
-          "detail": "started mobile-app-builder:af81fd3",
-          "sourceKey": "session-start:af81fd35cb0c740ed"
+          "id": "session-stop:a850df8774f9bb48a:2026-03-22T12:20:04.608Z",
+          "at": "2026-03-22T12:20:04.608Z",
+          "kind": "completion",
+          "agent": "executor:a850df8",
+          "detail": "completed",
+          "sourceKey": "session-stop:a850df8774f9bb48a"
         },
         {
-          "id": "session-start:aceaadc554f96b827:2026-03-21T01:10:20.650Z",
-          "at": "2026-03-21T01:10:20.650Z",
+          "id": "session-start:a03378dfc43bbf669:2026-03-22T12:21:29.899Z",
+          "at": "2026-03-22T12:21:29.899Z",
           "kind": "update",
-          "agent": "mobile-app-builder:aceaadc",
-          "detail": "started mobile-app-builder:aceaadc",
-          "sourceKey": "session-start:aceaadc554f96b827"
+          "agent": "verifier:a03378d",
+          "detail": "started verifier:a03378d",
+          "sourceKey": "session-start:a03378dfc43bbf669"
+        },
+        {
+          "id": "session-stop:a3561b3338ee07da9:2026-03-22T12:21:32.533Z",
+          "at": "2026-03-22T12:21:32.533Z",
+          "kind": "completion",
+          "agent": "executor:a3561b3",
+          "detail": "completed",
+          "sourceKey": "session-stop:a3561b3338ee07da9"
+        },
+        {
+          "id": "session-stop:a03378dfc43bbf669:2026-03-22T12:22:39.941Z",
+          "at": "2026-03-22T12:22:39.941Z",
+          "kind": "completion",
+          "agent": "verifier:a03378d",
+          "detail": "completed",
+          "sourceKey": "session-stop:a03378dfc43bbf669"
         }
       ]
     }

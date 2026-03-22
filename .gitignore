@@ -6,10 +6,25 @@ target/
 .next/
 out/
 
-# Environment
+# Environment — never commit secrets
 .env
+.env.*
 .env.local
 .env.dev
+.env.production
+.env.staging
+.env.test
+
+# Cryptographic keys and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+*-service-account.json
+google-services.json
+GoogleService-Info.plist
 
 # OS
 .DS_Store

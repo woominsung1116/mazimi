@@ -2,7 +2,7 @@
  * 홈 탭 — 개인화 대시보드
  *
  * Data sources:
- *   - api.getDashboard(USER_ID)  → summary counts + upcoming deadlines
+ *   - api.getDashboard()         → summary counts + upcoming deadlines (JWT auth)
  *   - api.getRecommendPreview()  → recommendation cards
  *
  * On API failure the screen falls back to static mock data and shows an
@@ -36,7 +36,6 @@ import {
 } from "@/constants/theme";
 import {
   api,
-  USER_ID,
   formatBenefit,
   programTypeLabel,
   programStatusLabel,
@@ -44,6 +43,7 @@ import {
   type RecommendationResult,
   type ApiProgram,
 } from "@/lib/api";
+import OfflineBanner from "@/components/OfflineBanner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -281,14 +281,6 @@ const BADGE_CONFIG: Record<
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function OfflineBanner() {
-  return (
-    <View style={styles.offlineBanner}>
-      <Text style={styles.offlineBannerText}>오프라인 모드 — 최근 데이터를 표시합니다</Text>
-    </View>
-  );
-}
-
 function SummaryIconView({ icon, color }: { icon: SummaryIconName; color: string }) {
   if (icon.lib === "ionicons") {
     return <Ionicons name={icon.name} size={20} color={color} />;
@@ -296,7 +288,7 @@ function SummaryIconView({ icon, color }: { icon: SummaryIconName; color: string
   return <MaterialIcons name={icon.name as any} size={20} color={color} />;
 }
 
-function SummaryCardItem({ card }: { card: SummaryCard }) {
+const SummaryCardItem = React.memo(function SummaryCardItem({ card }: { card: SummaryCard }) {
   return (
     <Pressable
       style={({ pressed }) => [
@@ -317,9 +309,9 @@ function SummaryCardItem({ card }: { card: SummaryCard }) {
       </View>
     </Pressable>
   );
-}
+});
 
-function RecommendationCardItem({ card }: { card: RecommendationCard }) {
+const RecommendationCardItem = React.memo(function RecommendationCardItem({ card }: { card: RecommendationCard }) {
   const badge = BADGE_CONFIG[card.badge];
   const router = useRouter();
 
@@ -364,9 +356,9 @@ function RecommendationCardItem({ card }: { card: RecommendationCard }) {
       </View>
     </Pressable>
   );
-}
+});
 
-function DocumentItemRow({ item }: { item: DocumentItem }) {
+const DocumentItemRow = React.memo(function DocumentItemRow({ item }: { item: DocumentItem }) {
   const isMissing = item.status === "missing";
   return (
     <View style={[styles.docItem, !isMissing && styles.docItemDone]}>
@@ -398,7 +390,7 @@ function DocumentItemRow({ item }: { item: DocumentItem }) {
       )}
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -417,8 +409,8 @@ export default function HomeScreen() {
   };
 
   const dashboardQuery = useQuery({
-    queryKey: ["dashboard", USER_ID],
-    queryFn: () => api.getDashboard(USER_ID),
+    queryKey: ["dashboard", "me"],
+    queryFn: () => api.getDashboard(),
     staleTime: 5 * 60 * 1000,   // 5 min
     gcTime: 30 * 60 * 1000,     // 30 min cache
     retry: 1,
@@ -572,12 +564,12 @@ export default function HomeScreen() {
               ]}
               onPress={() => router.push("/region-compare")}
               accessibilityRole="button"
-              accessibilityLabel="지역 이동 비교"
+              accessibilityLabel="조건 시뮬레이터"
             >
-              <Ionicons name="map-outline" size={28} color={colors.primary} />
-              <Text style={styles.toolTitle}>지역 이동{"\n"}비교</Text>
+              <Ionicons name="options-outline" size={28} color={colors.primary} />
+              <Text style={styles.toolTitle}>조건{"\n"}시뮬레이터</Text>
               <Text style={styles.toolSubtitle}>
-                이사하면 혜택이 어떻게 바뀔까?
+                조건을 바꿔보면 혜택이 어떻게 바뀔까?
               </Text>
             </Pressable>
           </View>
@@ -652,19 +644,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-
-  // Offline banner
-  offlineBanner: {
-    backgroundColor: colors.surfaceContainerHighest,
-    paddingVertical: spacing[2],
-    paddingHorizontal: layout.pagePadding,
-    alignItems: "center",
-  },
-  offlineBannerText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.onSurfaceVariant,
-    fontWeight: typography.fontWeight.medium,
   },
 
   // Header

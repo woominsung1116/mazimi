@@ -14,7 +14,6 @@ import {
   registerForPushNotifications,
   type NotificationPayload,
 } from "../lib/notifications";
-import { useAuthStore } from "./auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,11 +89,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     if (!granted) return;
 
-    // 3. Register with backend using the authenticated user's ID.
-    const userId = useAuthStore.getState().user?.id;
-    if (!userId) return;
-
-    const token = await registerForPushNotifications(userId);
+    // 3. Register with backend — user identity comes from the JWT, no userId needed.
+    const token = await registerForPushNotifications();
     if (token) {
       set({ pushToken: token });
     }

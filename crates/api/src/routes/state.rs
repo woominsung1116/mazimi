@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     Json,
 };
@@ -9,6 +9,8 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 use majimi_core::models::UserProgramState;
+
+use crate::auth::AuthUser;
 
 const VALID_STATES: &[&str] = &[
     "interested",
@@ -23,13 +25,7 @@ const VALID_STATES: &[&str] = &[
 // ── Request / response types ──
 
 #[derive(Debug, Deserialize)]
-pub struct UserQuery {
-    pub user_id: Uuid,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct UpsertStateRequest {
-    pub user_id: Uuid,
     pub state: String,
     pub memo: Option<String>,
 }
@@ -88,7 +84,6 @@ async fn fetch_history(
     user_id: Uuid,
     program_id: Uuid,
 ) -> Result<Vec<StateHistoryEntry>, (StatusCode, Json<Value>)> {
-    // Use a local tuple type to avoid a named struct dependency on sqlx::FromRow.
     let rows = sqlx::query_as::<_, (String, Option<String>, DateTime<Utc>)>(
         r#"
         SELECT state, memo, changed_at
@@ -141,8 +136,10 @@ async fn record_history(
 
 /// POST /api/v1/programs/{program_id}/state
 ///
-/// Upsert user program state (legacy endpoint, kept for backwards compatibility).
+/// Upsert user program state.
+/// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
 pub async fn upsert_state(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Path(program_id): Path<Uuid>,
     Json(payload): Json<UpsertStateRequest>,
@@ -150,6 +147,8 @@ pub async fn upsert_state(
     if !VALID_STATES.contains(&payload.state.as_str()) {
         return Err(invalid_state_error(&payload.state));
     }
+
+    let user_id = auth_user.id;
 
     let record = sqlx::query_as::<_, UserProgramState>(
         r#"
@@ -162,7 +161,7 @@ pub async fn upsert_state(
         RETURNING *
         "#,
     )
-    .bind(payload.user_id)
+    .bind(user_id)
     .bind(program_id)
     .bind(&payload.state)
     .bind(&payload.memo)
@@ -172,7 +171,7 @@ pub async fn upsert_state(
 
     record_history(
         &pool,
-        payload.user_id,
+        user_id,
         program_id,
         &payload.state,
         payload.memo.as_deref(),
@@ -182,14 +181,17 @@ pub async fn upsert_state(
     Ok(Json(record))
 }
 
-/// GET /api/v1/my/applications?user_id=UUID
+/// GET /api/v1/my/applications
 ///
 /// Returns all programs the user has a status for, with program title and
 /// per-entry state-change history.
+/// The authenticated user's ID is taken from the JWT.
 pub async fn list_applications(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
-    Query(q): Query<UserQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
     // (program_id, program_title, state, memo, applied_at, result_at, updated_at)
     type AppRow = (
         Uuid,
@@ -217,14 +219,14 @@ pub async fn list_applications(
         ORDER  BY ups.updated_at DESC
         "#,
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .fetch_all(&pool)
     .await
     .map_err(db_error)?;
 
     let mut items: Vec<ApplicationDetail> = Vec::with_capacity(rows.len());
     for (program_id, program_title, state, memo, applied_at, result_at, updated_at) in rows {
-        let history = fetch_history(&pool, q.user_id, program_id).await?;
+        let history = fetch_history(&pool, user_id, program_id).await?;
         items.push(ApplicationDetail {
             program_id,
             program_title,
@@ -243,14 +245,17 @@ pub async fn list_applications(
     })))
 }
 
-/// GET /api/v1/my/applications/{program_id}?user_id=UUID
+/// GET /api/v1/my/applications/{program_id}
 ///
 /// Returns status and full history for a single (user, program) pair.
+/// The authenticated user's ID is taken from the JWT.
 pub async fn get_application(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Path(program_id): Path<Uuid>,
-    Query(q): Query<UserQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let user_id = auth_user.id;
+
     // (program_title, state, memo, applied_at, result_at, updated_at)
     type AppRow = (
         String,
@@ -275,7 +280,7 @@ pub async fn get_application(
         WHERE  ups.user_id = $1 AND ups.program_id = $2
         "#,
     )
-    .bind(q.user_id)
+    .bind(user_id)
     .bind(program_id)
     .fetch_optional(&pool)
     .await
@@ -291,7 +296,7 @@ pub async fn get_application(
         }
     };
 
-    let history = fetch_history(&pool, q.user_id, program_id).await?;
+    let history = fetch_history(&pool, user_id, program_id).await?;
 
     let detail = ApplicationDetail {
         program_id,
@@ -307,22 +312,25 @@ pub async fn get_application(
     Ok(Json(json!(detail)))
 }
 
-/// PUT /api/v1/my/applications/{program_id}?user_id=UUID
+/// PUT /api/v1/my/applications/{program_id}
 ///
 /// Update the application status for one program.  Automatically sets
 /// `applied_at` on first transition to "applied" and `result_at` on first
 /// transition to "received" or "abandoned".  Every call appends a history row.
+/// The authenticated user's ID is taken from the JWT.
 ///
 /// Body: `{ "status": "applying", "memo": "optional note" }`
 pub async fn update_application(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
     Path(program_id): Path<Uuid>,
-    Query(q): Query<UserQuery>,
     Json(payload): Json<UpdateStatusRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     if !VALID_STATES.contains(&payload.status.as_str()) {
         return Err(invalid_state_error(&payload.status));
     }
+
+    let user_id = auth_user.id;
 
     // Choose the right upsert variant based on which timestamp column to set.
     // `COALESCE` ensures we never overwrite a timestamp that was already set.
@@ -375,7 +383,7 @@ pub async fn update_application(
 
     let (state, memo, applied_at, result_at, updated_at) =
         sqlx::query_as::<_, UpsertRow>(upsert_sql)
-            .bind(q.user_id)
+            .bind(user_id)
             .bind(program_id)
             .bind(&payload.status)
             .bind(&payload.memo)
@@ -385,7 +393,7 @@ pub async fn update_application(
 
     record_history(
         &pool,
-        q.user_id,
+        user_id,
         program_id,
         &payload.status,
         payload.memo.as_deref(),

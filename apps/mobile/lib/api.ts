@@ -5,7 +5,8 @@
 //   Call api.setToken(token) after login. All subsequent requests will
 //   include `Authorization: Bearer <token>`. Call api.clearToken() on logout.
 //
-// TODO: replace USER_ID fallback with real auth session once Kakao login lands.
+// All protected endpoints derive the user identity from the JWT on the server.
+// No user_id is sent in request bodies or query params for authenticated routes.
 // ---------------------------------------------------------------------------
 
 import { useAuthStore } from "../store/auth";
@@ -143,7 +144,7 @@ export interface ProfileInput {
   age_band?: string | null;
 }
 
-/** GET /api/v1/dashboard?user_id=UUID response */
+/** GET /api/v1/dashboard response (user identity from JWT) */
 export interface DashboardData {
   bookmarked_count: number;
   applying_count: number;
@@ -166,7 +167,7 @@ export interface AlertItem {
   application_end_at: string | null;
 }
 
-/** GET /api/v1/alerts?user_id=UUID response */
+/** GET /api/v1/alerts response (user identity from JWT) */
 export interface AlertListResponse {
   total: number;
   limit: number;
@@ -174,7 +175,7 @@ export interface AlertListResponse {
   items: AlertItem[];
 }
 
-/** GET /api/v1/profile/:user_id response */
+/** GET /api/v1/profile response (user identity from JWT) */
 export interface UserProfileResponse {
   user_id: string;
   profile: UserProfile;
@@ -227,7 +228,7 @@ export interface StateHistoryEntry {
   changed_at: string;
 }
 
-/** GET /api/v1/my/applications/{program_id}?user_id=UUID */
+/** GET /api/v1/my/applications/{program_id} (user identity from JWT) */
 export interface ApplicationDetail {
   program_id: string;
   program_title: string;
@@ -239,13 +240,13 @@ export interface ApplicationDetail {
   history: StateHistoryEntry[];
 }
 
-/** GET /api/v1/my/applications?user_id=UUID */
+/** GET /api/v1/my/applications (user identity from JWT) */
 export interface ApplicationListResponse {
   total: number;
   items: ApplicationDetail[];
 }
 
-/** PUT /api/v1/my/applications/{program_id}?user_id=UUID response */
+/** PUT /api/v1/my/applications/{program_id} response (user identity from JWT) */
 export interface UpdateStatusResponse {
   program_id: string;
   status: ApplicationStatus;
@@ -307,9 +308,25 @@ export function programStatusLabel(status: string, deadlineAt: string | null): s
 }
 
 // ---------------------------------------------------------------------------
-// TODO: Replace USER_ID with value from auth store once Kakao login is wired
+// Auth helpers
 // ---------------------------------------------------------------------------
-export const USER_ID = "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Returns the current user's ID from the Zustand auth store.
+ * Throws if no user is authenticated.
+ *
+ * NOTE: Most API methods no longer require the caller to pass a user ID —
+ * the server extracts identity from the JWT Bearer token automatically.
+ * Use this only when you genuinely need the local user UUID (e.g. building
+ * a cache key or logging).
+ */
+export function getCurrentUserId(): string {
+  const userId = useAuthStore.getState().user?.id;
+  if (!userId) {
+    throw new Error("getCurrentUserId: no authenticated user");
+  }
+  return userId;
+}
 
 // ---------------------------------------------------------------------------
 // API methods
@@ -337,10 +354,9 @@ export const api = {
   getProgram: (id: string): Promise<ApiProgram> =>
     request<ApiProgram>(`/api/v1/programs/${id}`),
 
-  toggleBookmark: (programId: string, userId: string): Promise<BookmarkResponse> =>
+  toggleBookmark: (programId: string): Promise<BookmarkResponse> =>
     request<BookmarkResponse>(`/api/v1/programs/${programId}/bookmark`, {
       method: "POST",
-      body: JSON.stringify({ user_id: userId }),
     }),
 
   // ── Recommendations ───────────────────────────────────────────────────────
@@ -353,75 +369,70 @@ export const api = {
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
 
-  getDashboard: (userId: string): Promise<DashboardData> =>
+  getDashboard: (): Promise<DashboardData> =>
     cachedFetch(
-      `dashboard:${userId}`,
-      () => request<DashboardData>(`/api/v1/dashboard?user_id=${userId}`),
+      "dashboard:me",
+      () => request<DashboardData>("/api/v1/dashboard"),
       TTL.DASHBOARD
     ),
 
   // ── Alerts ────────────────────────────────────────────────────────────────
 
   getAlerts: (
-    userId: string,
     opts?: { limit?: number; offset?: number }
   ): Promise<AlertListResponse> => {
-    const q = new URLSearchParams({ user_id: userId });
+    const q = new URLSearchParams();
     if (opts?.limit) q.set("limit", String(opts.limit));
     if (opts?.offset) q.set("offset", String(opts.offset));
-    return request<AlertListResponse>(`/api/v1/alerts?${q}`);
+    const qs = q.toString();
+    return request<AlertListResponse>(`/api/v1/alerts${qs ? `?${qs}` : ""}`);
   },
 
   upsertAlertPreference: (
-    userId: string,
     programId: string,
     enabled: boolean
   ): Promise<unknown> =>
     request("/api/v1/alerts/preferences", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, program_id: programId, enabled }),
+      body: JSON.stringify({ program_id: programId, enabled }),
     }),
 
   // ── Profile ───────────────────────────────────────────────────────────────
 
-  getProfile: (userId: string): Promise<UserProfileResponse> =>
+  getProfile: (): Promise<UserProfileResponse> =>
     cachedFetch(
-      `profile:${userId}`,
-      () => request<UserProfileResponse>(`/api/v1/profile/${userId}`),
+      "profile:me",
+      () => request<UserProfileResponse>("/api/v1/profile"),
       TTL.PROFILE
     ),
 
-  saveProfile: (
-    profile: ProfileInput,
-    userId?: string
-  ): Promise<UserProfileResponse> =>
+  saveProfile: (profile: ProfileInput): Promise<UserProfileResponse> =>
     request<UserProfileResponse>("/api/v1/profile", {
       method: "POST",
-      body: JSON.stringify(userId ? { user_id: userId, ...profile } : profile),
+      body: JSON.stringify(profile),
     }),
 
   // ── Application status tracking ───────────────────────────────────────────
 
   /**
-   * Returns all programs the user has a status record for.
-   * GET /api/v1/my/applications?user_id=UUID
+   * Returns all programs the authenticated user has a status record for.
+   * GET /api/v1/my/applications
    */
-  getMyApplications: (userId: string): Promise<ApplicationListResponse> =>
-    request<ApplicationListResponse>(`/api/v1/my/applications?user_id=${userId}`),
+  getMyApplications: (): Promise<ApplicationListResponse> =>
+    request<ApplicationListResponse>("/api/v1/my/applications"),
 
   /**
-   * Returns status + full history for a single (user, program) pair.
+   * Returns status + full history for a single program.
    * Returns null when the user has never set a status for this program
    * (backend returns 404 in that case).
-   * GET /api/v1/my/applications/{programId}?user_id=UUID
+   * GET /api/v1/my/applications/{programId}
    */
   getApplicationStatus: async (
-    userId: string,
     programId: string
   ): Promise<ApplicationDetail | null> => {
     try {
       return await request<ApplicationDetail>(
-        `/api/v1/my/applications/${programId}?user_id=${userId}`
+        `/api/v1/my/applications/${programId}`
       );
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("API error: 404")) {
@@ -433,17 +444,16 @@ export const api = {
 
   /**
    * Upserts the application status for one program.
-   * PUT /api/v1/my/applications/{programId}?user_id=UUID
+   * PUT /api/v1/my/applications/{programId}
    * Body: { status, memo? }
    */
   updateApplicationStatus: (
-    userId: string,
     programId: string,
     status: ApplicationStatus,
     memo?: string
   ): Promise<UpdateStatusResponse> =>
     request<UpdateStatusResponse>(
-      `/api/v1/my/applications/${programId}?user_id=${userId}`,
+      `/api/v1/my/applications/${programId}`,
       {
         method: "PUT",
         body: JSON.stringify({ status, memo: memo ?? null }),
@@ -453,22 +463,23 @@ export const api = {
   // ── Push notifications ─────────────────────────────────────────────────────
 
   /**
-   * Registers an Expo push token for the given user.
+   * Registers an Expo push token for the authenticated user.
    * POST /api/v1/push/register
+   * Body: { token, platform }  — user identity comes from JWT, not the body.
    */
-  registerPushToken: (userId: string, token: string): Promise<unknown> =>
+  registerPushToken: (token: string, platform: string): Promise<unknown> =>
     request("/api/v1/push/register", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, token }),
+      body: JSON.stringify({ token, platform }),
     }),
 
   /**
-   * Removes the push token registration for the given user.
+   * Removes all push tokens for the authenticated user.
    * DELETE /api/v1/push/register
+   * No body required — user identity comes from JWT.
    */
-  unregisterPushToken: (userId: string): Promise<unknown> =>
+  unregisterPushToken: (): Promise<unknown> =>
     request("/api/v1/push/register", {
       method: "DELETE",
-      body: JSON.stringify({ user_id: userId }),
     }),
 };
