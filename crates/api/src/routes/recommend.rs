@@ -18,6 +18,15 @@ pub async fn preview(
 ) -> Result<Json<RecommendationResult>, (StatusCode, Json<Value>)> {
     let now = Utc::now();
     let current_year = now.format("%Y").to_string().parse::<i32>().unwrap_or(2026);
+
+    // Validate birth_year range
+    if input.birth_year < 1920 || input.birth_year > current_year {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": format!("birth_year must be between 1920 and {}", current_year) })),
+        ));
+    }
+
     let user_age = current_year - input.birth_year;
 
     // Fetch active programs whose deadline hasn't passed.
@@ -26,7 +35,7 @@ pub async fn preview(
         SELECT *
         FROM programs
         WHERE is_active = true
-          AND (deadline_at IS NULL OR deadline_at > $1)
+          AND (COALESCE(deadline_at, application_end_at) IS NULL OR COALESCE(deadline_at, application_end_at) > $1)
         ORDER BY deadline_at ASC NULLS LAST
         "#,
     )
@@ -233,6 +242,8 @@ fn profile_from_input(input: &ProfileInput) -> UserProfile {
         age_band: input.age_band.clone(),
         profile_version: 1,
         updated_at: Utc::now(),
+        nickname: None,
+        profile_image_url: None,
     }
 }
 
@@ -257,7 +268,7 @@ fn inline_score(
             score += 30;
             reasons.push(format!(
                 "{} 거주 청년 대상이에요.",
-                region_label(&input.region_code)
+                majimi_core::region_label(&input.region_code)
             ));
         }
     }
@@ -325,17 +336,3 @@ fn explain_missing(field: &str) -> String {
     }
 }
 
-fn region_label(code: &str) -> &str {
-    match code {
-        "busan" => "부산",
-        "daegu" => "대구",
-        "seoul" => "서울",
-        "incheon" => "인천",
-        "gwangju" => "광주",
-        "daejeon" => "대전",
-        "ulsan" => "울산",
-        "sejong" => "세종",
-        "gyeonggi" => "경기",
-        _ => code,
-    }
-}

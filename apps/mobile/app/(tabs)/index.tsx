@@ -9,7 +9,7 @@
  * "오프라인 모드" banner so the user always sees something useful.
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -44,6 +44,8 @@ import {
   type ApiProgram,
 } from "@/lib/api";
 import OfflineBanner from "@/components/OfflineBanner";
+import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
+import { useAuthStore } from "@/store/auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,66 +83,30 @@ interface DocumentItem {
 }
 
 // ---------------------------------------------------------------------------
-// Mock fallback data — shown when API is unreachable
+// Empty fallback data — shown when API is unreachable
 // ---------------------------------------------------------------------------
 
-const MOCK_SUMMARY_CARDS: SummaryCard[] = [
+const EMPTY_SUMMARY_CARDS: SummaryCard[] = [
   {
-    label: "장학금",
-    count: 3,
-    icon: { lib: "ionicons", name: "school-outline" },
+    label: "스크랩",
+    count: 0,
+    icon: { lib: "ionicons", name: "bookmark-outline" },
     iconBg: colors.primaryFixed,
     iconColor: colors.primary,
   },
   {
-    label: "부산 청년 정책",
-    count: 5,
-    icon: { lib: "ionicons", name: "location-outline" },
+    label: "신청 중",
+    count: 0,
+    icon: { lib: "ionicons", name: "document-text-outline" },
     iconBg: colors.secondaryFixedDim,
     iconColor: colors.onSecondaryContainer,
   },
   {
-    label: "복지/생활",
-    count: 2,
-    icon: { lib: "ionicons", name: "heart-outline" },
+    label: "마감 임박",
+    count: 0,
+    icon: { lib: "ionicons", name: "time-outline" },
     iconBg: colors.tertiaryFixed,
     iconColor: colors.tertiary,
-  },
-];
-
-const MOCK_RECOMMENDATION_CARDS: RecommendationCard[] = [
-  {
-    id: "r1",
-    badge: "recommended",
-    locationLabel: "부산광역시",
-    locationIconName: "map-outline",
-    title: "청년 희망 날개 장학금 (2024 하반기)",
-    amountLabel: "최대 240만원",
-    tags: ["등록금 지원", "성적 우수"],
-  },
-  {
-    id: "r2",
-    badge: "available",
-    locationLabel: "국가장학금",
-    locationIconName: "globe-outline",
-    title: "한국장학재단 다자녀 국가장학금",
-    amountLabel: "전액 지원",
-    tags: ["가구원수 기준"],
-  },
-];
-
-const MOCK_DOCUMENT_ITEMS: DocumentItem[] = [
-  {
-    id: "d1",
-    status: "missing",
-    title: "성적증명서 누락",
-    subtitle: "청년 희망 날개 장학금",
-  },
-  {
-    id: "d2",
-    status: "done",
-    title: "주민등록등본 확인 완료",
-    subtitle: "국가장학금 신청",
   },
 ];
 
@@ -400,13 +366,15 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // Default profile for recommendation preview — will use real profile once
-  // auth + profile store is wired; for now use a sensible default.
-  const defaultProfile = {
-    birth_year: 2001,
-    region_code: "busan",
+  const { token } = useAuthStore();
+
+  // Use onboarding store values when available, fall back to sensible defaults.
+  const { region, age } = useOnboardingStore();
+  const defaultProfile = useMemo(() => ({
+    birth_year: age ? getBirthYear(age) : 2001,
+    region_code: region || "busan",
     enrollment_status: "enrolled",
-  };
+  }), [age, region]);
 
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", "me"],
@@ -414,6 +382,7 @@ export default function HomeScreen() {
     staleTime: 5 * 60 * 1000,   // 5 min
     gcTime: 30 * 60 * 1000,     // 30 min cache
     retry: 1,
+    enabled: !!token,            // only fetch when logged in
   });
 
   const recommendQuery = useQuery({
@@ -422,6 +391,7 @@ export default function HomeScreen() {
     staleTime: 10 * 60 * 1000,  // 10 min
     gcTime: 60 * 60 * 1000,     // 1 hr cache
     retry: 1,
+    enabled: !!token,            // only fetch when logged in
   });
 
   const isOffline =
@@ -431,33 +401,41 @@ export default function HomeScreen() {
 
   const isLoading = dashboardQuery.isLoading || recommendQuery.isLoading;
 
-  // Resolve display data — prefer API, fall back to mocks
+  // Resolve display data — prefer API, show empty state if unavailable
   const summaryCards: SummaryCard[] =
     dashboardQuery.data
       ? buildSummaryCards(dashboardQuery.data)
-      : MOCK_SUMMARY_CARDS;
+      : EMPTY_SUMMARY_CARDS;
 
   const recommendationCards: RecommendationCard[] =
     recommendQuery.data
       ? buildRecommendationCards(recommendQuery.data)
-      : MOCK_RECOMMENDATION_CARDS;
+      : [];
 
   const documentItems: DocumentItem[] =
     dashboardQuery.data
       ? buildDocumentItems(dashboardQuery.data)
-      : MOCK_DOCUMENT_ITEMS;
+      : [];
 
   const handleAllRecommendations = useCallback(() => {
     router.push("/(tabs)/explore");
   }, [router]);
 
   const handleFindMoreBenefits = useCallback(() => {
-    router.push("/onboarding");
-  }, [router]);
+    if (!token) {
+      router.push("/login");
+    } else {
+      router.push("/(tabs)/explore");
+    }
+  }, [token, router]);
 
   const handleFAB = useCallback(() => {
-    router.push("/onboarding");
-  }, [router]);
+    if (!token) {
+      router.push("/login");
+    } else {
+      router.push("/onboarding");
+    }
+  }, [token, router]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -510,32 +488,61 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── Section 2 — Recommendations ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>나에게 맞는 추천</Text>
-            <TouchableOpacity
-              onPress={handleAllRecommendations}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="추천 전체보기"
-            >
-              <Text style={styles.seeAllText}>전체보기 ›</Text>
-            </TouchableOpacity>
-          </View>
+        {/* ── Section 2 — Recommendations (logged in) or CTA (logged out) ── */}
+        {token ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>나에게 맞는 추천</Text>
+              <TouchableOpacity
+                onPress={handleAllRecommendations}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="추천 전체보기"
+              >
+                <Text style={styles.seeAllText}>전체보기 ›</Text>
+              </TouchableOpacity>
+            </View>
 
-          {isLoading ? (
-            <View style={styles.loadingCard}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : (
-            <View style={styles.recommendList}>
-              {recommendationCards.map((card) => (
-                <RecommendationCardItem key={card.id} card={card} />
-              ))}
-            </View>
-          )}
-        </View>
+            {isLoading ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : (
+              <View style={styles.recommendList}>
+                {recommendationCards.map((card) => (
+                  <RecommendationCardItem key={card.id} card={card} />
+                ))}
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <LinearGradient
+              colors={[colors.primary, colors.primaryContainer]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ctaCard}
+            >
+              <View>
+                <Text style={styles.ctaTitle}>
+                  지원금 신청,{"\n"}아직 망설여지나요?
+                </Text>
+                <Text style={styles.ctaSubtitle}>
+                  나와 비슷한 조건의 다른 학생들은{"\n"}평균 3.5개의 혜택을 받고 있어요.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.ctaButton}
+                onPress={() => router.push("/login")}
+                activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel="로그인하고 맞춤 혜택 받기"
+              >
+                <Text style={styles.ctaButtonText}>로그인하고 맞춤 혜택 받기 →</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        )}
 
         {/* ── Section 2.5 — 유용한 도구 ── */}
         <View style={styles.section}>
@@ -595,30 +602,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <LinearGradient
-            colors={[colors.primary, colors.primaryContainer]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.ctaCard}
-          >
-            <View>
-              <Text style={styles.ctaTitle}>
-                지원금 신청,{"\n"}아직 망설여지나요?
-              </Text>
-              <Text style={styles.ctaSubtitle}>
-                나와 비슷한 조건의 다른 학생들은{"\n"}평균 3.5개의 혜택을 받고 있어요.
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.ctaButton}
-              onPress={handleFindMoreBenefits}
-              activeOpacity={0.9}
-              accessibilityRole="button"
-              accessibilityLabel="내 맞춤 혜택 더 찾아보기"
-            >
-              <Text style={styles.ctaButtonText}>내 맞춤 혜택 더 찾아보기 →</Text>
-            </TouchableOpacity>
-          </LinearGradient>
         </View>
       </ScrollView>
 

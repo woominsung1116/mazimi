@@ -41,7 +41,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
-    // Token expired or invalid — clear the session so AuthGate redirects to /login
+    // Token expired — attempt silent refresh before logging out
+    const refreshed = await useAuthStore.getState().refreshAccessToken();
+    if (refreshed) {
+      const newToken = useAuthStore.getState().token;
+      const retryRes = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: { ...headers, Authorization: `Bearer ${newToken}` },
+      });
+      if (retryRes.ok) return retryRes.json();
+    }
     await useAuthStore.getState().logout();
     throw new Error("Unauthorized: session expired");
   }
@@ -204,6 +213,8 @@ export interface UserProfile {
   age_band: string | null;
   profile_version: number;
   updated_at: string;
+  nickname: string | null;
+  profile_image_url: string | null;
 }
 
 /** POST /api/v1/programs/{id}/bookmark response */
@@ -278,8 +289,8 @@ export function formatBenefit(program: ApiProgram): string {
 }
 
 /** Map program_type English key to Korean display label. */
-export function programTypeLabel(type: string): string {
-  switch (type) {
+export function programTypeLabel(programType: string): string {
+  switch (programType) {
     case "scholarship":
       return "장학금";
     case "support":
@@ -288,7 +299,7 @@ export function programTypeLabel(type: string): string {
     case "welfare":
       return "복지/생활";
     default:
-      return type;
+      return programType;
   }
 }
 
@@ -459,6 +470,11 @@ export const api = {
         body: JSON.stringify({ status, memo: memo ?? null }),
       }
     ),
+
+  // ── Saved / Bookmarks ────────────────────────────────────────────────────
+
+  getSaved: (): Promise<{ items: ApiProgram[] }> =>
+    request<{ items: ApiProgram[] }>("/api/v1/my/saved"),
 
   // ── Push notifications ─────────────────────────────────────────────────────
 

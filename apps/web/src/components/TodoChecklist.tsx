@@ -1,24 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import type { TodoItem } from "@/lib/api";
 
 interface TodoChecklistProps {
-  items: TodoItem[];
+  items: string[];
 }
 
 export default function TodoChecklist({ items }: TodoChecklistProps) {
-  const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(items.filter((i) => i.done).map((i) => i.id))
-  );
+  const [checked, setChecked] = useState<Set<number>>(new Set());
 
-  function toggle(id: string) {
+  function toggle(index: number) {
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(index)) {
+        next.delete(index);
       } else {
-        next.add(id);
+        next.add(index);
       }
       return next;
     });
@@ -32,15 +29,15 @@ export default function TodoChecklist({ items }: TodoChecklistProps) {
 
   return (
     <ul className="space-y-2">
-      {items.map((item) => {
-        const done = checked.has(item.id);
+      {items.map((item, i) => {
+        const done = checked.has(i);
         return (
-          <li key={item.id}>
+          <li key={i}>
             <label className="flex items-center gap-3 cursor-pointer group">
               <input
                 type="checkbox"
                 checked={done}
-                onChange={() => toggle(item.id)}
+                onChange={() => toggle(i)}
                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span
@@ -48,7 +45,7 @@ export default function TodoChecklist({ items }: TodoChecklistProps) {
                   done ? "line-through text-gray-400" : "text-gray-700"
                 }`}
               >
-                {item.label}
+                {item}
               </span>
             </label>
           </li>

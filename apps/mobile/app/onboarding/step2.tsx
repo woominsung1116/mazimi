@@ -1,8 +1,8 @@
 /**
- * Onboarding Step 2 — Age + University Status
+ * Onboarding Step 3 — Age + University Status
  * Matches Stitch "Onboarding / Profile Setup" design exactly.
  */
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -24,8 +24,8 @@ import { colors, typography, borderRadius, layout } from "@/constants/theme";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
-const CURRENT_STEP = 2;
+const TOTAL_STEPS = 4;
+const CURRENT_STEP = 3;
 const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 type UniversityStatus = {
@@ -50,13 +50,8 @@ export default function OnboardingStep2() {
   const { region, age, enrollmentStatus, setAge, setEnrollmentStatus } =
     useOnboardingStore();
 
-  // Guard: step 1 must be complete
-  if (!region) {
-    router.replace("/onboarding");
-    return null;
-  }
-
-  const canProceed = age.trim() !== "" && parseInt(age, 10) > 0 && enrollmentStatus !== "";
+  const ageNum = parseInt(age, 10);
+  const canProceed = age.trim() !== "" && ageNum >= 15 && ageNum <= 45 && enrollmentStatus !== "";
 
   const handleNext = useCallback(() => {
     if (!canProceed) return;
@@ -66,6 +61,13 @@ export default function OnboardingStep2() {
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
+
+  // Guard: step 1 must be complete (after all hooks)
+  useEffect(() => {
+    if (!region) router.replace("/onboarding");
+  }, [region, router]);
+
+  if (!region) return null;
 
   return (
     <KeyboardAvoidingView

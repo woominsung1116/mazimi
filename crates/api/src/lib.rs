@@ -35,9 +35,14 @@ impl axum::extract::FromRef<AppState> for PgPool {
     }
 }
 
-impl axum::extract::FromRef<AppState> for String {
+/// Newtype wrapper to avoid a blanket `FromRef<AppState> for String` impl
+/// which could collide with other string-typed state fields.
+#[derive(Debug, Clone)]
+pub struct JwtSecret(pub String);
+
+impl axum::extract::FromRef<AppState> for JwtSecret {
     fn from_ref(state: &AppState) -> Self {
-        state.jwt_secret.clone()
+        JwtSecret(state.jwt_secret.clone())
     }
 }
 
@@ -89,6 +94,8 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
     // ── Auth routes: strict limit (5/min per IP) ──
     let auth_routes = Router::new()
         .route("/api/v1/auth/kakao", post(routes::auth::kakao_login))
+        .route("/api/v1/auth/kakao/callback", get(routes::auth::kakao_callback))
+        .route("/api/v1/auth/refresh", post(routes::auth::refresh))
         .layer(GovernorLayer::new(Arc::clone(&auth_governor_conf)));
 
     // ── Admin routes: moderate limit (30/min per IP) + JWT auth ──
@@ -193,13 +200,9 @@ fn build_cors_layer() -> CorsLayer {
     ];
 
     if let Ok(domain) = std::env::var("DOMAIN") {
-        // Accept both http and https variants of the production domain
+        // Only allow HTTPS for production domains
         let https = format!("https://{domain}");
-        let http = format!("http://{domain}");
         if let Ok(v) = https.parse() {
-            origins.push(v);
-        }
-        if let Ok(v) = http.parse() {
             origins.push(v);
         }
     }
@@ -244,6 +247,10 @@ async fn auth_middleware(
     let claims = auth::verify_token(token, &state.jwt_secret)
         .map_err(|_| unauthorized("Invalid or expired token"))?;
 
+    if claims.token_type != "access" {
+        return Err(unauthorized("Token type must be 'access'"));
+    }
+
     let user_id = uuid::Uuid::parse_str(&claims.sub)
         .map_err(|_| unauthorized("Malformed token subject"))?;
 
@@ -252,23 +259,23 @@ async fn auth_middleware(
         role: claims.role,
     };
 
-    // Set the session-local GUC so that RLS policies can read the caller's
-    // identity via current_setting('app.current_user_id', true).
-    //
-    // SET LOCAL is transaction-scoped; SQLx's PgPool will run this on a
-    // connection that it checks out for this invocation. We fire-and-forget
-    // failures here (a warn! is emitted) so that a transient DB hiccup does
-    // not lock every authenticated request out of the API — RLS policies
-    // degrade gracefully to NULL when the GUC is absent.
-    let set_uid_sql = format!(
-        "SET LOCAL app.current_user_id = '{}'",
-        auth_user.id
-    );
-    if let Err(e) = sqlx::query(&set_uid_sql).execute(&state.pool).await {
+    // RLS defense-in-depth note:
+    // Primary access control is enforced at the application level via AuthUser
+    // extractor — every handler uses auth_user.id from JWT, never client input.
+    // RLS policies provide a secondary safety net. With connection pooling
+    // (Supabase pooler), SET LOCAL is transaction-scoped and resets per query.
+    // Handlers that need RLS should wrap their queries in a transaction and
+    // call set_config within it. The GUC set here is best-effort for simple
+    // single-query handlers.
+    if let Err(e) = sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(auth_user.id.to_string())
+        .execute(&state.pool)
+        .await
+    {
         tracing::warn!(
             user_id = %auth_user.id,
             error = %e,
-            "Failed to SET LOCAL app.current_user_id; RLS will treat request as unauthenticated"
+            "Failed to set app.current_user_id; RLS will treat request as unauthenticated"
         );
     }
 

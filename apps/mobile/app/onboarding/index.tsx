@@ -1,53 +1,57 @@
 /**
- * Onboarding Step 1 — Region Selection
+ * Onboarding Step 1 — Nickname Confirmation
+ * Shows the Kakao nickname pre-filled, allows editing before proceeding.
  * Matches Stitch "Onboarding / Profile Setup" design exactly.
  */
-import React, { useCallback } from "react";
+import React, { useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
+  TextInput,
   ScrollView,
   StyleSheet,
   Platform,
   StatusBar,
-  Pressable,
+  KeyboardAvoidingView,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useOnboardingStore } from "@/store/onboarding";
-import { colors, typography, spacing, borderRadius, shadows, layout } from "@/constants/theme";
+import { useAuthStore } from "@/store/auth";
+import { colors, typography, borderRadius, layout } from "@/constants/theme";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 const CURRENT_STEP = 1;
-const PROGRESS_PCT = (CURRENT_STEP / TOTAL_STEPS) * 100;
-
-type RegionOption = {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-};
-
-const PRIMARY_REGIONS: RegionOption[] = [
-  { label: "부산", icon: "location" },
-  { label: "대구", icon: "business" },
-];
+const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function OnboardingStep1() {
+export default function OnboardingNickname() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { region, setRegion } = useOnboardingStore();
+  const inputRef = useRef<TextInput>(null);
 
-  const canProceed = region !== "";
+  const { user } = useAuthStore();
+  const { nickname, setNickname } = useOnboardingStore();
+
+  // Pre-fill with Kakao nickname if store is empty
+  useEffect(() => {
+    if (nickname === "" && user?.nickname) {
+      setNickname(user.nickname);
+    }
+  }, [nickname, user?.nickname, setNickname]);
+
+  const canProceed = nickname.trim().length > 0;
 
   const handleNext = useCallback(() => {
     if (!canProceed) return;
-    router.push("/onboarding/step2");
+    router.push("/onboarding/step1");
   }, [canProceed, router]);
 
   const handleBack = useCallback(() => {
@@ -55,158 +59,146 @@ export default function OnboardingStep1() {
   }, [router]);
 
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={0}
+    >
+      <View style={styles.root}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* Decorative blobs */}
-      <View style={[styles.blobTopRight, { top: insets.top + 64 }]} />
-      <View style={styles.blobBottomLeft} />
+        {/* Decorative blobs */}
+        <View style={[styles.blobTopRight, { top: insets.top + 64 }]} />
+        <View style={styles.blobBottomLeft} />
 
-      {/* Glass header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          style={styles.headerBackBtn}
-          onPress={handleBack}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="뒤로가기"
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.onSurfaceVariant} />
-        </TouchableOpacity>
-
-        <Text style={styles.headerBrand}>마지미</Text>
-
-        {/* Right spacer — mirrors back button width for true centering */}
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: 120 + insets.bottom }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Progress indicator */}
-        <View style={styles.progressWrap}>
-          <View style={styles.progressLabelRow}>
-            <Text style={styles.progressStepLabel}>STEP {CURRENT_STEP}/{TOTAL_STEPS}</Text>
-            <Text style={styles.progressPctLabel}>{PROGRESS_PCT}% Completed</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${PROGRESS_PCT}%` }]} />
-          </View>
-        </View>
-
-        {/* Question header */}
-        <View style={styles.questionWrap}>
-          <Text style={styles.questionTitle}>어느 지역에 거주하시나요?</Text>
-          <Text style={styles.questionSubtitle}>
-            맞춤 지원금을 찾기 위해 몇 가지만 여쭤볼게요.
-          </Text>
-        </View>
-
-        {/* Region section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>거주 지역 선택</Text>
-
-          {/* 2-col primary region grid */}
-          <View style={styles.regionGrid}>
-            {PRIMARY_REGIONS.map((r) => {
-              const isSelected = region === r.label;
-              return (
-                <Pressable
-                  key={r.label}
-                  style={({ pressed }) => [
-                    styles.regionCard,
-                    isSelected && styles.regionCardSelected,
-                    pressed && styles.regionCardPressed,
-                  ]}
-                  onPress={() => setRegion(r.label)}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${r.label} 선택`}
-                  accessibilityState={{ checked: isSelected }}
-                >
-                  <Ionicons
-                    name={r.icon}
-                    size={28}
-                    color={isSelected ? colors.primary : colors.onSurfaceVariant}
-                    style={styles.regionCardIcon}
-                  />
-                  <Text
-                    style={[
-                      styles.regionCardLabel,
-                      isSelected && styles.regionCardLabelSelected,
-                    ]}
-                  >
-                    {r.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Other region button */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.otherRegionBtn,
-              pressed && styles.otherRegionBtnPressed,
-            ]}
-            onPress={() => setRegion("기타")}
+        {/* Glass header */}
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity
+            style={styles.headerBackBtn}
+            onPress={handleBack}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="기타 지역 선택"
+            accessibilityLabel="뒤로가기"
           >
-            <Text
+            <Ionicons name="chevron-back" size={22} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
+          <Text style={styles.headerBrand}>마지미</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingBottom: 120 + insets.bottom }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Progress indicator */}
+          <View style={styles.progressWrap}>
+            <View style={styles.progressLabelRow}>
+              <Text style={styles.progressStepLabel}>STEP {CURRENT_STEP}/{TOTAL_STEPS}</Text>
+              <Text style={styles.progressPctLabel}>{PROGRESS_PCT}% Completed</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${PROGRESS_PCT}%` }]} />
+            </View>
+          </View>
+
+          {/* Question header */}
+          <View style={styles.questionWrap}>
+            <Text style={styles.questionTitle}>닉네임을{"\n"}확인해 주세요</Text>
+            <Text style={styles.questionSubtitle}>
+              카카오 닉네임으로 자동 설정됐어요.{"\n"}원하시면 바꿀 수 있어요.
+            </Text>
+          </View>
+
+          {/* Profile image */}
+          {user?.image ? (
+            <View style={styles.avatarWrap}>
+              <Image
+                source={{ uri: user.image }}
+                style={styles.avatar}
+                accessibilityLabel="프로필 사진"
+              />
+            </View>
+          ) : (
+            <View style={styles.avatarWrap}>
+              <View style={styles.avatarFallback}>
+                <Ionicons name="person" size={40} color={colors.primary} />
+              </View>
+            </View>
+          )}
+
+          {/* Nickname input */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>닉네임</Text>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => inputRef.current?.focus()}
               style={[
-                styles.otherRegionBtnText,
-                region === "기타" && styles.otherRegionBtnTextSelected,
+                styles.inputWrapper,
+                nickname.trim().length > 0 && styles.inputWrapperFilled,
               ]}
             >
-              기타 지역 선택
-            </Text>
-            <Ionicons
-              name="chevron-down"
-              size={16}
-              color={region === "기타" ? colors.primary : colors.onSurfaceVariant}
-              style={{ marginLeft: 6 }}
-            />
-          </Pressable>
-        </View>
-      </ScrollView>
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                value={nickname}
+                onChangeText={setNickname}
+                placeholder="닉네임을 입력하세요"
+                placeholderTextColor={colors.outline}
+                returnKeyType="done"
+                maxLength={20}
+                accessibilityLabel="닉네임 입력"
+              />
+              {nickname.trim().length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setNickname("")}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="닉네임 지우기"
+                >
+                  <Ionicons name="close-circle" size={20} color={colors.outline} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
-      {/* Sticky gradient CTA */}
-      <View style={[styles.ctaWrapper, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.ctaGradientOverlay} pointerEvents="none" />
-        <LinearGradient
-          colors={[colors.primary, colors.primaryContainer]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[
-            styles.ctaGradient,
-            !canProceed && styles.ctaDisabled,
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.ctaTouchable}
-            onPress={handleNext}
-            disabled={!canProceed}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="다음 단계로 이동"
-            accessibilityState={{ disabled: !canProceed }}
+        {/* Sticky gradient CTA */}
+        <View style={[styles.ctaWrapper, { paddingBottom: insets.bottom + 16 }]}>
+          <LinearGradient
+            colors={
+              canProceed
+                ? [colors.primary, colors.primaryContainer]
+                : [colors.surfaceContainerHigh, colors.surfaceContainerHigh]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.ctaGradient}
           >
-            <Text style={[styles.ctaLabel, !canProceed && styles.ctaLabelDisabled]}>
-              다음
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={canProceed ? colors.onPrimary : colors.outline}
-              style={{ marginLeft: 6 }}
-            />
-          </TouchableOpacity>
-        </LinearGradient>
+            <TouchableOpacity
+              style={styles.ctaTouchable}
+              onPress={handleNext}
+              disabled={!canProceed}
+              activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="다음 단계로 이동"
+              accessibilityState={{ disabled: !canProceed }}
+            >
+              <Text style={[styles.ctaLabel, !canProceed && styles.ctaLabelDisabled]}>
+                다음
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={canProceed ? colors.onPrimary : colors.outline}
+                style={{ marginLeft: 6 }}
+              />
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -218,7 +210,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
 
-  // --- Decorative blobs ---
   blobTopRight: {
     position: "absolute",
     right: -80,
@@ -227,7 +218,6 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
     backgroundColor: colors.decorativeBlob,
     zIndex: -1,
-    // blur simulated via opacity + large radius; real blur needs @react-native-community/blur
   },
   blobBottomLeft: {
     position: "absolute",
@@ -240,7 +230,6 @@ const styles = StyleSheet.create({
     zIndex: -1,
   },
 
-  // --- Header ---
   header: {
     position: "absolute",
     top: 0,
@@ -255,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.82)",
     ...Platform.select({
       ios: {
-        shadowColor: colors.secondaryFixedDim,
+        shadowColor: "#b6c7eb",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
         shadowRadius: 8,
@@ -263,14 +252,12 @@ const styles = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
-  headerBackBtn:
- {
+  headerBackBtn: {
     width: 40,
     height: 40,
     borderRadius: 9999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "transparent",
   },
   headerBrand: {
     fontSize: typography.fontSize.lg,
@@ -282,16 +269,14 @@ const styles = StyleSheet.create({
     width: 40,
   },
 
-  // --- Scroll ---
   scroll: {
     flex: 1,
   },
   content: {
     paddingHorizontal: 24,
-    paddingTop: 120, // below header
+    paddingTop: 120,
   },
 
-  // --- Progress ---
   progressWrap: {
     marginBottom: 40,
   },
@@ -324,9 +309,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
 
-  // --- Question header ---
   questionWrap: {
-    marginBottom: 40,
+    marginBottom: 32,
   },
   questionTitle: {
     fontSize: typography.fontSize["3xl"],
@@ -342,7 +326,26 @@ const styles = StyleSheet.create({
     lineHeight: typography.fontSize.base * 1.5,
   },
 
-  // --- Section ---
+  // Profile avatar
+  avatarWrap: {
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 9999,
+  },
+  avatarFallback: {
+    width: 88,
+    height: 88,
+    borderRadius: 9999,
+    backgroundColor: colors.primaryFixed,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Nickname input
   section: {
     marginBottom: 40,
   },
@@ -355,74 +358,37 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginLeft: 4,
   },
-
-  // --- Region grid ---
-  regionGrid: {
+  inputWrapper: {
     flexDirection: "row",
-    gap: 16,
-    marginBottom: 16,
-  },
-  regionCard: {
-    flex: 1,
-    paddingVertical: 24,
-    paddingHorizontal: 16,
+    alignItems: "center",
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: borderRadius.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
+    paddingHorizontal: 20,
+    minHeight: 60,
+    borderWidth: 1.5,
     borderColor: "transparent",
     ...Platform.select({
       ios: {
-        shadowColor: "rgba(0, 88, 188, 0.08)",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 20,
+        shadowColor: "#b6c7eb",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
       },
-      android: { elevation: 2 },
+      android: { elevation: 1 },
     }),
   },
-  regionCardSelected: {
+  inputWrapperFilled: {
     borderColor: colors.primary,
   },
-  regionCardPressed: {
-    transform: [{ scale: 0.96 }],
-  },
-  regionCardIcon: {
-    marginBottom: 8,
-  },
-  regionCardLabel: {
+  input: {
+    flex: 1,
     fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.onSurface,
-  },
-  regionCardLabelSelected: {
-    color: colors.primary,
-  },
-
-  // --- Other region ---
-  otherRegionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: borderRadius.xl,
-    backgroundColor: colors.surfaceContainerLowest,
-    minHeight: layout.touchTargetMin,
-  },
-  otherRegionBtnPressed: {
-    backgroundColor: colors.surfaceContainerLow,
-  },
-  otherRegionBtnText: {
-    fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.onSurfaceVariant,
-  },
-  otherRegionBtnTextSelected: {
-    color: colors.primary,
+    color: colors.onSurface,
+    paddingVertical: 18,
   },
 
-  // --- Sticky CTA ---
+  // CTA
   ctaWrapper: {
     position: "absolute",
     bottom: 0,
@@ -430,15 +396,6 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 24,
     paddingTop: 32,
-  },
-  ctaGradientOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "transparent",
-    // Simulate the from-surface to-transparent fade via the wrapper background
   },
   ctaGradient: {
     borderRadius: borderRadius.xl,
@@ -452,9 +409,6 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 6 },
     }),
-  },
-  ctaDisabled: {
-    opacity: 0,
   },
   ctaTouchable: {
     flexDirection: "row",

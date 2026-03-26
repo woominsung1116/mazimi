@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
 interface OnboardingState {
+  // Step 0 (nickname)
+  nickname: string;
   // Step 1
   region: string;
   // Step 2
@@ -11,6 +13,7 @@ interface OnboardingState {
   // Step 3
   employmentStatus: string;
 
+  setNickname: (nickname: string) => void;
   setRegion: (region: string) => void;
   setAge: (age: string) => void;
   setEnrollmentStatus: (status: string) => void;
@@ -30,6 +33,7 @@ interface OnboardingState {
 }
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
+  nickname: "",
   region: "",
   age: "",
   enrollmentStatus: "",
@@ -37,6 +41,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   incomeBracket: null,
   employmentStatus: "",
 
+  setNickname: (nickname) => set({ nickname }),
   setRegion: (region) => set({ region }),
   setAge: (age) => set({ age }),
   setEnrollmentStatus: (enrollmentStatus) => set({ enrollmentStatus }),
@@ -45,12 +50,16 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   setEmploymentStatus: (employmentStatus) => set({ employmentStatus }),
 
   // Legacy — kept for backward compatibility with any existing callers
-  setStep1: (region) => set({ region }),
+  setStep1: (region, birthYear) => {
+    const age = String(new Date().getFullYear() - birthYear);
+    set({ region, age });
+  },
   setStep2: (enrollmentStatus, schoolName, incomeBracket) =>
     set({ enrollmentStatus, schoolName, incomeBracket }),
 
   reset: () =>
     set({
+      nickname: "",
       region: "",
       age: "",
       enrollmentStatus: "",

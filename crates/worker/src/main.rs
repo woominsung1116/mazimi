@@ -10,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 use majimi_core::AppConfig;
 
 use crate::notifications::NotificationDispatcher;
+use crate::sources::dreamspon::DreamsponSource;
 use crate::sources::financial::FssFinancialSource;
 use crate::sources::gov_benefits::GovBenefitsSource;
 use crate::sources::local_scraper::LocalScraperSource;
@@ -145,6 +146,21 @@ async fn main() -> anyhow::Result<()> {
                             tracing::debug!(
                                 source = "fss_financial",
                                 "FSS_API_KEY not set — skipping 금융상품 sync"
+                            );
+                        }
+                    }
+
+                    // 드림스폰 장학금 (기업 장학금 포함, 인증 불필요)
+                    match DreamsponSource::from_env() {
+                        Some(src) => {
+                            if let Err(e) = pipeline::run_ingestion(&pool, &src).await {
+                                tracing::error!(source = "dreamspon", error = %e, "ingestion failed");
+                            }
+                        }
+                        None => {
+                            tracing::debug!(
+                                source = "dreamspon",
+                                "DREAMSPON_ENABLED=false — skipping 드림스폰 sync"
                             );
                         }
                     }

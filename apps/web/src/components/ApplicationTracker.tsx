@@ -12,6 +12,7 @@ const STEPS: { value: ApplicationStatus; label: string }[] = [
   { value: "planning", label: "예정" },
   { value: "applying", label: "진행중" },
   { value: "applied", label: "완료" },
+  { value: "waiting", label: "대기" },
   { value: "received", label: "수혜" },
 ];
 
@@ -20,7 +21,9 @@ const STEP_ACTIVE_COLORS: Record<ApplicationStatus, string> = {
   planning: "bg-blue-600",
   applying: "bg-yellow-500",
   applied: "bg-green-600",
+  waiting: "bg-orange-500",
   received: "bg-purple-600",
+  abandoned: "bg-red-500",
 };
 
 export default function ApplicationTracker({

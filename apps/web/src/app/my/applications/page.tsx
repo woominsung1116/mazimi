@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, USER_ID, ApplicationItem, ApplicationStatus } from "@/lib/api";
-import DeadlineBadge from "@/components/DeadlineBadge";
+import { api, type ApplicationDetail, type ApplicationStatus } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import ApplicationTracker from "@/components/ApplicationTracker";
 
 export default function ApplicationsPage() {
-  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [applications, setApplications] = useState<ApplicationDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -17,12 +16,12 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     api
-      .getApplications(USER_ID)
+      .getMyApplications()
       .then((res) => {
-        setApplications(res.applications);
+        setApplications(res.items);
         const initialMemos: Record<string, string> = {};
-        res.applications.forEach((a) => {
-          initialMemos[a.id] = a.memo || "";
+        res.items.forEach((a) => {
+          initialMemos[a.program_id] = a.memo || "";
         });
         setMemos(initialMemos);
       })
@@ -30,42 +29,48 @@ export default function ApplicationsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleStatusChange(appId: string, newStatus: ApplicationStatus) {
-    setSaving((prev) => ({ ...prev, [appId]: true }));
+  async function handleStatusChange(programId: string, newStatus: ApplicationStatus) {
+    setSaving((prev) => ({ ...prev, [programId]: true }));
     try {
       const updated = await api.updateApplicationStatus(
-        appId,
+        programId,
         newStatus,
-        memos[appId] || "",
-        USER_ID
+        memos[programId] || ""
       );
       setApplications((prev) =>
-        prev.map((a) => (a.id === appId ? updated : a))
+        prev.map((a) =>
+          a.program_id === programId
+            ? { ...a, current_status: updated.status, memo: updated.memo, updated_at: updated.updated_at }
+            : a
+        )
       );
     } catch {
-      // keep optimistic update
+      // optimistic update
       setApplications((prev) =>
-        prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
+        prev.map((a) => (a.program_id === programId ? { ...a, current_status: newStatus } : a))
       );
     } finally {
-      setSaving((prev) => ({ ...prev, [appId]: false }));
+      setSaving((prev) => ({ ...prev, [programId]: false }));
     }
   }
 
-  async function handleMemoSave(appId: string, status: ApplicationStatus) {
-    setSaving((prev) => ({ ...prev, [appId]: true }));
+  async function handleMemoSave(programId: string, status: ApplicationStatus) {
+    setSaving((prev) => ({ ...prev, [programId]: true }));
     try {
       const updated = await api.updateApplicationStatus(
-        appId,
+        programId,
         status,
-        memos[appId] || "",
-        USER_ID
+        memos[programId] || ""
       );
       setApplications((prev) =>
-        prev.map((a) => (a.id === appId ? updated : a))
+        prev.map((a) =>
+          a.program_id === programId
+            ? { ...a, current_status: updated.status, memo: updated.memo, updated_at: updated.updated_at }
+            : a
+        )
       );
     } finally {
-      setSaving((prev) => ({ ...prev, [appId]: false }));
+      setSaving((prev) => ({ ...prev, [programId]: false }));
     }
   }
 
@@ -111,31 +116,24 @@ export default function ApplicationsPage() {
       {!loading && !error && applications.length > 0 && (
         <div className="space-y-3">
           {applications.map((app) => {
-            const isExpanded = expandedId === app.id;
+            const isExpanded = expandedId === app.program_id;
             return (
               <div
-                key={app.id}
+                key={app.program_id}
                 className="rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden"
               >
                 {/* Card header */}
                 <button
                   type="button"
                   className="w-full px-4 py-4 text-left"
-                  onClick={() => setExpandedId(isExpanded ? null : app.id)}
+                  onClick={() => setExpandedId(isExpanded ? null : app.program_id)}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded font-medium">
-                          {app.program.type}
-                        </span>
-                        <DeadlineBadge deadline={app.program.deadline} />
-                      </div>
-                      <p className="font-semibold text-gray-900 truncate">{app.program.name}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{app.program.organization}</p>
+                      <p className="font-semibold text-gray-900 truncate">{app.program_title}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <StatusBadge status={app.status} />
+                      <StatusBadge status={app.current_status} />
                       <svg
                         className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                         fill="none"
@@ -155,8 +153,8 @@ export default function ApplicationsPage() {
                     <div>
                       <p className="text-xs text-gray-500 mb-2">신청 단계</p>
                       <ApplicationTracker
-                        status={app.status}
-                        onChange={(newStatus) => handleStatusChange(app.id, newStatus)}
+                        status={app.current_status}
+                        onChange={(newStatus) => handleStatusChange(app.program_id, newStatus)}
                       />
                     </div>
 
@@ -164,9 +162,9 @@ export default function ApplicationsPage() {
                     <div>
                       <p className="text-xs text-gray-500 mb-1.5">메모</p>
                       <textarea
-                        value={memos[app.id] || ""}
+                        value={memos[app.program_id] || ""}
                         onChange={(e) =>
-                          setMemos((prev) => ({ ...prev, [app.id]: e.target.value }))
+                          setMemos((prev) => ({ ...prev, [app.program_id]: e.target.value }))
                         }
                         placeholder="메모를 입력하세요..."
                         rows={3}
@@ -174,17 +172,17 @@ export default function ApplicationsPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => handleMemoSave(app.id, app.status)}
-                        disabled={saving[app.id]}
+                        onClick={() => handleMemoSave(app.program_id, app.current_status)}
+                        disabled={saving[app.program_id]}
                         className="mt-2 w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
                       >
-                        {saving[app.id] ? "저장 중..." : "저장"}
+                        {saving[app.program_id] ? "저장 중..." : "저장"}
                       </button>
                     </div>
 
                     {/* Link to program */}
                     <Link
-                      href={`/programs/${app.program.id}`}
+                      href={`/programs/${app.program_id}`}
                       className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
                     >
                       프로그램 상세 보기

@@ -203,34 +203,12 @@ fn cmp_values(a: &Value, b: &Value) -> i32 {
         }
         _ => match (a.as_str(), b.as_str()) {
             (Some(as_), Some(bs)) => as_.cmp(bs) as i32,
-            _ => 0,
+            _ => i32::MAX, // incomparable types → comparisons should fail
         },
     }
 }
 
 // ── Korean explain template ───────────────────────────────────────────────
-
-fn explain_passed(field: &str, op: &RuleOp, expected: &Value) -> String {
-    match field {
-        "region_code" | "region" => format!(
-            "{} 거주 조건 충족",
-            expected.as_str().unwrap_or(expected.to_string().as_str())
-        ),
-        "birth_year" => format!("출생연도 조건({} {}) 충족", op.as_str(), expected),
-        "income_bracket" | "kosaf_support_bracket" => {
-            format!("소득 구간 조건({} {}) 충족", op.as_str(), expected)
-        }
-        "enrollment_status" => "재학/휴학 상태 조건 충족".to_string(),
-        "employment_status" => "고용 상태 조건 충족".to_string(),
-        "has_disability" => "장애인 조건 충족".to_string(),
-        "is_multicultural_family" => "다문화가정 조건 충족".to_string(),
-        "is_low_income_household" => "저소득 가구 조건 충족".to_string(),
-        "veteran_family" => "보훈 가족 조건 충족".to_string(),
-        "school_type" => "학교 유형 조건 충족".to_string(),
-        "major_group" => "전공 계열 조건 충족".to_string(),
-        _ => format!("{} 조건 충족", field),
-    }
-}
 
 fn explain_unknown(field: &str) -> String {
     match field {
@@ -357,9 +335,6 @@ pub fn evaluate(profile: &UserProfile, rules: &RuleNode) -> RuleEvalResult {
     let mut explain_reasons: Vec<String> = Vec::new();
 
     for detail in &acc.matched {
-        explain_reasons.push(explain_passed(&detail.field, &RuleOp::Eq, &Value::Null));
-        // Use a more precise explain by re-evaluating the op context
-        let _ = explain_reasons.pop();
         explain_reasons.push({
             match detail.field.as_str() {
                 "region_code" | "region" => format!(
@@ -367,8 +342,8 @@ pub fn evaluate(profile: &UserProfile, rules: &RuleNode) -> RuleEvalResult {
                     detail
                         .actual
                         .as_deref()
-                        .map(region_label_str)
-                        .unwrap_or(&detail.expected)
+                        .map(crate::region_label)
+                        .unwrap_or("기타")
                 ),
                 "income_bracket" | "kosaf_support_bracket" => format!(
                     "소득 구간 {} 조건 충족",
@@ -497,24 +472,6 @@ pub fn compute_final_score(rule_result: &RuleEvalResult, program: &Program) -> f
             - document_penalty;
 
     total.clamp(0.0, 100.0)
-}
-
-// ── Region label helper ───────────────────────────────────────────────────
-
-fn region_label_str(code: &str) -> &str {
-    match code {
-        // Strip JSON quotes that Value::to_string() adds
-        "\"busan\"" | "busan" => "부산",
-        "\"daegu\"" | "daegu" => "대구",
-        "\"seoul\"" | "seoul" => "서울",
-        "\"incheon\"" | "incheon" => "인천",
-        "\"gwangju\"" | "gwangju" => "광주",
-        "\"daejeon\"" | "daejeon" => "대전",
-        "\"ulsan\"" | "ulsan" => "울산",
-        "\"sejong\"" | "sejong" => "세종",
-        "\"gyeonggi\"" | "gyeonggi" => "경기",
-        other => other,
-    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────

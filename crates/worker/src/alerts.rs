@@ -107,7 +107,14 @@ async fn run_for_type(
         .bind(today)
         .fetch_one(pool)
         .await
-        .unwrap_or(0);
+        .map_err(|e| {
+            tracing::warn!(
+                user_id = %candidate.user_id,
+                error = %e,
+                "Failed to check daily alert count"
+            );
+            e
+        })?;
 
         if today_count >= DAILY_ALERT_LIMIT {
             skipped_limit += 1;

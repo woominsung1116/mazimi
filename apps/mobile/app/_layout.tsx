@@ -153,6 +153,10 @@ export default function RootLayout() {
             options={{ title: "기본 정보", headerLeft: () => null }}
           />
           <Stack.Screen
+            name="onboarding/step1"
+            options={{ title: "거주 지역" }}
+          />
+          <Stack.Screen
             name="onboarding/step2"
             options={{ title: "추가 정보" }}
           />

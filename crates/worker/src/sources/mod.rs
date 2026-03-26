@@ -1,3 +1,4 @@
+pub mod dreamspon;
 pub mod financial;
 pub mod gov_benefits;
 pub mod local_scraper;
@@ -35,7 +36,7 @@ pub trait DataSource: Send + Sync {
 pub fn content_hash(v: &Value) -> String {
     let canonical = canonical_value(v);
     let bytes = serde_json::to_vec(&canonical).unwrap_or_default();
-    sha256_hex(&bytes)
+    fnv_hash_hex(&bytes)
 }
 
 fn canonical_value(v: &Value) -> Value {
@@ -52,7 +53,7 @@ fn canonical_value(v: &Value) -> Value {
     }
 }
 
-pub fn sha256_hex(data: &[u8]) -> String {
+pub fn fnv_hash_hex(data: &[u8]) -> String {
     // FNV-1a with two different seeds → 128-bit collision resistance.
     // Replace with sha2 crate if cryptographic strength is required.
     let h1 = fnv1a(data, 0xcbf29ce484222325_u64);

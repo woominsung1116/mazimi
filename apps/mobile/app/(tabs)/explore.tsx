@@ -59,52 +59,7 @@ interface ExploreCard {
   amount: string;
 }
 
-// ---------------------------------------------------------------------------
-// Mock fallback data — shown when API is unreachable
-// ---------------------------------------------------------------------------
-
-const MOCK_PROGRAMS: ExploreCard[] = [
-  {
-    id: "mock-1",
-    category: "장학금",
-    status: "신청 중",
-    title: "2024 상반기 희망드림 국가장학금",
-    location: "전국",
-    amount: "최대 520만원",
-  },
-  {
-    id: "mock-2",
-    category: "청년정책",
-    status: "D-3",
-    title: "서울시 청년 월세 지원 사업",
-    location: "서울특별시",
-    amount: "월 20만원",
-  },
-  {
-    id: "mock-3",
-    category: "장학금",
-    status: "신청 중",
-    title: "지방인재 육성 장학금",
-    location: "경상북도",
-    amount: "연 300만원",
-  },
-  {
-    id: "mock-4",
-    category: "복지/생활",
-    status: "상시",
-    title: "청년 대중교통비 지원 (K-패스)",
-    location: "전국",
-    amount: "최대 30% 환급",
-  },
-  {
-    id: "mock-5",
-    category: "청년정책",
-    status: "신청 중",
-    title: "경기도 청년 면접수당",
-    location: "경기도",
-    amount: "회당 5만원",
-  },
-];
+// No mock fallback — always use real API data
 
 // ---------------------------------------------------------------------------
 // Adapter — ApiProgram → ExploreCard
@@ -362,10 +317,10 @@ export default function ExploreScreen() {
     retry: 1,
   });
 
-  // Build card list from API data or fall back to mocks
+  // Build card list from API data only
   const allCards = useMemo<ExploreCard[]>(() => {
     if (data?.items) return data.items.map(apiProgramToCard);
-    return MOCK_PROGRAMS;
+    return [];
   }, [data]);
 
   // Client-side filtering on top of the fetched list

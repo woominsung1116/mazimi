@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use uuid::Uuid;
 use majimi_core::models::UserProgramState;
 
@@ -224,9 +225,32 @@ pub async fn list_applications(
     .await
     .map_err(db_error)?;
 
+    // Batch-load all history rows for this user in one query to avoid N+1.
+    let all_history_rows = sqlx::query_as::<_, (Uuid, String, Option<String>, DateTime<Utc>)>(
+        r#"
+        SELECT program_id, state, memo, changed_at
+        FROM   user_program_state_history
+        WHERE  user_id = $1
+        ORDER  BY changed_at DESC
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(db_error)?;
+
+    let mut history_map: HashMap<Uuid, Vec<StateHistoryEntry>> = HashMap::new();
+    for (pid, state, memo, changed_at) in all_history_rows {
+        history_map.entry(pid).or_default().push(StateHistoryEntry {
+            state,
+            memo,
+            changed_at,
+        });
+    }
+
     let mut items: Vec<ApplicationDetail> = Vec::with_capacity(rows.len());
     for (program_id, program_title, state, memo, applied_at, result_at, updated_at) in rows {
-        let history = fetch_history(&pool, user_id, program_id).await?;
+        let history = history_map.remove(&program_id).unwrap_or_default();
         items.push(ApplicationDetail {
             program_id,
             program_title,

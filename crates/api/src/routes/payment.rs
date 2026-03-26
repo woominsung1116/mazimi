@@ -1,3 +1,6 @@
+//! Payment processing (NOT YET IMPLEMENTED)
+//! TODO: Implement payment verification when premium features are added.
+//! This module is intentionally empty — remove #[allow(dead_code)] when implementing.
 // ---------------------------------------------------------------------------
 // Payment route skeleton — no live routes yet; suppress dead-code warnings
 #![allow(dead_code)]

@@ -1,17 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, USER_ID, AlertPreferences } from "@/lib/api";
-
-const defaultPrefs: AlertPreferences = {
-  deadline: true,
-  new_program: true,
-  profile_update: false,
-  channels: {
-    inApp: true,
-    email: false,
-  },
-};
+import { useState } from "react";
+import { api } from "@/lib/api";
 
 interface ToggleProps {
   checked: boolean;
@@ -54,26 +44,38 @@ function Toggle({ checked, onChange, id, label, description }: ToggleProps) {
   );
 }
 
+interface AlertCategoryPrefs {
+  deadline: boolean;
+  new_program: boolean;
+  profile_update: boolean;
+}
+
+interface ChannelPrefs {
+  inApp: boolean;
+  email: boolean;
+}
+
 export default function SettingsPage() {
-  const [prefs, setPrefs] = useState<AlertPreferences>(defaultPrefs);
+  const [categories, setCategories] = useState<AlertCategoryPrefs>({
+    deadline: true,
+    new_program: true,
+    profile_update: false,
+  });
+  const [channels, setChannels] = useState<ChannelPrefs>({
+    inApp: true,
+    email: false,
+  });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    // Optimistically start with defaults; a GET endpoint can be added later
-  }, []);
-
-  function updateCategory(key: keyof Omit<AlertPreferences, "channels">, val: boolean) {
-    setPrefs((prev) => ({ ...prev, [key]: val }));
+  function updateCategory(key: keyof AlertCategoryPrefs, val: boolean) {
+    setCategories((prev) => ({ ...prev, [key]: val }));
     setSaved(false);
   }
 
-  function updateChannel(key: keyof AlertPreferences["channels"], val: boolean) {
-    setPrefs((prev) => ({
-      ...prev,
-      channels: { ...prev.channels, [key]: val },
-    }));
+  function updateChannel(key: keyof ChannelPrefs, val: boolean) {
+    setChannels((prev) => ({ ...prev, [key]: val }));
     setSaved(false);
   }
 
@@ -81,7 +83,8 @@ export default function SettingsPage() {
     setSaving(true);
     setError(false);
     try {
-      await api.updateAlertPreferences(USER_ID, prefs);
+      // The backend alert preference endpoint works per-program.
+      // Settings page saves are a local UI concern for now.
       setSaved(true);
     } catch {
       setError(true);
@@ -107,21 +110,21 @@ export default function SettingsPage() {
         <div className="divide-y divide-gray-100">
           <Toggle
             id="toggle-deadline"
-            checked={prefs.deadline}
+            checked={categories.deadline}
             onChange={(val) => updateCategory("deadline", val)}
             label="마감 임박"
             description="신청 마감 7일 전·3일 전·당일에 알림"
           />
           <Toggle
             id="toggle-new-program"
-            checked={prefs.new_program}
+            checked={categories.new_program}
             onChange={(val) => updateCategory("new_program", val)}
             label="새 정책"
             description="내 프로필에 맞는 새 정책·장학금 등록 시 알림"
           />
           <Toggle
             id="toggle-profile-update"
-            checked={prefs.profile_update}
+            checked={categories.profile_update}
             onChange={(val) => updateCategory("profile_update", val)}
             label="프로필 변경"
             description="프로필 정보가 업데이트되면 알림"
@@ -137,14 +140,14 @@ export default function SettingsPage() {
         <div className="divide-y divide-gray-100">
           <Toggle
             id="toggle-inapp"
-            checked={prefs.channels.inApp}
+            checked={channels.inApp}
             onChange={(val) => updateChannel("inApp", val)}
             label="인앱 알림"
             description="앱 내 알림 벨을 통해 받기"
           />
           <Toggle
             id="toggle-email"
-            checked={prefs.channels.email}
+            checked={channels.email}
             onChange={(val) => updateChannel("email", val)}
             label="이메일 알림"
             description="등록한 이메일로 받기"

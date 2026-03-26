@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, USER_ID } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export default function AlertBell() {
   const router = useRouter();
@@ -10,10 +10,9 @@ export default function AlertBell() {
 
   useEffect(() => {
     api
-      .getAlerts(USER_ID)
-      .then((alerts) => {
-        const unread = alerts.filter((a) => !a.isRead).length;
-        setUnreadCount(unread);
+      .getAlerts()
+      .then((res) => {
+        setUnreadCount(res.total);
       })
       .catch(() => {
         // silent — bell still renders without count

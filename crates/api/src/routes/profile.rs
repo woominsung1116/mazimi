@@ -28,8 +28,11 @@ pub async fn save_profile(
         INSERT INTO user_profiles (
             user_id, birth_year, region_code, city_code, school_name, school_year,
             enrollment_status, employment_status, major_group, income_bracket,
-            kosaf_support_bracket, housing_type, household_size, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
+            kosaf_support_bracket, housing_type, household_size,
+            has_disability, is_multicultural_family, is_low_income_household,
+            veteran_family, preferred_categories, school_type, age_band,
+            updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20, now())
         ON CONFLICT (user_id) DO UPDATE SET
             birth_year = EXCLUDED.birth_year,
             region_code = EXCLUDED.region_code,
@@ -43,6 +46,13 @@ pub async fn save_profile(
             kosaf_support_bracket = EXCLUDED.kosaf_support_bracket,
             housing_type = EXCLUDED.housing_type,
             household_size = EXCLUDED.household_size,
+            has_disability = EXCLUDED.has_disability,
+            is_multicultural_family = EXCLUDED.is_multicultural_family,
+            is_low_income_household = EXCLUDED.is_low_income_household,
+            veteran_family = EXCLUDED.veteran_family,
+            preferred_categories = EXCLUDED.preferred_categories,
+            school_type = EXCLUDED.school_type,
+            age_band = EXCLUDED.age_band,
             profile_version = user_profiles.profile_version + 1,
             updated_at = now()
         "#,
@@ -60,6 +70,13 @@ pub async fn save_profile(
     .bind(input.kosaf_support_bracket)
     .bind(&input.housing_type)
     .bind(input.household_size)
+    .bind(input.has_disability.unwrap_or(false))
+    .bind(input.is_multicultural_family.unwrap_or(false))
+    .bind(input.is_low_income_household.unwrap_or(false))
+    .bind(input.veteran_family.unwrap_or(false))
+    .bind(&input.preferred_categories.clone().unwrap_or_default())
+    .bind(&input.school_type)
+    .bind(&input.age_band)
     .execute(&pool)
     .await
     .map_err(|e| {

@@ -2,28 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, type Program } from "@/lib/api";
+import { api, type ApiProgram, formatBenefit, programTypeLabel, programStatusLabel } from "@/lib/api";
 import DeadlineBadge from "@/components/DeadlineBadge";
-import BenefitAmount from "@/components/BenefitAmount";
-
-type FilterType = "" | "정책" | "장학금";
-type FilterRegion = "" | "부산" | "대구";
 
 export default function ProgramsPage() {
-  const [programs, setPrograms] = useState<Program[]>([]);
+  const [programs, setPrograms] = useState<ApiProgram[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typeFilter, setTypeFilter] = useState<FilterType>("");
-  const [regionFilter, setRegionFilter] = useState<FilterRegion>("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
 
   useEffect(() => {
     setLoading(true);
     api
       .getPrograms({
-        type: typeFilter || undefined,
+        program_type: typeFilter || undefined,
         region: regionFilter || undefined,
       })
       .then((data) => {
-        setPrograms(data.programs || []);
+        setPrograms(data.items || []);
         setLoading(false);
       })
       .catch(() => {
@@ -51,7 +47,7 @@ export default function ProgramsPage() {
         {/* Filters */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {/* Type filters */}
-          {(["", "정책", "장학금"] as FilterType[]).map((t) => (
+          {["", "scholarship", "support"].map((t) => (
             <button
               key={t || "all-type"}
               type="button"
@@ -62,14 +58,14 @@ export default function ProgramsPage() {
                   : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
               }`}
             >
-              {t || "전체"}
+              {t ? programTypeLabel(t) : "전체"}
             </button>
           ))}
 
           <div className="w-px bg-gray-200 mx-1" />
 
           {/* Region filters */}
-          {(["", "부산", "대구"] as FilterRegion[]).map((r) => (
+          {["", "busan", "daegu"].map((r) => (
             <button
               key={r || "all-region"}
               type="button"
@@ -80,7 +76,7 @@ export default function ProgramsPage() {
                   : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
               }`}
             >
-              {r || "전체 지역"}
+              {r === "busan" ? "부산" : r === "daegu" ? "대구" : "전체 지역"}
             </button>
           ))}
         </div>
@@ -104,24 +100,24 @@ export default function ProgramsPage() {
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded">
-                    {program.type}
+                    {programTypeLabel(program.program_type)}
                   </span>
-                  <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded">
-                    {program.region}
-                  </span>
-                  <DeadlineBadge deadline={program.deadline} />
+                  {program.regions && program.regions.length > 0 && (
+                    <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-0.5 rounded">
+                      {program.regions[0]}
+                    </span>
+                  )}
+                  {program.deadline_at && <DeadlineBadge deadline={program.deadline_at} />}
                 </div>
                 <h3 className="font-semibold text-gray-900">
-                  {program.name}
+                  {program.title}
                 </h3>
                 <p className="text-sm text-gray-500 mt-0.5 mb-2">
-                  {program.organization}
+                  {program.provider_name}
                 </p>
-                <BenefitAmount
-                  amount={program.benefitAmount}
-                  unit={program.benefitUnit}
-                  size="sm"
-                />
+                <p className="text-sm font-medium text-blue-600">
+                  {formatBenefit(program)}
+                </p>
               </Link>
             ))}
           </div>

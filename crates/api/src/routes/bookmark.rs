@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::auth::AuthUser;
 
 /// POST /api/v1/programs/{program_id}/bookmark
-/// Toggle bookmark: insert if not exists, delete if exists.
+/// Toggle bookmark: delete if exists (atomic), insert if not.
 /// The authenticated user's ID is taken from the JWT — no client-supplied user_id accepted.
 pub async fn toggle_bookmark(
     auth_user: AuthUser,
@@ -19,8 +19,9 @@ pub async fn toggle_bookmark(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
 
-    let existing = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM user_bookmarks WHERE user_id = $1 AND program_id = $2",
+    // Attempt atomic delete — if the row existed, we get it back.
+    let deleted = sqlx::query_scalar::<_, Uuid>(
+        "DELETE FROM user_bookmarks WHERE user_id = $1 AND program_id = $2 RETURNING id",
     )
     .bind(user_id)
     .bind(program_id)
@@ -33,8 +34,12 @@ pub async fn toggle_bookmark(
         )
     })?;
 
-    let bookmarked = if existing.is_some() {
-        sqlx::query("DELETE FROM user_bookmarks WHERE user_id = $1 AND program_id = $2")
+    if deleted.is_some() {
+        // Was deleted (unbookmarked)
+        Ok(Json(json!({ "bookmarked": false })))
+    } else {
+        // Didn't exist, so insert
+        sqlx::query("INSERT INTO user_bookmarks (user_id, program_id) VALUES ($1, $2)")
             .bind(user_id)
             .bind(program_id)
             .execute(&pool)
@@ -45,23 +50,6 @@ pub async fn toggle_bookmark(
                     Json(json!({ "error": format!("DB error: {e}") })),
                 )
             })?;
-        false
-    } else {
-        sqlx::query(
-            "INSERT INTO user_bookmarks (user_id, program_id) VALUES ($1, $2)",
-        )
-        .bind(user_id)
-        .bind(program_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
-        true
-    };
-
-    Ok(Json(json!({ "bookmarked": bookmarked })))
+        Ok(Json(json!({ "bookmarked": true })))
+    }
 }

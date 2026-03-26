@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"grep -rn \\\"offlineBanner\\\\|function OfflineBanner\\\" app/(tabs)/index.tsx app/(tabs)/explore.tsx app/(tabs)/manage.tsx app/(tabs)/profile.tsx app/region-compare.tsx 2>/dev/null\",\"descriptio...",
-  "error": "Exit code 1\n(eval):1: no matches found: app/(tabs)/index.tsx",
-  "timestamp": "2026-03-22T12:21:08.646Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"grep -n 'router.push\\\\|router.replace' /Users/woominseong/Desktop/창업/apps/mobile/app/(tabs)/index.tsx\",\"description\":\"Check home screen navigation calls\"}",
+  "error": "Exit code 1\n(eval):1: no matches found: /Users/woominseong/Desktop/창업/apps/mobile/app/(tabs)/index.tsx",
+  "timestamp": "2026-03-26T05:54:33.263Z",
+  "retry_count": 3
 }

@@ -43,6 +43,8 @@ pub struct UserProfile {
     pub age_band: Option<String>,
     pub profile_version: i32,
     pub updated_at: DateTime<Utc>,
+    pub nickname: Option<String>,
+    pub profile_image_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

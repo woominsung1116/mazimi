@@ -73,3 +73,18 @@
 - 코드 리뷰 시 `security-reviewer` 에이전트 함께 실행
 - 배포 전 보안 감사 필수 실행
 - 새 API 라우트 추가 시 IDOR/인증/인가 체크
+
+## 수정 후 자동 점검 (필수)
+
+**코드 수정이 완료될 때마다 아래 4개 에이전트를 병렬로 실행하여 전체 프로젝트를 점검할 것.**
+
+```
+보안 에이전트 (security-reviewer, opus)  — 인증, IDOR, 인젝션, 비밀키 노출
+아키텍처 에이전트 (architect, opus)      — 구조, DB 설계, 확장성, 누락 컴포넌트
+코드 리뷰 에이전트 (code-reviewer, opus) — 로직 결함, 타입 안전성, 성능, SOLID
+검증 에이전트 (verifier, opus)           — 빌드, API 매칭, 라우팅, 기능 완성도
+```
+
+- 4개 모두 `run_in_background: true`로 병렬 실행
+- 결과를 종합하여 Critical/High 이슈는 즉시 수정
+- Medium/Low는 보고 후 사용자 판단에 따라 처리

@@ -207,100 +207,7 @@ function formatManwon(krw: number): string {
   return `${man}만원`;
 }
 
-// ---------------------------------------------------------------------------
-// Mock fallback — used when both API calls fail
-// ---------------------------------------------------------------------------
-
-// Reuse a slim subset of mock items so offline mode still shows something.
-const MOCK_CURRENT_ITEMS: RecommendationItem[] = [
-  {
-    program_id: "nat-1",
-    title: "국가장학금 I유형",
-    program_type: "scholarship",
-    match_score: 90,
-    benefit_amount_monthly: null,
-    benefit_amount_semester: 3500000,
-    deadline: null,
-    reasons: ["소득분위 기준 충족"],
-    missing_checks: [],
-    official_url: null,
-  },
-  {
-    program_id: "nat-2",
-    title: "청년 주거급여 분리지급",
-    program_type: "welfare",
-    match_score: 75,
-    benefit_amount_monthly: 330000,
-    benefit_amount_semester: null,
-    deadline: null,
-    reasons: ["주거 독립 조건 충족"],
-    missing_checks: [],
-    official_url: null,
-  },
-  {
-    program_id: "bus-1",
-    title: "부산 청년 월세 지원",
-    program_type: "welfare",
-    match_score: 82,
-    benefit_amount_monthly: 180000,
-    benefit_amount_semester: null,
-    deadline: null,
-    reasons: ["부산 거주"],
-    missing_checks: [],
-    official_url: null,
-  },
-];
-
-const MOCK_SIM_ITEMS: RecommendationItem[] = [
-  {
-    program_id: "nat-1",
-    title: "국가장학금 I유형",
-    program_type: "scholarship",
-    match_score: 90,
-    benefit_amount_monthly: null,
-    benefit_amount_semester: 3500000,
-    deadline: null,
-    reasons: ["소득분위 기준 충족"],
-    missing_checks: [],
-    official_url: null,
-  },
-  {
-    program_id: "nat-2",
-    title: "청년 주거급여 분리지급",
-    program_type: "welfare",
-    match_score: 75,
-    benefit_amount_monthly: 330000,
-    benefit_amount_semester: null,
-    deadline: null,
-    reasons: ["주거 독립 조건 충족"],
-    missing_checks: [],
-    official_url: null,
-  },
-  {
-    program_id: "sel-1",
-    title: "서울 청년 월세 지원",
-    program_type: "welfare",
-    match_score: 78,
-    benefit_amount_monthly: 200000,
-    benefit_amount_semester: null,
-    deadline: null,
-    reasons: ["서울 거주"],
-    missing_checks: [],
-    official_url: null,
-  },
-  {
-    program_id: "sel-3",
-    title: "서울 청년 교통비 지원",
-    program_type: "support",
-    match_score: 70,
-    benefit_amount_monthly: 60000,
-    benefit_amount_semester: null,
-    deadline: null,
-    reasons: ["서울 거주"],
-    missing_checks: [],
-    official_url: null,
-  },
-];
+// No mock fallback — always use real API data
 
 // ---------------------------------------------------------------------------
 // Profile builder helpers
@@ -644,10 +551,10 @@ export default function ConditionSimulatorScreen() {
   // ── Resolve data ─────────────────────────────────────────────────────────
 
   const currentItems: RecommendationItem[] =
-    currentQuery.data?.items ?? (hasError ? MOCK_CURRENT_ITEMS : []);
+    currentQuery.data?.items ?? [];
 
   const simItems: RecommendationItem[] = simActive
-    ? simQuery.data?.items ?? (simQuery.isError ? MOCK_SIM_ITEMS : [])
+    ? simQuery.data?.items ?? []
     : currentItems;
 
   const classified = useMemo<ClassifiedItem[]>(() => {

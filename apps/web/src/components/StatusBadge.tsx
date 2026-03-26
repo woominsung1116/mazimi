@@ -11,7 +11,9 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   planning: "예정",
   applying: "진행중",
   applied: "완료",
+  waiting: "대기",
   received: "수혜",
+  abandoned: "포기",
 };
 
 const STATUS_COLORS: Record<ApplicationStatus, string> = {
@@ -19,7 +21,9 @@ const STATUS_COLORS: Record<ApplicationStatus, string> = {
   planning: "bg-blue-100 text-blue-700",
   applying: "bg-yellow-100 text-yellow-700",
   applied: "bg-green-100 text-green-700",
+  waiting: "bg-orange-100 text-orange-700",
   received: "bg-purple-100 text-purple-700",
+  abandoned: "bg-red-100 text-red-600",
 };
 
 export default function StatusBadge({ status }: StatusBadgeProps) {

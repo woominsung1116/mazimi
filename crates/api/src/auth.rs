@@ -10,11 +10,13 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-// ── Token lifetime: 7 days ──
-// TODO: Implement refresh token flow so short-lived access tokens can be
-// renewed without forcing the user to re-authenticate. Access tokens should
-// stay at 7 days (or shorter) once refresh tokens are in place.
-const TOKEN_EXPIRY_SECS: usize = 7 * 24 * 60 * 60; // 604800 seconds
+// ── Token lifetimes ──
+//
+// Access token: short-lived (30 minutes) — used for API authentication.
+// Refresh token: long-lived (30 days) — used to obtain new access tokens
+// without re-authenticating via Kakao.
+const ACCESS_TOKEN_EXPIRY_SECS: usize = 30 * 60; // 1800 seconds
+const REFRESH_TOKEN_EXPIRY_SECS: usize = 30 * 24 * 60 * 60; // 2592000 seconds
 
 // ── Claims stored inside the JWT ──
 
@@ -23,10 +25,17 @@ pub struct Claims {
     /// Subject: stringified user UUID
     pub sub: String,
     pub role: String,
+    /// Token type: "access" or "refresh"
+    #[serde(default = "default_token_type")]
+    pub token_type: String,
     /// Expiry (Unix timestamp)
     pub exp: usize,
     /// Issued-at (Unix timestamp)
     pub iat: usize,
+}
+
+fn default_token_type() -> String {
+    "access".to_string()
 }
 
 // ── Extracted identity available to handlers ──
@@ -69,16 +78,33 @@ impl FromRequestParts<AppState> for AdminUser {
 
 // ── Token helpers ──
 
+/// Create a short-lived access token (30 min).
 pub fn create_token(user_id: Uuid, role: &str, secret: &str) -> anyhow::Result<String> {
+    create_token_with_type(user_id, role, secret, "access", ACCESS_TOKEN_EXPIRY_SECS)
+}
+
+/// Create a long-lived refresh token (30 days).
+pub fn create_refresh_token(user_id: Uuid, role: &str, secret: &str) -> anyhow::Result<String> {
+    create_token_with_type(user_id, role, secret, "refresh", REFRESH_TOKEN_EXPIRY_SECS)
+}
+
+fn create_token_with_type(
+    user_id: Uuid,
+    role: &str,
+    secret: &str,
+    token_type: &str,
+    expiry_secs: usize,
+) -> anyhow::Result<String> {
     let now = chrono::Utc::now().timestamp() as usize;
     let claims = Claims {
         sub: user_id.to_string(),
         role: role.to_string(),
+        token_type: token_type.to_string(),
         iat: now,
-        exp: now + TOKEN_EXPIRY_SECS,
+        exp: now + expiry_secs,
     };
     let token = encode(
-        &Header::default(),
+        &Header::new(jsonwebtoken::Algorithm::HS256),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )?;
@@ -86,10 +112,11 @@ pub fn create_token(user_id: Uuid, role: &str, secret: &str) -> anyhow::Result<S
 }
 
 pub fn verify_token(token: &str, secret: &str) -> anyhow::Result<Claims> {
+    let validation = Validation::new(jsonwebtoken::Algorithm::HS256);
     let data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )?;
     Ok(data.claims)
 }
@@ -125,6 +152,10 @@ impl FromRequestParts<AppState> for AuthUser {
 
         let claims = verify_token(token, &state.jwt_secret)
             .map_err(|_| unauthorized("Invalid or expired token"))?;
+
+        if claims.token_type != "access" {
+            return Err(unauthorized("Token type must be 'access'"));
+        }
 
         let user_id = Uuid::parse_str(&claims.sub)
             .map_err(|_| unauthorized("Malformed token subject"))?;

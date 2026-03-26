@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, USER_ID, Alert } from "@/lib/api";
-import AlertCard from "@/components/AlertCard";
+import { api, type AlertItem } from "@/lib/api";
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     api
-      .getAlerts(USER_ID)
-      .then(setAlerts)
+      .getAlerts()
+      .then((res) => setAlerts(res.items))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
@@ -44,7 +43,7 @@ export default function AlertsPage() {
         <h1 className="text-xl font-bold text-gray-900">알림</h1>
         {alerts.length > 0 && (
           <span className="text-sm text-gray-500">
-            {alerts.filter((a) => !a.isRead).length}개 읽지 않음
+            {alerts.length}개 알림
           </span>
         )}
       </div>
@@ -73,17 +72,26 @@ export default function AlertsPage() {
       ) : (
         <div className="space-y-2">
           {alerts.map((alert) => (
-            <AlertCard
+            <div
               key={alert.id}
-              type={alert.type}
-              title={alert.title}
-              message={alert.message}
-              programTitle={alert.programTitle}
-              amount={alert.amount}
-              daysLeft={alert.daysLeft}
-              createdAt={alert.createdAt}
-              isRead={alert.isRead}
-            />
+              className="rounded-xl border border-gray-100 px-4 py-4 shadow-sm bg-white"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {alert.program_title}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {alert.alert_type} - {alert.alert_date}
+                  </p>
+                  {alert.deadline_at && (
+                    <p className="text-xs text-red-600 mt-1">
+                      마감: {new Date(alert.deadline_at).toLocaleDateString("ko-KR")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, USER_ID } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface BookmarkButtonProps {
   programId: string;
@@ -19,7 +19,7 @@ export default function BookmarkButton({
     if (loading) return;
     setLoading(true);
     try {
-      const res = await api.toggleBookmark(programId, USER_ID);
+      const res = await api.toggleBookmark(programId);
       setBookmarked(res.bookmarked);
     } catch {
       // optimistic toggle on error

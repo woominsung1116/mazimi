@@ -103,8 +103,8 @@ pub async fn list_admin_programs(
     State(pool): State<PgPool>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let limit = pagination.limit.unwrap_or(50);
-    let offset = pagination.offset.unwrap_or(0);
+    let limit = pagination.limit.unwrap_or(50).clamp(1, 100);
+    let offset = pagination.offset.unwrap_or(0).max(0);
 
     let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM programs")
         .fetch_one(&pool)

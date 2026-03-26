@@ -65,6 +65,7 @@ import {
   shadows,
   layout,
 } from "@/constants/theme";
+import { useAuthStore } from "@/store/auth";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -945,6 +946,7 @@ type PickedFile = {
 };
 
 function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
+  const { user } = useAuthStore();
   const [selectedType, setSelectedType] = useState<DocumentType>("resident_register");
   const [issuedDate, setIssuedDate] = useState<string>(() => {
     const d = new Date();
@@ -1077,19 +1079,21 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
       let encrypted = false;
 
       if (pickedFile) {
-        // Use the Expo installation ID as a stable per-device user token when
-        // a real auth userId is not yet available. Replace with the Kakao sub
-        // claim once auth is wired into this screen.
-        const userId =
-          Constants.easConfig?.projectId ??
-          Constants.expoConfig?.extra?.eas?.projectId ??
-          "wello_vault_default_user";
+        if (!user?.id) {
+          Alert.alert(
+            "로그인 필요",
+            "서류를 안전하게 암호화하려면 로그인이 필요합니다. 로그인 후 다시 시도해주세요.",
+            [{ text: "확인" }]
+          );
+          setIsSaving(false);
+          return;
+        }
 
         const result = await persistFile(
           pickedFile.uri,
           id,
           pickedFile.extension,
-          userId
+          user.id
         );
         fileUri = result.fileUri;
         encrypted = result.encrypted;

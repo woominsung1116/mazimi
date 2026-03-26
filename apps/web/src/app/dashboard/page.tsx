@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, USER_ID, DashboardData } from "@/lib/api";
+import { api, type DashboardData, formatBenefit, programTypeLabel, programStatusLabel } from "@/lib/api";
 import BenefitAmount from "@/components/BenefitAmount";
 import DeadlineBadge from "@/components/DeadlineBadge";
 import BookmarkButton from "@/components/BookmarkButton";
-import StatusBadge from "@/components/StatusBadge";
-import TodoChecklist from "@/components/TodoChecklist";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -16,7 +14,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api
-      .getDashboard(USER_ID)
+      .getDashboard()
       .then(setData)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -60,100 +58,57 @@ export default function DashboardPage() {
           <div>
             <p className="text-xs font-medium text-blue-200 mb-1">월</p>
             <div className="text-3xl font-bold text-white">
-              <BenefitAmount amount={data.estimatedMonthlyBenefit} unit="" size="lg" />
+              <BenefitAmount amount={data.estimated_monthly} unit="" size="lg" />
             </div>
           </div>
           <div className="border-l border-blue-500 pl-8">
             <p className="text-xs font-medium text-blue-200 mb-1">학기</p>
             <div className="text-3xl font-bold text-white">
-              <BenefitAmount amount={data.estimatedSemesterBenefit} unit="" size="lg" />
+              <BenefitAmount amount={data.estimated_semester} unit="" size="lg" />
             </div>
           </div>
         </div>
       </section>
 
       {/* 곧 마감 */}
-      {data.deadlineSoon.length > 0 && (
+      {data.upcoming_deadlines.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-gray-900 mb-3">곧 마감</h2>
           <div className="space-y-2">
-            {data.deadlineSoon.map(({ program }) => (
+            {data.upcoming_deadlines.map((program) => (
               <Link
                 key={program.id}
                 href={`/programs/${program.id}`}
-                aria-label={`${program.name} 상세 보기`}
+                aria-label={`${program.title} 상세 보기`}
                 className="flex items-center justify-between rounded-xl bg-white border border-gray-100 px-4 py-3 shadow-sm hover:shadow transition-shadow"
               >
                 <div className="flex-1 min-w-0 mr-3">
-                  <p className="text-sm font-medium text-gray-900 truncate">{program.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{program.organization}</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">{program.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{program.provider_name}</p>
                 </div>
-                <DeadlineBadge deadline={program.deadline} />
+                {program.deadline_at && <DeadlineBadge deadline={program.deadline_at} />}
               </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 신청 진행 중 */}
-      {data.applying.length > 0 && (
-        <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-3">신청 진행 중</h2>
-          <div className="space-y-2">
-            {data.applying.map((item) => (
-              <Link
-                key={item.id}
-                href="/my/applications"
-                aria-label={`${item.program.name} 신청 현황 보기`}
-                className="flex items-center justify-between rounded-xl bg-white border border-gray-100 px-4 py-3 shadow-sm hover:shadow transition-shadow"
-              >
-                <div className="flex-1 min-w-0 mr-3">
-                  <p className="text-sm font-medium text-gray-900 truncate">{item.program.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{item.program.organization}</p>
-                </div>
-                <StatusBadge status={item.status} />
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 저장한 항목 */}
-      {data.saved.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-gray-900">저장한 항목</h2>
-            <Link href="/my/saved" className="text-sm text-blue-600 hover:text-blue-700">
-              전체보기
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {data.saved.slice(0, 3).map(({ program }) => (
-              <div
-                key={program.id}
-                className="flex items-center justify-between rounded-xl bg-white border border-gray-100 px-4 py-3 shadow-sm"
-              >
-                <div className="flex-1 min-w-0 mr-2">
-                  <p className="text-sm font-medium text-gray-900 truncate">{program.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{program.organization}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <DeadlineBadge deadline={program.deadline} />
-                  <BookmarkButton programId={program.id} initialBookmarked={true} />
-                </div>
-              </div>
             ))}
           </div>
         </section>
       )}
 
       {/* 지금 해야 할 일 */}
-      <section>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">지금 해야 할 일</h2>
-        <div className="rounded-xl bg-white border border-gray-100 px-4 py-4 shadow-sm">
-          <TodoChecklist items={data.todos} />
-        </div>
-      </section>
+      {data.todo_items.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-gray-900 mb-3">지금 해야 할 일</h2>
+          <div className="rounded-xl bg-white border border-gray-100 px-4 py-4 shadow-sm">
+            <ul className="space-y-2">
+              {data.todo_items.map((item, i) => (
+                <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
+                  <span className="text-blue-600 mt-0.5">-</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {/* Nav links */}
       <nav className="flex gap-3 pt-2" aria-label="주요 메뉴">

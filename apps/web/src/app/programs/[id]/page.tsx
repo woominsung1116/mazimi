@@ -3,15 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { api, type Program } from "@/lib/api";
+import { api, type ApiProgram, formatBenefit, programTypeLabel } from "@/lib/api";
 import DeadlineBadge from "@/components/DeadlineBadge";
-import BenefitAmount from "@/components/BenefitAmount";
 
 export default function ProgramDetailPage() {
   const params = useParams();
   const id = params.id as string;
 
-  const [program, setProgram] = useState<Program | null>(null);
+  const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,107 +80,83 @@ export default function ProgramDetailPage() {
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-              {program.type}
+              {programTypeLabel(program.program_type)}
             </span>
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-              {program.region}
-            </span>
-            <DeadlineBadge deadline={program.deadline} />
+            {program.regions && program.regions.length > 0 && (
+              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                {program.regions[0]}
+              </span>
+            )}
+            {program.deadline_at && <DeadlineBadge deadline={program.deadline_at} />}
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            {program.name}
+            {program.title}
           </h1>
-          <p className="text-sm text-gray-500">{program.organization}</p>
+          <p className="text-sm text-gray-500">{program.provider_name}</p>
         </div>
 
         {/* Benefit */}
         <div className="rounded-xl bg-blue-50 p-5 mb-6">
           <p className="text-sm text-blue-700 mb-1">지원 금액</p>
-          <BenefitAmount
-            amount={program.benefitAmount}
-            unit={program.benefitUnit}
-            size="lg"
-          />
+          <p className="text-xl font-bold text-blue-600">{formatBenefit(program)}</p>
         </div>
 
         {/* Summary */}
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-4">
-          <h2 className="text-base font-semibold text-gray-900 mb-2">
-            요약
-          </h2>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            {program.summary}
-          </p>
-        </div>
-
-        {/* Description */}
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-4">
-          <h2 className="text-base font-semibold text-gray-900 mb-2">
-            상세 내용
-          </h2>
-          <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-            {program.description}
-          </p>
-        </div>
-
-        {/* Eligibility */}
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-4">
-          <h2 className="text-base font-semibold text-gray-900 mb-2">
-            지원 자격
-          </h2>
-          <ul className="space-y-1.5">
-            {program.eligibility.map((item, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-2 text-sm text-gray-600"
-              >
-                <span className="text-blue-600 mt-0.5">-</span>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
+        {program.summary && (
+          <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-4">
+            <h2 className="text-base font-semibold text-gray-900 mb-2">
+              요약
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {program.summary}
+            </p>
+          </div>
+        )}
 
         {/* Deadline */}
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-2">
-            신청 기한
-          </h2>
-          <p className="text-sm text-gray-600">
-            {new Date(program.deadline).toLocaleDateString("ko-KR", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
+        {program.deadline_at && (
+          <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 mb-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-2">
+              신청 기한
+            </h2>
+            <p className="text-sm text-gray-600">
+              {new Date(program.deadline_at).toLocaleDateString("ko-KR", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+          </div>
+        )}
 
         {/* CTA */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4">
-          <div className="max-w-md mx-auto">
-            <a
-              href={program.applicationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full rounded-xl bg-blue-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-blue-700 transition-colors"
-            >
-              공식 사이트에서 신청하기
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+        {program.official_url && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4">
+            <div className="max-w-md mx-auto">
+              <a
+                href={program.official_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-blue-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-blue-700 transition-colors"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-            </a>
+                공식 사이트에서 신청하기
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </main>
   );

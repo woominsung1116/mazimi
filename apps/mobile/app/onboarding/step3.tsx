@@ -1,8 +1,8 @@
 /**
- * Onboarding Step 3 — Employment Status
+ * Onboarding Step 4 — Employment Status
  * Matches Stitch "Onboarding / Profile Setup" design exactly.
  */
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,13 +17,14 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useOnboardingStore } from "@/store/onboarding";
+import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
+import { api } from "@/lib/api";
 import { colors, typography, borderRadius, layout } from "@/constants/theme";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
-const CURRENT_STEP = 3;
+const TOTAL_STEPS = 4;
+const CURRENT_STEP = 4;
 const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 type EmploymentOption = {
@@ -43,25 +44,37 @@ export default function OnboardingStep3() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { region, enrollmentStatus, employmentStatus, setEmploymentStatus } =
+  const { nickname, region, age, enrollmentStatus, employmentStatus, setEmploymentStatus } =
     useOnboardingStore();
-
-  // Guard: prior steps must be complete
-  if (!region || !enrollmentStatus) {
-    router.replace("/onboarding");
-    return null;
-  }
 
   const canProceed = employmentStatus !== "";
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (!canProceed) return;
+    // Save profile to backend before continuing
+    try {
+      await api.saveProfile({
+        birth_year: age ? getBirthYear(age) : 2001,
+        region_code: region || "busan",
+        enrollment_status: enrollmentStatus || undefined,
+        employment_status: employmentStatus || undefined,
+      });
+    } catch {
+      // Non-blocking — profile can be saved later from profile tab
+    }
     router.push("/calculator");
-  }, [canProceed, router]);
+  }, [canProceed, router, age, region, enrollmentStatus, employmentStatus]);
 
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
+
+  // Guard: prior steps must be complete (after all hooks)
+  useEffect(() => {
+    if (!region || !enrollmentStatus) router.replace("/onboarding");
+  }, [region, enrollmentStatus, router]);
+
+  if (!region || !enrollmentStatus) return null;
 
   return (
     <View style={styles.root}>

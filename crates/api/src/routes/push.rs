@@ -27,6 +27,11 @@ pub async fn register_push_token(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
 
+    const VALID_PLATFORMS: &[&str] = &["ios", "android", "web"];
+    if !VALID_PLATFORMS.contains(&body.platform.as_str()) {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({ "error": "Invalid platform" }))));
+    }
+
     let err_internal = |msg: String| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,

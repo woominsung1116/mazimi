@@ -1,24 +1,18 @@
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
     Json,
 };
-use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
-use uuid::Uuid;
 use majimi_core::models::Program;
+use crate::auth::AuthUser;
 
-#[derive(Debug, Deserialize)]
-pub struct UserQuery {
-    pub user_id: Uuid,
-}
-
-/// GET /api/v1/my/saved?user_id=UUID
-/// Returns bookmarked programs with full program data.
+/// GET /api/v1/my/saved
+/// Returns bookmarked programs for the authenticated user (JWT-based).
 pub async fn get_saved(
+    auth_user: AuthUser,
     State(pool): State<PgPool>,
-    Query(q): Query<UserQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let programs = sqlx::query_as::<_, Program>(
         r#"
@@ -28,7 +22,7 @@ pub async fn get_saved(
         ORDER BY ub.created_at DESC
         "#,
     )
-    .bind(q.user_id)
+    .bind(auth_user.id)
     .fetch_all(&pool)
     .await
     .map_err(|e| {

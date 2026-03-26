@@ -163,39 +163,63 @@
   },
   "hotPaths": [
     {
+      "path": "",
+      "accessCount": 51,
+      "lastAccessed": 1774504829743,
+      "type": "directory"
+    },
+    {
       "path": "app/region-compare.tsx",
-      "accessCount": 41,
-      "lastAccessed": 1774182064039,
-      "type": "file"
-    },
-    {
-      "path": "lib/api.ts",
-      "accessCount": 28,
-      "lastAccessed": 1774182267486,
-      "type": "file"
-    },
-    {
-      "path": "app/(tabs)/manage.tsx",
-      "accessCount": 25,
-      "lastAccessed": 1774182058289,
+      "accessCount": 48,
+      "lastAccessed": 1774492989414,
       "type": "file"
     },
     {
       "path": "app/(tabs)/index.tsx",
-      "accessCount": 21,
-      "lastAccessed": 1774182059985,
+      "accessCount": 36,
+      "lastAccessed": 1774504623603,
       "type": "file"
     },
     {
-      "path": "",
-      "accessCount": 19,
-      "lastAccessed": 1774181879482,
-      "type": "directory"
+      "path": "lib/api.ts",
+      "accessCount": 34,
+      "lastAccessed": 1774504733521,
+      "type": "file"
+    },
+    {
+      "path": "app/(tabs)/manage.tsx",
+      "accessCount": 32,
+      "lastAccessed": 1774504451410,
+      "type": "file"
     },
     {
       "path": "app/(tabs)/profile.tsx",
+      "accessCount": 21,
+      "lastAccessed": 1774504451907,
+      "type": "file"
+    },
+    {
+      "path": "app/document-vault.tsx",
+      "accessCount": 19,
+      "lastAccessed": 1774504926196,
+      "type": "file"
+    },
+    {
+      "path": "app/_layout.tsx",
+      "accessCount": 17,
+      "lastAccessed": 1774504675124,
+      "type": "file"
+    },
+    {
+      "path": "app/(tabs)/explore.tsx",
       "accessCount": 16,
-      "lastAccessed": 1774182062778,
+      "lastAccessed": 1774504450513,
+      "type": "file"
+    },
+    {
+      "path": "app/login.tsx",
+      "accessCount": 16,
+      "lastAccessed": 1774504853145,
       "type": "file"
     },
     {
@@ -205,15 +229,15 @@
       "type": "file"
     },
     {
-      "path": "app/_layout.tsx",
-      "accessCount": 13,
-      "lastAccessed": 1774181605039,
-      "type": "file"
+      "path": "app",
+      "accessCount": 12,
+      "lastAccessed": 1774504486008,
+      "type": "directory"
     },
     {
-      "path": "app/(tabs)/explore.tsx",
-      "accessCount": 11,
-      "lastAccessed": 1774182061275,
+      "path": "app/onboarding/step3.tsx",
+      "accessCount": 12,
+      "lastAccessed": 1774504740626,
       "type": "file"
     },
     {
@@ -223,15 +247,33 @@
       "type": "file"
     },
     {
+      "path": "app/stack-calculator.tsx",
+      "accessCount": 10,
+      "lastAccessed": 1774492979740,
+      "type": "file"
+    },
+    {
+      "path": "app/generated-form.tsx",
+      "accessCount": 9,
+      "lastAccessed": 1774492766341,
+      "type": "file"
+    },
+    {
+      "path": "store/auth.ts",
+      "accessCount": 9,
+      "lastAccessed": 1774504824680,
+      "type": "file"
+    },
+    {
       "path": "app/auto-fill.tsx",
       "accessCount": 8,
       "lastAccessed": 1774181400643,
       "type": "file"
     },
     {
-      "path": "app/generated-form.tsx",
+      "path": "app/onboarding/step2.tsx",
       "accessCount": 8,
-      "lastAccessed": 1774181401003,
+      "lastAccessed": 1774504576779,
       "type": "file"
     },
     {
@@ -241,21 +283,39 @@
       "type": "file"
     },
     {
+      "path": "app/onboarding/step1.tsx",
+      "accessCount": 7,
+      "lastAccessed": 1774504873516,
+      "type": "file"
+    },
+    {
+      "path": "store/onboarding.ts",
+      "accessCount": 6,
+      "lastAccessed": 1774504453964,
+      "type": "file"
+    },
+    {
+      "path": "app/onboarding/index.tsx",
+      "accessCount": 6,
+      "lastAccessed": 1774504606208,
+      "type": "file"
+    },
+    {
       "path": "lib/pdf-generator.ts",
       "accessCount": 5,
       "lastAccessed": 1774181460866,
       "type": "file"
     },
     {
-      "path": "app/document-vault.tsx",
+      "path": "constants/theme.ts",
       "accessCount": 5,
-      "lastAccessed": 1774181463777,
+      "lastAccessed": 1774504485507,
       "type": "file"
     },
     {
-      "path": "constants/theme.ts",
+      "path": "lib/crypto.ts",
       "accessCount": 4,
-      "lastAccessed": 1774181896468,
+      "lastAccessed": 1774504414943,
       "type": "file"
     },
     {
@@ -265,39 +325,21 @@
       "type": "file"
     },
     {
-      "path": "app/stack-calculator.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1774181388714,
-      "type": "file"
-    },
-    {
-      "path": "lib/crypto.ts",
-      "accessCount": 3,
-      "lastAccessed": 1774181460841,
-      "type": "file"
-    },
-    {
-      "path": "app",
-      "accessCount": 3,
-      "lastAccessed": 1774181878978,
-      "type": "directory"
-    },
-    {
-      "path": "store/onboarding.ts",
-      "accessCount": 2,
-      "lastAccessed": 1774180791942,
-      "type": "file"
-    },
-    {
-      "path": "store/auth.ts",
-      "accessCount": 2,
-      "lastAccessed": 1774181354290,
-      "type": "file"
-    },
-    {
       "path": "package.json",
-      "accessCount": 2,
-      "lastAccessed": 1774181879826,
+      "accessCount": 3,
+      "lastAccessed": 1774504416551,
+      "type": "file"
+    },
+    {
+      "path": ".env.local",
+      "accessCount": 3,
+      "lastAccessed": 1774504450532,
+      "type": "file"
+    },
+    {
+      "path": "app/calculator.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1774504487505,
       "type": "file"
     },
     {
@@ -311,6 +353,18 @@
       "accessCount": 2,
       "lastAccessed": 1774182107097,
       "type": "file"
+    },
+    {
+      "path": "lib/cache.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774504434605,
+      "type": "file"
+    },
+    {
+      "path": "app/onboarding",
+      "accessCount": 2,
+      "lastAccessed": 1774504465720,
+      "type": "directory"
     },
     {
       "path": "components",
@@ -328,6 +382,36 @@
       "path": "constants",
       "accessCount": 1,
       "lastAccessed": 1774181892910,
+      "type": "directory"
+    },
+    {
+      "path": "eas.json",
+      "accessCount": 1,
+      "lastAccessed": 1774491398418,
+      "type": "file"
+    },
+    {
+      "path": ".npmrc",
+      "accessCount": 1,
+      "lastAccessed": 1774491448498,
+      "type": "file"
+    },
+    {
+      "path": "babel.config.js",
+      "accessCount": 1,
+      "lastAccessed": 1774492089182,
+      "type": "file"
+    },
+    {
+      "path": "app/(tabs)/_layout.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1774504450027,
+      "type": "file"
+    },
+    {
+      "path": "store",
+      "accessCount": 1,
+      "lastAccessed": 1774504820228,
       "type": "directory"
     }
   ],

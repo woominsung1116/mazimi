@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, USER_ID, SavedProgram } from "@/lib/api";
+import { api, type ApiProgram, formatBenefit, programTypeLabel } from "@/lib/api";
 import DeadlineBadge from "@/components/DeadlineBadge";
 import BookmarkButton from "@/components/BookmarkButton";
 
 export default function SavedPage() {
-  const [saved, setSaved] = useState<SavedProgram[]>([]);
+  const [saved, setSaved] = useState<ApiProgram[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     api
-      .getSaved(USER_ID)
-      .then((res) => setSaved(res.saved))
+      .getSaved()
+      .then((res) => setSaved(res.items))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
@@ -60,7 +60,7 @@ export default function SavedPage() {
 
       {!loading && !error && saved.length > 0 && (
         <div className="space-y-3">
-          {saved.map(({ program }) => (
+          {saved.map((program) => (
             <div
               key={program.id}
               className="rounded-xl bg-white border border-gray-100 px-4 py-4 shadow-sm"
@@ -69,14 +69,14 @@ export default function SavedPage() {
                 <Link href={`/programs/${program.id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded font-medium">
-                      {program.type}
+                      {programTypeLabel(program.program_type)}
                     </span>
-                    <DeadlineBadge deadline={program.deadline} />
+                    {program.deadline_at && <DeadlineBadge deadline={program.deadline_at} />}
                   </div>
-                  <p className="font-semibold text-gray-900 truncate">{program.name}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">{program.organization}</p>
+                  <p className="font-semibold text-gray-900 truncate">{program.title}</p>
+                  <p className="text-sm text-gray-500 mt-0.5">{program.provider_name}</p>
                   <p className="text-sm font-medium text-blue-600 mt-1">
-                    {program.benefitUnit} {(program.benefitAmount / 10000).toFixed(0)}만원
+                    {formatBenefit(program)}
                   </p>
                 </Link>
                 <BookmarkButton programId={program.id} initialBookmarked={true} />

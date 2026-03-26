@@ -59,32 +59,7 @@ interface ScholarshipItem {
   reasonIcon: "lightbulb" | "shield";
 }
 
-const MOCK_SCHOLARSHIPS: ScholarshipItem[] = [
-  {
-    id: "sch-001",
-    title: "부산 지역대학 우수 장학금",
-    organization: "최대 250만원 | 부산광역시",
-    matchScore: 98,
-    matchScoreHigh: true,
-    amount: "2,500,000원",
-    amountHighlight: true,
-    deadline: "D-7일 남음",
-    reason: "부산 소재 대학 재학생 및 휴학생 중 소득 8분위 이하 대상자입니다.",
-    reasonIcon: "lightbulb",
-  },
-  {
-    id: "sch-002",
-    title: "희망사다리 2유형 (취업연계)",
-    organization: "등록금 전액 | 한국장학재단",
-    matchScore: 85,
-    matchScoreHigh: false,
-    amount: "전액 지원",
-    amountHighlight: false,
-    deadline: null,
-    reason: "중소기업 취업 희망자 우대 조건이 현재 상황과 일치합니다.",
-    reasonIcon: "shield",
-  },
-];
+// No mock scholarships — always use real API data
 
 interface LifestyleItem {
   id: string;
@@ -95,39 +70,7 @@ interface LifestyleItem {
   quote: string;
 }
 
-const MOCK_LIFESTYLE: LifestyleItem[] = [
-  {
-    id: "life-001",
-    iconName: "bus-outline",
-    iconLib: "ionicons",
-    title: "부산 청년 패스",
-    subtitle: "교통비 최대 30% 환급",
-    quote: "지하철 정기권보다 경제적",
-  },
-  {
-    id: "life-002",
-    iconName: "restaurant-outline",
-    iconLib: "ionicons",
-    title: "천원의 아침밥",
-    subtitle: "부산권 주요 대학 참여",
-    quote: "휴학생도 학생증 지참시 가능",
-  },
-  {
-    id: "life-003",
-    iconName: "book-outline",
-    iconLib: "ionicons",
-    title: "청년 도서비 지원",
-    subtitle: "연 10만원 포인트",
-    quote: "자격증 교재 구매 최적",
-  },
-];
-
-const MOCK_HOUSING_ELIGIBILITY = [
-  "부산시 거주 요건 충족",
-  "무주택 청년 요건 충족",
-];
-
-const MOCK_OVERALL_SCORE = 95;
+// No mock lifestyle/housing data — always use real API data
 
 // ---------------------------------------------------------------------------
 // Adapters — convert RecommendationItem → ScholarshipItem
@@ -564,7 +507,7 @@ export default function ManageScreen() {
   const isOffline =
     (recommendQuery.isError || dashboardQuery.isError) && !isLoading;
 
-  // Resolve scholarships from API or fall back to mocks
+  // Resolve scholarships from API only
   const scholarships: ScholarshipItem[] =
     recommendQuery.data?.items && recommendQuery.data.items.length > 0
       ? recommendQuery.data.items
@@ -573,11 +516,11 @@ export default function ManageScreen() {
           )
           .slice(0, 4)
           .map((item, idx) => recommendToScholarship(item, idx))
-      : MOCK_SCHOLARSHIPS;
+      : [];
 
   const overallScore = recommendQuery.data?.items?.length
     ? scoreFromRecommendations(recommendQuery.data.items)
-    : MOCK_OVERALL_SCORE;
+    : 0;
 
   const scholarshipCount = scholarships.length;
 
@@ -631,27 +574,9 @@ export default function ManageScreen() {
         )}
       </View>
 
-      {/* 주거 지원 */}
-      <View style={styles.section}>
-        <SectionHeader
-          icon={{ lib: "ionicons", name: "home-outline" }}
-          title="주거 지원"
-        />
-        <HousingCard eligibilityItems={MOCK_HOUSING_ELIGIBILITY} />
-      </View>
+      {/* 주거 지원 — will be populated from API recommendations */}
 
-      {/* 교통/생활비 */}
-      <View style={styles.section}>
-        <SectionHeader
-          icon={{ lib: "ionicons", name: "card-outline" }}
-          title="교통 / 생활비"
-        />
-        <View style={styles.lifestyleGrid}>
-          {MOCK_LIFESTYLE.map((item) => (
-            <LifestyleCard key={item.id} item={item} />
-          ))}
-        </View>
-      </View>
+      {/* 교통/생활비 — will be populated from API recommendations */}
 
       {/* 더 많은 혜택 찾기 */}
       <View style={styles.section}>

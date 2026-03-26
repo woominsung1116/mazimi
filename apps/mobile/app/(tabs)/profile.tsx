@@ -38,16 +38,7 @@ import {
   componentStyles,
 } from "@/constants/theme";
 
-// ---------------------------------------------------------------------------
-// Static mock fallback
-// ---------------------------------------------------------------------------
-
-const MOCK_PROFILE: Partial<UserProfile> = {
-  birth_year: 2001,
-  region_code: "busan",
-  enrollment_status: "enrolled",
-  employment_status: "unemployed",
-};
+// No mock profile — always use real API data
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -260,9 +251,9 @@ export default function ProfileScreen() {
 
   const isOffline = profileQuery.isError && !profileQuery.isLoading;
 
-  // Resolve display profile — API data or mock fallback
+  // Resolve display profile — API data only
   const profile: Partial<UserProfile> =
-    profileQuery.data?.profile ?? MOCK_PROFILE;
+    profileQuery.data?.profile ?? {};
 
   const birthYear = profile.birth_year ?? 2001;
   const age = CURRENT_YEAR - birthYear;
@@ -334,7 +325,7 @@ export default function ProfileScreen() {
             <View style={styles.profileHeaderInfo}>
               <View style={styles.profileNameRow}>
                 <Text style={styles.profileName}>
-                  {profile.school_name ?? "마지미 유저"}
+                  {profile.nickname ?? profile.school_name ?? "마지미 유저"}
                 </Text>
                 <RegionBadge region={region} />
               </View>
