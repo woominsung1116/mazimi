@@ -28,13 +28,11 @@ impl AppConfig {
 /// Each key falls back to GOV_API_KEY if its own var is not set.
 #[derive(Debug, Clone)]
 pub struct WorkerApiKeys {
-    /// 행정안전부 지자체 서비스 API (B554287)
+    /// 정부24 공공서비스 혜택 API (odcloud)
     pub gov_benefits_api_key: String,
     /// 온통청년 Open API
     pub youth_center_api_key: String,
-    /// 고용24(워크넷) 청년 채용/인턴십 API (B552583)
-    pub worknet_api_key: String,
-    /// 한국장학재단 장학금 API (B490007)
+    /// 한국장학재단 장학금 API (odcloud)
     pub kosaf_api_key: String,
     /// 금융감독원 금융상품 비교공시 API
     /// Optional: empty string means the key is not configured.
@@ -45,7 +43,7 @@ impl WorkerApiKeys {
     pub fn from_env() -> anyhow::Result<Self> {
         dotenvy::dotenv().ok();
 
-        // GOV_API_KEY is the shared data.go.kr decoding key used as fallback
+        // GOV_API_KEY is the shared odcloud key used as fallback
         // for sources that do not have their own dedicated env var.
         let gov_key = std::env::var("GOV_API_KEY").unwrap_or_default();
 
@@ -53,9 +51,6 @@ impl WorkerApiKeys {
             .unwrap_or_else(|_| gov_key.clone());
 
         let youth_center_api_key = std::env::var("YOUTH_CENTER_API_KEY")
-            .unwrap_or_else(|_| gov_key.clone());
-
-        let worknet_api_key = std::env::var("WORKNET_API_KEY")
             .unwrap_or_else(|_| gov_key.clone());
 
         let kosaf_api_key = std::env::var("KOSAF_API_KEY")
@@ -66,7 +61,6 @@ impl WorkerApiKeys {
         Ok(Self {
             gov_benefits_api_key,
             youth_center_api_key,
-            worknet_api_key,
             kosaf_api_key,
             fss_api_key,
         })

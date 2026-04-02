@@ -28,7 +28,7 @@ async function ensureAndroidChannel(): Promise<void> {
     name: "웰로 알림",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
-    lightColor: "#0058bc",
+    lightColor: "#5CB1A7",
     enableVibrate: true,
     showBadge: true,
   });

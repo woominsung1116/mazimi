@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-majimi-core = { path = "../core" }
-majimi-worker = { path = "../worker" }
+mazimi-core = { path = "../core" }
+mazimi-worker = { path = "../worker" }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

@@ -82,7 +82,7 @@ export default function RecommendationCard({ data }: RecommendationCardProps) {
     match_score >= 90
       ? { bg: "#DCFCE7", text: "#15803D" }
       : match_score >= 70
-        ? { bg: "#cadaff", text: "#004493" }
+        ? { bg: "#D0EDE9", text: "#0D2B26" }
         : match_score >= 50
           ? { bg: "#FEF9C3", text: "#A16207" }
           : { bg: "#e1e3e4", text: "#717786" };
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   benefitLabel: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0058bc",
+    color: "#5CB1A7",
   },
   deadlineBadge: {
     backgroundColor: "#e8f0fe",
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   deadlineText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0058bc",
+    color: "#5CB1A7",
   },
   chevronRow: {
     alignItems: "center",
@@ -361,11 +361,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#0070eb",
+    backgroundColor: "#4DA89E",
     alignItems: "center",
     minHeight: 44,
     justifyContent: "center",
-    shadowColor: "#0058bc",
+    shadowColor: "#5CB1A7",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 8,

@@ -3,7 +3,6 @@ pub mod financial;
 pub mod gov_benefits;
 pub mod local_scraper;
 pub mod scholarship;
-pub mod worknet;
 pub mod youth_center;
 
 use anyhow::Result;

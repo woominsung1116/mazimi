@@ -1,10 +1,10 @@
 [package]
-name = "majimi-worker"
+name = "mazimi-worker"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "majimi_worker"
+name = "mazimi_worker"
 path = "src/lib.rs"
 
 [[bin]]
@@ -12,7 +12,7 @@ name = "worker"
 path = "src/main.rs"
 
 [dependencies]
-majimi-core = { path = "../core" }
+mazimi-core = { path = "../core" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

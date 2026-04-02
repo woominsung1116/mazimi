@@ -27,7 +27,7 @@ import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import { api, type RecommendationResult, type RecommendationItem } from "@/lib/api";
 import RecommendationCard from "@/components/RecommendationCard";
 
-const CACHE_KEY = "majimi_preview_cache_v2";
+const CACHE_KEY = "mazimi_preview_cache_v2";
 
 function formatWon(amount: number): string {
   if (amount >= 10_000) {
@@ -130,7 +130,7 @@ export default function PreviewScreen() {
   if (loading && !data) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#0058bc" />
+        <ActivityIndicator size="large" color="#5CB1A7" />
         <Text style={styles.loadingText}>맞춤 추천을 분석하고 있어요...</Text>
       </View>
     );
@@ -172,7 +172,7 @@ export default function PreviewScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => fetchPreview(true)}
-          tintColor="#0058bc"
+          tintColor="#5CB1A7"
         />
       }
     >
@@ -298,14 +298,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   retryBtn: {
-    backgroundColor: "#0070eb",
+    backgroundColor: "#4DA89E",
     borderRadius: 12,
     paddingHorizontal: 32,
     paddingVertical: 14,
     minHeight: 48,
     justifyContent: "center",
     marginTop: 8,
-    shadowColor: "#0058bc",
+    shadowColor: "#5CB1A7",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -338,13 +338,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   summaryCard: {
-    backgroundColor: "#0070eb",
+    backgroundColor: "#4DA89E",
     borderRadius: 24,
     padding: 20,
     marginBottom: 20,
     ...Platform.select({
       ios: {
-        shadowColor: "#0058bc",
+        shadowColor: "#5CB1A7",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.2,
         shadowRadius: 12,
@@ -418,13 +418,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   saveBtn: {
-    backgroundColor: "#0070eb",
+    backgroundColor: "#4DA89E",
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
     minHeight: 54,
     justifyContent: "center",
-    shadowColor: "#0058bc",
+    shadowColor: "#5CB1A7",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,

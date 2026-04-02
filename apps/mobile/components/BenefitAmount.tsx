@@ -34,6 +34,6 @@ export default function BenefitAmount({
 const styles = StyleSheet.create({
   base: {
     fontWeight: "700",
-    color: "#0058bc",
+    color: "#5CB1A7",
   },
 });

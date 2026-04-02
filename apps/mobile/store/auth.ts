@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 
-const SECURE_STORE_TOKEN_KEY = "majimi_auth_token";
-const SECURE_STORE_REFRESH_KEY = "majimi_refresh_token";
+const SECURE_STORE_TOKEN_KEY = "mazimi_auth_token";
+const SECURE_STORE_REFRESH_KEY = "mazimi_refresh_token";
 
 export interface AuthUser {
   id: string;

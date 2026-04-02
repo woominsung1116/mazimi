@@ -213,8 +213,8 @@ export default function TermsScreen() {
 
         <Section title="제11조 문의">
           <View style={styles.contactCard}>
-            <ContactRow label="서비스명" value="마지미 (Majimi)" />
-            <ContactRow label="이메일" value="support@majimi.app" isLast />
+            <ContactRow label="서비스명" value="마지미 (Mazimi)" />
+            <ContactRow label="이메일" value="support@mazimi.app" isLast />
           </View>
         </Section>
 

@@ -116,7 +116,7 @@ const errorStyles = StyleSheet.create({
     marginBottom: 32,
   },
   button: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#5CB1A7",
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 12,

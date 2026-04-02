@@ -33,7 +33,7 @@ impl DreamsponSource {
         Self {
             client: Client::builder()
                 .timeout(Duration::from_secs(30))
-                .user_agent("Mozilla/5.0 (compatible; Majimi-Bot/1.0; +https://majimi.kr/bot)")
+                .user_agent("Mozilla/5.0 (compatible; Mazimi-Bot/1.0; +https://mazimi.kr/bot)")
                 .build()
                 .unwrap_or_default(),
             keyword,

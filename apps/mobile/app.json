@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "마지미",
-    "slug": "majimi",
+    "slug": "mazimi",
     "version": "1.0.0",
     "owner": "wooms",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "majimi",
+    "scheme": "mazimi",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "runtimeVersion": {
@@ -22,14 +22,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "kr.majimi.app"
+      "bundleIdentifier": "kr.mazimi.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0058bc"
       },
-      "package": "kr.majimi.app"
+      "package": "kr.mazimi.app"
     },
     "web": {
       "bundler": "metro",

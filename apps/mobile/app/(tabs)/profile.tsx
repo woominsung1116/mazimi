@@ -217,13 +217,11 @@ function InfoRow({
 // Main screen
 // ---------------------------------------------------------------------------
 
-type SaveStatus = "idle" | "saving" | "saved" | "error";
-
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuthStore();
   const [prefs, setPrefs] = useState<LocalAlertPrefs>(DEFAULT_PREFS);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [vaultCount, setVaultCount] = useState<number>(0);
 
   // Read vault doc count to show in the navigation card
@@ -247,6 +245,7 @@ export default function ProfileScreen() {
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
+    enabled: !!user,
   });
 
   const isOffline = profileQuery.isError && !profileQuery.isLoading;
@@ -267,30 +266,6 @@ export default function ProfileScreen() {
     val: boolean
   ) {
     setPrefs((prev) => ({ ...prev, [key]: val }));
-    setSaveStatus("idle");
-  }
-
-  function updateChannel(
-    key: keyof Pick<LocalAlertPrefs, "inApp" | "email">,
-    val: boolean
-  ) {
-    setPrefs((prev) => ({ ...prev, [key]: val }));
-    setSaveStatus("idle");
-  }
-
-  async function handleSaveNotifications() {
-    if (isOffline) return;
-    setSaveStatus("saving");
-    try {
-      // The alerts API is per-program; we record preferences locally and
-      // sync them when a real program bookmark exists.
-      // For now acknowledge success after a short delay.
-      await new Promise<void>((r) => setTimeout(r, 400));
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2500);
-    } catch {
-      setSaveStatus("error");
-    }
   }
 
   function handleLogout() {
@@ -298,8 +273,37 @@ export default function ProfileScreen() {
     router.push("/login");
   }
 
-  function handleLogin() {
-    router.push("/login");
+  if (!user) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom, spacing[8]) + spacing[4] },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80, paddingHorizontal: 32 }}>
+          <View style={[styles.avatar, { marginBottom: spacing[4] }]}>
+            <Text style={styles.avatarInitial}>?</Text>
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.onSurface, marginBottom: 8 }}>
+            로그인이 필요해요
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 24 }}>
+            프로필과 알림 설정을 보려면{"\n"}로그인해주세요.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/login")}
+            style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>로그인하기</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
   }
 
   return (
@@ -415,99 +419,9 @@ export default function ProfileScreen() {
           />
         </View>
 
-        <View style={[styles.cardGroupLabel, { marginTop: spacing[3] }]}>
-          <Text style={styles.cardGroupLabelText}>알림 채널</Text>
-        </View>
-        <View style={styles.card}>
-          <ToggleRow
-            label="인앱 알림"
-            description="앱 내 알림 탭을 통해 받기"
-            value={prefs.inApp}
-            onValueChange={(val) => updateChannel("inApp", val)}
-          />
-          <ToggleRow
-            label="이메일 알림"
-            description="등록한 이메일로 받기"
-            value={prefs.email}
-            onValueChange={(val) => updateChannel("email", val)}
-            isLast
-          />
-        </View>
-
-        {saveStatus === "saved" && (
-          <View style={styles.statusBanner}>
-            <Text style={styles.statusBannerText}>알림 설정이 저장되었습니다</Text>
-          </View>
-        )}
-        {saveStatus === "error" && (
-          <View style={[styles.statusBanner, styles.statusBannerError]}>
-            <Text style={[styles.statusBannerText, styles.statusBannerTextError]}>
-              저장에 실패했습니다. 다시 시도해주세요.
-            </Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[
-            styles.saveBtn,
-            (saveStatus === "saving" || isOffline) && styles.saveBtnDisabled,
-          ]}
-          onPress={handleSaveNotifications}
-          disabled={saveStatus === "saving" || isOffline}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="알림 설정 저장하기"
-          accessibilityState={{ disabled: saveStatus === "saving" || isOffline }}
-        >
-          {saveStatus === "saving" ? (
-            <ActivityIndicator size="small" color={colors.onPrimary} />
-          ) : (
-            <Text style={styles.saveBtnText}>알림 설정 저장</Text>
-          )}
-        </TouchableOpacity>
       </View>
 
-      {/* 앱 정보 section */}
-      <View style={styles.section}>
-        <SectionLabel>앱 정보</SectionLabel>
-        <View style={styles.card}>
-          <InfoRow label="버전" value="1.0.0" />
-          <InfoRow label="지원 지역" value="부산 · 대구" />
-          <TouchableOpacity
-            style={[styles.infoRow, styles.infoRowDivider]}
-            onPress={() => router.push("/privacy-policy")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="개인정보처리방침 보기"
-          >
-            <Text style={styles.infoRowLabel}>개인정보처리방침</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.infoRow}
-            onPress={() => router.push("/terms")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="이용약관 보기"
-          >
-            <Text style={styles.infoRowLabel}>이용약관</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 로그인/로그아웃 */}
-      {!useAuthStore.getState().token ? (
-        <TouchableOpacity
-          style={[styles.logoutBtn, { backgroundColor: colors.primary }]}
-          onPress={handleLogin}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="카카오로 로그인"
-        >
-          <Text style={[styles.logoutBtnText, { color: colors.onPrimary }]}>카카오로 로그인</Text>
-        </TouchableOpacity>
-      ) : null}
+      {/* 로그아웃 */}
       <TouchableOpacity
         style={styles.logoutBtn}
         onPress={handleLogout}

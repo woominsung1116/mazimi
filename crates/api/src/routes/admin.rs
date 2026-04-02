@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
-use majimi_core::models::Program;
+use mazimi_core::models::Program;
 
 use crate::auth::AdminUser;
 
@@ -19,9 +19,9 @@ pub async fn trigger_sync(
     tokio::spawn(async move {
         tracing::info!("manual sync triggered via admin API");
 
-        match majimi_worker::sources::youth_center::YouthCenterSource::from_env() {
+        match mazimi_worker::sources::youth_center::YouthCenterSource::from_env() {
             Ok(src) => {
-                if let Err(e) = majimi_worker::pipeline::run_ingestion(&pool, &src).await {
+                if let Err(e) = mazimi_worker::pipeline::run_ingestion(&pool, &src).await {
                     tracing::error!(source = "youth_center", error = %e, "ingestion failed");
                 }
             }
@@ -30,14 +30,25 @@ pub async fn trigger_sync(
             }
         }
 
-        match majimi_worker::sources::gov_benefits::GovBenefitsSource::from_env() {
+        match mazimi_worker::sources::gov_benefits::GovBenefitsSource::from_env() {
             Ok(src) => {
-                if let Err(e) = majimi_worker::pipeline::run_ingestion(&pool, &src).await {
+                if let Err(e) = mazimi_worker::pipeline::run_ingestion(&pool, &src).await {
                     tracing::error!(source = "gov_benefits", error = %e, "ingestion failed");
                 }
             }
             Err(e) => {
                 tracing::warn!(source = "gov_benefits", error = %e, "source skipped (env not set)");
+            }
+        }
+
+        match mazimi_worker::sources::scholarship::ScholarshipSource::from_env() {
+            Ok(src) => {
+                if let Err(e) = mazimi_worker::pipeline::run_ingestion(&pool, &src).await {
+                    tracing::error!(source = "scholarship", error = %e, "ingestion failed");
+                }
+            }
+            Err(e) => {
+                tracing::warn!(source = "scholarship", error = %e, "source skipped (env not set)");
             }
         }
 

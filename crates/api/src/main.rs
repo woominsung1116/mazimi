@@ -1,7 +1,7 @@
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 
-use majimi_core::AppConfig;
+use mazimi_core::AppConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

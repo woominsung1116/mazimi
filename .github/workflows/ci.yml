@@ -150,6 +150,6 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: false
-          tags: majimi-${{ matrix.service }}:${{ github.sha }}
+          tags: mazimi-${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}

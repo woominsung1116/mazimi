@@ -21,7 +21,7 @@ import { colors, typography, borderRadius, layout, shadows, spacing } from "../c
 const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_CLIENT_ID ?? "";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080";
 
-// Backend handles the OAuth callback and redirects to majimi:// deep link
+// Backend handles the OAuth callback and redirects to mazimi:// deep link
 const CALLBACK_URI = `${API_BASE_URL}/api/v1/auth/kakao/callback`;
 
 const KAKAO_AUTH_URL =
@@ -52,8 +52,8 @@ export default function LoginScreen() {
 
         if (token && refreshToken) {
           const SecureStore = await import("expo-secure-store");
-          await SecureStore.setItemAsync("majimi_auth_token", token);
-          await SecureStore.setItemAsync("majimi_refresh_token", refreshToken);
+          await SecureStore.setItemAsync("mazimi_auth_token", token);
+          await SecureStore.setItemAsync("mazimi_refresh_token", refreshToken);
           useAuthStore.setState({
             token,
             refreshToken,
@@ -71,9 +71,9 @@ export default function LoginScreen() {
             });
             if (res.ok) {
               const me = await res.json();
-              if (me.user_id) {
+              if (me.id) {
                 useAuthStore.setState((s) => ({
-                  user: { ...s.user!, id: me.user_id },
+                  user: { ...s.user!, id: me.id },
                 }));
               }
             }
@@ -98,7 +98,7 @@ export default function LoginScreen() {
   // Listen for deep link (Safari redirect back to app)
   useEffect(() => {
     const subscription = Linking.addEventListener("url", ({ url }) => {
-      if (url.startsWith("majimi://login")) {
+      if (url.startsWith("mazimi://login")) {
         handleTokensFromUrl(url);
       }
     });
@@ -108,7 +108,7 @@ export default function LoginScreen() {
   // WebView request interceptor — blocks navigation to deep link and handles tokens
   const handleShouldStartLoadWithRequest = useCallback(
     (request: { url: string }) => {
-      if (request.url.startsWith("majimi://login")) {
+      if (request.url.startsWith("mazimi://login")) {
         setShowWebView(false);
         handleTokensFromUrl(request.url);
         return false;
@@ -124,7 +124,7 @@ export default function LoginScreen() {
     try {
       const result = await WebBrowser.openAuthSessionAsync(
         KAKAO_AUTH_URL,
-        "majimi://login"
+        "mazimi://login"
       );
 
       if (result.type === "success" && result.url) {
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   logoMark: {
     width: 80,
     height: 80,
-    borderRadius: borderRadius.xl,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,

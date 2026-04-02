@@ -225,7 +225,7 @@ export default function PrivacyPolicyScreen() {
           </Para>
           <View style={styles.contactCard}>
             <ContactRow label="성명" value="마지미 개인정보 보호책임자" />
-            <ContactRow label="이메일" value="privacy@majimi.app" />
+            <ContactRow label="이메일" value="privacy@mazimi.app" />
             <ContactRow label="처리 기간" value="문의 접수 후 10일 이내" isLast />
           </View>
           <Para>

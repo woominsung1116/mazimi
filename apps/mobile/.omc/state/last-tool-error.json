@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"grep -n 'router.push\\\\|router.replace' /Users/woominseong/Desktop/창업/apps/mobile/app/(tabs)/index.tsx\",\"description\":\"Check home screen navigation calls\"}",
-  "error": "Exit code 1\n(eval):1: no matches found: /Users/woominseong/Desktop/창업/apps/mobile/app/(tabs)/index.tsx",
-  "timestamp": "2026-03-26T05:54:33.263Z",
-  "retry_count": 3
+  "tool_input_preview": "{\"command\":\"npx tsc --noEmit 2>&1\",\"timeout\":60000}",
+  "error": "Exit code 2\napp/document-vault.tsx(1529,16): error TS2304: Cannot find name 'Ionicons'.",
+  "timestamp": "2026-04-02T14:53:13.258Z",
+  "retry_count": 1
 }

@@ -145,7 +145,7 @@ impl LocalScraperSource {
             .timeout(Duration::from_secs(timeout_secs))
             // Politely identify ourselves; some portals reject the default reqwest UA.
             .user_agent(
-                "Mozilla/5.0 (compatible; Majimi-Bot/1.0; +https://majimi.kr/bot)",
+                "Mozilla/5.0 (compatible; Mazimi-Bot/1.0; +https://mazimi.kr/bot)",
             )
             .build()
             .unwrap_or_default();

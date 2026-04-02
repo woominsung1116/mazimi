@@ -1,10 +1,10 @@
-//! 행정안전부 지자체 서비스(공공서비스 혜택) API client
+//! 정부24 공공서비스 혜택 API client
 //!
-//! API: https://apis.data.go.kr/B554287/LocalGovernmentService/getLocalGovernmentList
-//! Env: GOV_BENEFITS_API_KEY  (data.go.kr Decoding Key)
+//! API: https://api.odcloud.kr/api/gov24/v3/serviceList
+//! Env: GOV_BENEFITS_API_KEY
 //!
-//! Response is JSON when `_type=json` is passed.
-//! Field docs: https://www.data.go.kr/data/15058746/openapi.do
+//! Response is JSON with flat `data` array.
+//! Pagination: page (1-based), perPage
 
 use anyhow::{Context, Result};
 use reqwest::Client;
@@ -14,8 +14,7 @@ use tracing::{info, warn};
 
 use super::{content_hash, DataSource, RawRecord};
 
-const BASE_URL: &str =
-    "https://apis.data.go.kr/B554287/LocalGovernmentService/getLocalGovernmentList";
+const BASE_URL: &str = "https://api.odcloud.kr/api/gov24/v3/serviceList";
 const PAGE_SIZE: u32 = 100;
 
 pub struct GovBenefitsSource {
@@ -44,13 +43,10 @@ impl GovBenefitsSource {
         let text = self
             .client
             .get(BASE_URL)
-            // reqwest percent-encodes query values automatically, which is
-            // what data.go.kr expects for the service key.
             .query(&[
                 ("serviceKey", self.api_key.as_str()),
-                ("pageNo", &page.to_string()),
-                ("numOfRows", &PAGE_SIZE.to_string()),
-                ("_type", "json"),
+                ("page", &page.to_string()),
+                ("perPage", &PAGE_SIZE.to_string()),
             ])
             .send()
             .await
@@ -60,15 +56,6 @@ impl GovBenefitsSource {
             .text()
             .await
             .context("gov_benefits: failed to read response body")?;
-
-        // data.go.kr sometimes returns an XML error envelope even when JSON is
-        // requested (e.g. invalid key). Detect and surface it clearly.
-        if text.trim_start().starts_with('<') {
-            anyhow::bail!(
-                "gov_benefits: API returned XML instead of JSON (likely auth error): {}",
-                &text[..text.len().min(300)]
-            );
-        }
 
         serde_json::from_str::<GovApiResponse>(&text)
             .with_context(|| format!("gov_benefits: JSON parse failed. body={}", &text[..text.len().min(300)]))
@@ -88,13 +75,7 @@ impl DataSource for GovBenefitsSource {
             info!(source = self.name(), page, "fetching page");
             let resp = self.fetch_page(page).await?;
 
-            // Unwrap nested response.body.items.item
-            let items: Vec<GovBenefitItem> = resp
-                .response
-                .and_then(|r| r.body)
-                .and_then(|b| b.items)
-                .and_then(|i| i.item)
-                .unwrap_or_default();
+            let items = resp.data.unwrap_or_default();
 
             if items.is_empty() {
                 warn!(
@@ -107,16 +88,16 @@ impl DataSource for GovBenefitsSource {
             let fetched = items.len();
             for item in items {
                 let source_id = item
-                    .servId
-                    .clone()
+                    .get("서비스ID")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
                     .unwrap_or_else(|| format!("gov_unknown_{}", records.len()));
 
-                let payload = serde_json::to_value(&item).unwrap_or(Value::Null);
-                let hash = content_hash(&payload);
+                let hash = content_hash(&item);
 
                 records.push(RawRecord {
                     source_id,
-                    payload,
+                    payload: item,
                     content_hash: hash,
                 });
             }
@@ -134,110 +115,39 @@ impl DataSource for GovBenefitsSource {
 
 // ── Response shapes ───────────────────────────────────────────────────────────
 //
-// Actual JSON structure from data.go.kr:
 // {
-//   "response": {
-//     "header": { "resultCode": "00", "resultMsg": "NORMAL SERVICE." },
-//     "body": {
-//       "items": { "item": [ {...}, ... ] },
-//       "numOfRows": 100,
-//       "pageNo": 1,
-//       "totalCount": 1234
-//     }
-//   }
+//   "currentCount": 100,
+//   "data": [{
+//     "서비스ID": "000000465790",
+//     "서비스명": "...",
+//     "서비스목적요약": "...",
+//     "서비스분야": "보육·교육",
+//     "소관기관명": "교육부",
+//     "지원대상": "...",
+//     "지원내용": "...",
+//     "선정기준": "...",
+//     "신청방법": "...",
+//     "신청기한": "상시신청",
+//     "상세조회URL": "https://www.gov.kr/...",
+//     "전화문의": "...",
+//     "지원유형": "현금(감면)"
+//   }],
+//   "matchCount": 10921,
+//   "page": 1,
+//   "perPage": 100,
+//   "totalCount": 10921
 // }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct GovApiResponse {
-    response: Option<GovResponse>,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-struct GovResponse {
-    body: Option<GovBody>,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-struct GovBody {
-    items: Option<GovItems>,
-}
-
-/// The `item` field can be a single object or an array depending on count.
-/// Use `#[serde(default)]` + `Option<Vec>` to handle both.
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-struct GovItems {
-    #[serde(deserialize_with = "deserialize_item_list")]
-    item: Option<Vec<GovBenefitItem>>,
-}
-
-/// data.go.kr returns `"item": {}` (object) when there is one result and
-/// `"item": [{}, ...]` (array) for multiple. This deserializer handles both.
-fn deserialize_item_list<'de, D>(
-    deserializer: D,
-) -> Result<Option<Vec<GovBenefitItem>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let v = Option::<Value>::deserialize(deserializer)?;
-    Ok(match v {
-        None => None,
-        Some(Value::Array(arr)) => {
-            let items: Vec<GovBenefitItem> = arr
-                .into_iter()
-                .filter_map(|x| serde_json::from_value(x).ok())
-                .collect();
-            Some(items)
-        }
-        Some(obj @ Value::Object(_)) => {
-            serde_json::from_value::<GovBenefitItem>(obj)
-                .ok()
-                .map(|item| vec![item])
-        }
-        _ => None,
-    })
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize, serde::Serialize)]
-pub struct GovBenefitItem {
-    /// 서비스 ID (고유키)
-    pub servId: Option<String>,
-    /// 서비스명
-    pub servNm: Option<String>,
-    /// 서비스 요약
-    pub servDgst: Option<String>,
-    /// 서비스 상세 설명
-    pub servDtl: Option<String>,
-    /// 주관 부처명
-    pub jurMnofNm: Option<String>,
-    /// 운영 기관명
-    pub jurOrgNm: Option<String>,
-    /// 서비스 URL
-    pub srvUrl: Option<String>,
-    /// 상시 서비스 여부 (Y/N)
-    pub alwServYn: Option<String>,
-    /// 신청 기간 (텍스트)
-    pub applPd: Option<String>,
-    /// 대상 구분 코드
-    pub tgtrDvsCd: Option<String>,
-    /// 대상 구분명
-    pub tgtrDvsNm: Option<String>,
-    /// 생애주기 배열 (동적 타입)
-    pub lifeNmArray: Option<Value>,
-    /// 관심 주제 배열 (동적 타입)
-    pub intrsThemaArray: Option<Value>,
-    /// 지원 주기명
-    pub sprtCycNm: Option<String>,
-    /// 지원 방법명
-    pub sprtMthNm: Option<String>,
-    /// 문의처
-    pub inqNum: Option<String>,
-    /// 생성일자
-    pub creatDt: Option<String>,
-    /// 최종 수정일자
-    pub lastModDt: Option<String>,
+    data: Option<Vec<Value>>,
+    #[allow(dead_code)]
+    totalCount: Option<u64>,
+    #[allow(dead_code)]
+    currentCount: Option<u64>,
+    #[allow(dead_code)]
+    page: Option<u64>,
+    #[allow(dead_code)]
+    perPage: Option<u64>,
 }

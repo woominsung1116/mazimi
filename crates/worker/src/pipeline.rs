@@ -285,7 +285,6 @@ fn normalize(
     match source_name {
         "youth_center" => normalize_youth_center(payload),
         "gov_benefits" => normalize_gov_benefits(payload),
-        "worknet" => normalize_worknet(payload),
         "scholarship" => normalize_scholarship(payload),
         // local_scraper payloads come from HTML-scraped portals.
         // source_name is always "local_scraper"; the per-portal name lives
@@ -367,18 +366,15 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
 }
 
 fn normalize_gov_benefits(p: &serde_json::Value) -> NormalizedProgram {
-    let title = p["servNm"].as_str().unwrap_or("Unknown").to_string();
-    let summary = p["servDgst"].as_str().map(|s| s.to_string());
-    let provider_name = p["jurMnofNm"]
-        .as_str()
-        .or_else(|| p["jurOrgNm"].as_str())
-        .map(|s| s.to_string());
-    let official_url = p["srvUrl"].as_str().map(|s| s.to_string());
+    let title = p["서비스명"].as_str().unwrap_or("Unknown").to_string();
+    let summary = p["서비스목적요약"].as_str().map(|s| s.to_string());
+    let provider_name = p["소관기관명"].as_str().map(|s| s.to_string());
+    let official_url = p["상세조회URL"].as_str().map(|s| s.to_string());
 
-    // tgtrDvsNm contains target description; used to infer program_type
+    // 지원대상 and 서비스분야 used to infer program_type
     let program_type = infer_gov_program_type(
-        p["tgtrDvsNm"].as_str(),
-        p["intrsThemaArray"].as_str(),
+        p["지원대상"].as_str(),
+        p["서비스분야"].as_str(),
     );
 
     NormalizedProgram {
@@ -395,85 +391,21 @@ fn normalize_gov_benefits(p: &serde_json::Value) -> NormalizedProgram {
     }
 }
 
-fn normalize_worknet(p: &serde_json::Value) -> NormalizedProgram {
-    let company = p["company"].as_str().unwrap_or("").to_string();
-    let job_title = p["title"].as_str().unwrap_or("Unknown").to_string();
-
-    // Build a descriptive title: "회사명 – 직종명"
-    let title = if company.is_empty() {
-        job_title.clone()
-    } else {
-        format!("{} – {}", company, job_title)
-    };
-
-    // Compose summary from salary and employment type
-    let sal = p["salTxt"].as_str().unwrap_or("").to_string();
-    let emp = p["empType"].as_str().unwrap_or("").to_string();
-    let summary = match (sal.is_empty(), emp.is_empty()) {
-        (false, false) => Some(format!("{} | {}", emp, sal)),
-        (false, true) => Some(sal),
-        (true, false) => Some(emp.clone()),
-        (true, true) => None,
-    };
-
-    // Classify internship vs general recruitment from empType field
-    let benefit_category = if emp.contains("인턴") {
-        "internship"
-    } else {
-        "recruitment"
-    };
-
-    let official_url = p["wantedInfoUrl"].as_str().map(|s| s.to_string());
-
-    // closeDt may be "YYYYMMDD" or free text like "수시채용"
-    let end = parse_yyyymmdd(p["closeDt"].as_str());
-
-    let region_text = p["region"].as_str().unwrap_or("").to_string();
-    let regions: Vec<String> = if region_text.is_empty() {
-        vec![]
-    } else {
-        vec![region_text]
-    };
-
-    // Store company name and benefit_category in the normalized payload.
-    // The programs table has company_name and benefit_category columns.
-    // We embed them in the normalized_payload JSON so the upsert can reference them.
-    // (The pipeline's generic upsert does not bind these columns; a follow-up
-    // migration / upsert extension can promote them to first-class columns.)
-    let _ = benefit_category; // used via serde_json below
-
-    NormalizedProgram {
-        program_type: "corporate_benefit".into(),
-        title,
-        summary,
-        provider_name: if company.is_empty() {
-            None
-        } else {
-            Some(company)
-        },
-        official_url,
-        application_start_at: None,
-        application_end_at: end,
-        min_age: None,
-        max_age: None,
-        regions,
-    }
-}
-
 fn normalize_scholarship(p: &serde_json::Value) -> NormalizedProgram {
-    let title = p["schlNm"].as_str().unwrap_or("Unknown").to_string();
+    let title = p["상품명"].as_str().unwrap_or("Unknown").to_string();
 
-    // trgtCn (지원 대상) is the most useful summary for scholarship matching
-    let summary = p["trgtCn"]
+    // 지원내역 상세내용 is the most useful summary; fall back to 소득기준 상세내용
+    let summary = p["지원내역 상세내용"]
         .as_str()
-        .or_else(|| p["supAmt"].as_str())
+        .or_else(|| p["소득기준 상세내용"].as_str())
         .map(|s| s.to_string());
 
-    let provider_name = p["organName"].as_str().map(|s| s.to_string());
-    let official_url = p["url"].as_str().map(|s| s.to_string());
+    let provider_name = p["운영기관명"].as_str().map(|s| s.to_string());
+    let official_url = p["홈페이지 주소"].as_str().map(|s| s.to_string());
 
-    let start = parse_yyyymmdd(p["rcptStDt"].as_str());
-    let end = parse_yyyymmdd(p["rcptEndDt"].as_str());
+    // 모집시작일 / 모집종료일 format is "2024-09-23" (YYYY-MM-DD)
+    let start = parse_yyyy_mm_dd(p["모집시작일"].as_str());
+    let end = parse_yyyy_mm_dd(p["모집종료일"].as_str());
 
     NormalizedProgram {
         program_type: "scholarship".into(),
@@ -682,6 +614,20 @@ fn parse_yyyymmdd(s: Option<&str>) -> Option<chrono::DateTime<Utc>> {
     let year: i32 = s[0..4].parse().ok()?;
     let month: u32 = s[4..6].parse().ok()?;
     let day: u32 = s[6..8].parse().ok()?;
+    chrono::NaiveDate::from_ymd_opt(year, month, day)
+        .and_then(|d| d.and_hms_opt(0, 0, 0))
+        .map(|dt| dt.and_utc())
+}
+
+/// Parse "YYYY-MM-DD" → DateTime<Utc>
+fn parse_yyyy_mm_dd(s: Option<&str>) -> Option<chrono::DateTime<Utc>> {
+    let s = s?;
+    if s.len() < 10 {
+        return None;
+    }
+    let year: i32 = s[0..4].parse().ok()?;
+    let month: u32 = s[5..7].parse().ok()?;
+    let day: u32 = s[8..10].parse().ok()?;
     chrono::NaiveDate::from_ymd_opt(year, month, day)
         .and_then(|d| d.and_hms_opt(0, 0, 0))
         .map(|dt| dt.and_utc())

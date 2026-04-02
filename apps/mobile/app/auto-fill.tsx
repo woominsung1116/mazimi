@@ -33,6 +33,8 @@ import {
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
+import * as Sharing from "expo-sharing";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -40,6 +42,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api, type UserProfile } from "@/lib/api";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
+import { generateEncryptionKey, decryptFile } from "@/lib/crypto";
+import { useAuthStore } from "@/store/auth";
+import { useVaultDocuments, type StoredDocument } from "@/lib/vault";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   colors,
   typography,
@@ -150,6 +156,229 @@ const REGION_LABELS: Record<string, string> = {
   gyeongnam: "경상남도",
   jeju: "제주특별자치도",
 };
+
+// ---------------------------------------------------------------------------
+// 서류 보관함 연동
+// ---------------------------------------------------------------------------
+
+// StoredDocument, useVaultDocuments는 @/lib/vault에서 임포트
+
+// 프로그램 제목/타입과 관련성 있는 보관함 서류만 필터링 (간단 키워드 매칭)
+function getRelevantVaultDocs(
+  vaultDocs: StoredDocument[],
+  programTitle: string
+): StoredDocument[] {
+  if (vaultDocs.length === 0) return [];
+  // 프로그램 제목에서 유의미한 키워드 추출
+  const titleKeywords = ["장학", "지원", "청년", "취업", "주거", "임대", "소득", "복지", "의료", "교육"];
+  const matchesProgram = titleKeywords.some((kw) => programTitle.includes(kw));
+  // 관련 프로그램이면 전체 서류 반환, 아니면 기본 서류만
+  if (matchesProgram) return vaultDocs;
+  return vaultDocs.filter((d) =>
+    ["resident_register", "income_proof", "enrollment_cert", "health_insurance", "family_relation"].includes(d.type)
+  );
+}
+
+interface VaultSectionProps {
+  programTitle: string;
+  onNavigateVault: () => void;
+}
+
+function VaultSection({ programTitle, onNavigateVault }: VaultSectionProps) {
+  const vaultDocs = useVaultDocuments();
+  const relevantDocs = getRelevantVaultDocs(vaultDocs, programTitle);
+  const { user } = useAuthStore();
+
+  async function handleShare(doc: StoredDocument) {
+    if (!doc.fileUri) {
+      return;
+    }
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) return;
+
+    let shareUri = doc.fileUri;
+    let tempUri: string | null = null;
+
+    if (doc.encrypted && user?.id) {
+      // 공유 전에 복호화하여 임시 파일 생성
+      const key = await generateEncryptionKey(user.id);
+      tempUri = await decryptFile(doc.fileUri, key);
+      shareUri = tempUri;
+    }
+
+    try {
+      await Sharing.shareAsync(shareUri, {
+        mimeType: doc.mimeType ?? "application/octet-stream",
+        dialogTitle: doc.name,
+      });
+    } finally {
+      // 공유 완료 후 임시 복호화 파일 삭제
+      if (tempUri) {
+        await FileSystem.deleteAsync(tempUri, { idempotent: true });
+      }
+    }
+  }
+
+  if (vaultDocs.length === 0) return null;
+
+  return (
+    <View style={vaultStyles.section}>
+      <View style={vaultStyles.headerRow}>
+        <View style={vaultStyles.headerLeft}>
+          <Ionicons name="folder-open-outline" size={18} color={colors.primary} />
+          <Text style={vaultStyles.headerTitle}>서류 보관함</Text>
+        </View>
+        <TouchableOpacity
+          onPress={onNavigateVault}
+          accessibilityRole="button"
+          accessibilityLabel="서류 보관함 전체 보기"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={vaultStyles.headerLink}>전체 보기 →</Text>
+        </TouchableOpacity>
+      </View>
+
+      {relevantDocs.length === 0 ? (
+        <View style={vaultStyles.emptyRow}>
+          <Text style={vaultStyles.emptyText}>
+            이 프로그램과 관련된 서류가 보관함에 없어요.
+          </Text>
+        </View>
+      ) : (
+        <View style={vaultStyles.docList}>
+          {relevantDocs.map((doc) => (
+            <View key={doc.id} style={vaultStyles.docRow}>
+              <View style={vaultStyles.docIcon}>
+                <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={vaultStyles.docInfo}>
+                <Text style={vaultStyles.docName} numberOfLines={1}>{doc.name}</Text>
+                <Text style={vaultStyles.docMeta}>
+                  발급일 {doc.issuedAt.slice(0, 10)}
+                  {doc.expiresAt ? ` · 만료 ${doc.expiresAt.slice(0, 10)}` : ""}
+                </Text>
+              </View>
+              {doc.fileUri ? (
+                <TouchableOpacity
+                  style={vaultStyles.shareBtn}
+                  onPress={() => handleShare(doc)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${doc.name} 공유`}
+                >
+                  <Ionicons name="share-outline" size={15} color={colors.primary} />
+                  <Text style={vaultStyles.shareBtnText}>공유</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={vaultStyles.noFileTag}>
+                  <Text style={vaultStyles.noFileTagText}>메타만</Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const vaultStyles = StyleSheet.create({
+  section: {
+    marginHorizontal: spacing[5],
+    marginBottom: spacing[4],
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: borderRadius.lg,
+    padding: spacing[4],
+    gap: spacing[3],
+    ...shadows.card,
+  } as any,
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+  },
+  headerTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.onSurface,
+  },
+  headerLink: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+  },
+  emptyRow: {
+    paddingVertical: spacing[2],
+  },
+  emptyText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.onSurfaceVariant,
+  },
+  docList: {
+    gap: spacing[2],
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: borderRadius.md,
+    padding: spacing[3],
+  },
+  docIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primaryFixed,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  docInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  docName: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.onSurface,
+  },
+  docMeta: {
+    fontSize: typography.fontSize.xs,
+    color: colors.onSurfaceVariant,
+  },
+  shareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.primaryFixed,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1.5],
+  },
+  shareBtnText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+  },
+  noFileTag: {
+    backgroundColor: colors.surfaceContainerHighest,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1],
+  },
+  noFileTagText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.onSurfaceVariant,
+  },
+});
+
+// ---------------------------------------------------------------------------
 
 function mergeProfile(
   local: ReturnType<typeof useOnboardingStore.getState>,
@@ -881,6 +1110,7 @@ export default function AutoFillScreen() {
   const { programId } = useLocalSearchParams<{ programId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const { toast, fadeAnim, show: showToast } = useToast();
 
   // Whether the in-app WebView is open
@@ -899,7 +1129,7 @@ export default function AutoFillScreen() {
   const { data: program } = useQuery({
     queryKey: ["program", programId],
     queryFn: () => api.getProgram(programId!),
-    enabled: !!programId,
+    enabled: !!programId && !!user,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
@@ -912,9 +1142,46 @@ export default function AutoFillScreen() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
+    enabled: !!user,
   });
 
   const profile = mergeProfile(localStore, profileResponse?.profile ?? null);
+
+  if (!user) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top : spacing[5] }]}>
+          <View style={styles.headerInner}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.headerBackBtn}
+              accessibilityRole="button"
+              accessibilityLabel="뒤로 가기"
+            >
+              <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>신청 정보 준비</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.onSurface, marginBottom: 8 }}>
+            로그인이 필요해요
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 24 }}>
+            신청 정보 자동 입력을 사용하려면 로그인해주세요.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/login")}
+            style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>로그인하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   // ── Copy helpers ──
 
@@ -1198,7 +1465,14 @@ export default function AutoFillScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Section 5: 도움말 ── */}
+        {/* ── Section 5: 서류 보관함 ── */}
+        <SectionDivider />
+        <VaultSection
+          programTitle={program?.title ?? ""}
+          onNavigateVault={() => router.push("/document-vault")}
+        />
+
+        {/* ── Section 6: 도움말 ── */}
         <View style={[styles.section, styles.tipSection]}>
           <Text style={styles.tipTitle}>이렇게 사용하세요</Text>
           <View style={styles.tipList}>

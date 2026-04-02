@@ -78,7 +78,7 @@ GET https://www.youthcenter.go.kr/go/ythstrgyouthpolicyDB/getYoungPolicy.do
 2. 활성화 설정 **ON**
 3. **Redirect URI** 등록:
    ```
-   https://majimi.kr/api/auth/callback/kakao
+   https://mazimi.kr/api/auth/callback/kakao
    http://localhost:3000/api/auth/callback/kakao   (개발용)
    ```
 4. **[동의항목]** 탭에서 필요한 항목 설정:
@@ -109,7 +109,7 @@ GET https://www.youthcenter.go.kr/go/ythstrgyouthpolicyDB/getYoungPolicy.do
 
 1. https://console.firebase.google.com 접속 후 Google 계정 로그인
 2. **[프로젝트 추가]** 클릭
-3. 프로젝트 이름: `majimi-prod`
+3. 프로젝트 이름: `mazimi-prod`
 4. Google Analytics 연동: 선택 사항 (권장)
 5. 프로젝트 생성 완료 후 프로젝트 콘솔 진입
 
@@ -153,8 +153,8 @@ GET https://www.youthcenter.go.kr/go/ythstrgyouthpolicyDB/getYoungPolicy.do
    - 플랫폼: iOS
    - 앱 이름: 마지미
    - 기본 언어: 한국어
-   - 번들 ID: `kr.majimi.app` (Xcode/Expo 설정과 동일해야 함)
-   - SKU: `majimi-ios-001`
+   - 번들 ID: `kr.mazimi.app` (Xcode/Expo 설정과 동일해야 함)
+   - SKU: `mazimi-ios-001`
 4. 앱 생성 후 심사 제출 전까지 빌드 업로드 필요
 
 ### 5-3. Expo (React Native) 배포 설정

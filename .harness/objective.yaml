@@ -1,0 +1,37 @@
+autonomy: software_only
+objective: reduce service regressions while improving recommendation quality and operator confidence
+editable_surface:
+  - apps/web
+  - crates/api
+  - crates/worker
+  - packages/ui
+  - packages/config
+  - infra/migrations
+  - scripts
+read_only_surface:
+  - production credentials
+  - real user data
+  - deployment secrets
+  - ghcr publish state
+hard_constraints:
+  - cargo check must pass before completion claims
+  - cargo test --workspace must pass for backend-affecting changes
+  - apps/web must build for frontend-affecting changes
+  - user_id must come from trusted auth context, never client payload
+  - destructive schema or infra changes require explicit approval
+evaluator:
+  commands:
+    - cargo check --workspace
+    - cargo test --workspace
+    - pnpm --dir apps/web build
+  replay_source: .harness/replay
+  policy_source: .harness/policies
+ledger: .harness/results.tsv
+memory_bank:
+  facts: .harness/memory-bank/facts.tsv
+  promotions: .harness/memory-bank/promotions.tsv
+promotion:
+  default_repeat_count: 2
+  immediate_promote_if_severity:
+    - critical
+    - security

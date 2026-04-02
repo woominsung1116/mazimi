@@ -6,7 +6,7 @@ use axum::{
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
-use majimi_core::models::Program;
+use mazimi_core::models::Program;
 
 use crate::auth::AuthUser;
 

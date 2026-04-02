@@ -5,10 +5,10 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use majimi_core::models::{
+use mazimi_core::models::{
     EligibilityRule, ProfileInput, Program, RecommendationItem, RecommendationResult, UserProfile,
 };
-use majimi_core::rule_engine;
+use mazimi_core::rule_engine;
 
 /// POST /api/v1/recommend/preview
 /// Returns recommendations based on profile input without requiring login.
@@ -268,7 +268,7 @@ fn inline_score(
             score += 30;
             reasons.push(format!(
                 "{} 거주 청년 대상이에요.",
-                majimi_core::region_label(&input.region_code)
+                mazimi_core::region_label(&input.region_code)
             ));
         }
     }

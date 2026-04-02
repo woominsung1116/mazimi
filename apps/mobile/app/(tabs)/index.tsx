@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
   summaryCount: {
     fontSize: typography.fontSize["2xl"],
     fontWeight: typography.fontWeight.extrabold,
-    color: colors.primary,
+    color: colors.textMuted,
   },
   summaryIconCircle: {
     width: 40,

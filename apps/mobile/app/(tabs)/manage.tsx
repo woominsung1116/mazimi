@@ -41,6 +41,7 @@ import {
   type DashboardData,
 } from "@/lib/api";
 import OfflineBanner from "@/components/OfflineBanner";
+import { useAuthStore } from "@/store/auth";
 
 // ---------------------------------------------------------------------------
 // Mock fallback data
@@ -481,6 +482,7 @@ const LifestyleCard = React.memo(function LifestyleCard({ item }: { item: Lifest
 export default function ManageScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuthStore();
 
   const recommendQuery = useQuery({
     queryKey: ["recommend-preview-manage"],
@@ -493,6 +495,7 @@ export default function ManageScreen() {
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
+    enabled: !!user,
   });
 
   const dashboardQuery = useQuery({
@@ -501,6 +504,7 @@ export default function ManageScreen() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
+    enabled: !!user,
   });
 
   const isLoading = recommendQuery.isLoading || dashboardQuery.isLoading;
@@ -523,6 +527,26 @@ export default function ManageScreen() {
     : 0;
 
   const scholarshipCount = scholarships.length;
+
+  if (!user) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.onSurface, marginBottom: 8 }}>
+          로그인이 필요해요
+        </Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 24 }}>
+          추천 패키지와 신청 관리를 사용하려면{"\n"}로그인해주세요.
+        </Text>
+        <Pressable
+          onPress={() => router.push("/login")}
+          style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 }}
+          accessibilityRole="button"
+        >
+          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>로그인하기</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <ScrollView

@@ -60,7 +60,10 @@ pub async fn kakao_login(
         .bearer_auth(&body.access_token)
         .send()
         .await
-        .map_err(|e| err_internal(format!("Kakao API request failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Kakao API request failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     if !kakao_resp.status().is_success() {
         return Err(err_unauth("Invalid Kakao access token"));
@@ -69,7 +72,10 @@ pub async fn kakao_login(
     let kakao_user: KakaoUserMe = kakao_resp
         .json()
         .await
-        .map_err(|e| err_internal(format!("Failed to parse Kakao response: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Failed to parse Kakao response: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     let kakao_id = kakao_user.id.to_string();
 
@@ -93,11 +99,14 @@ pub async fn kakao_login(
     .bind(&kakao_id)
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| err_internal(format!("DB upsert failed: {e}")))?;
+    .map_err(|e| {
+        tracing::error!("DB upsert failed: {e}");
+        err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+    })?;
 
     // 3. Upsert nickname/image into user_profiles (only set if not already filled)
     let profile_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM user_profiles WHERE user_id = $1)"
+        "SELECT EXISTS(SELECT 1 FROM user_profiles WHERE user_id = $1 AND birth_year IS NOT NULL)"
     )
     .bind(user_id)
     .fetch_one(&state.pool)
@@ -117,14 +126,23 @@ pub async fn kakao_login(
         .bind(&image_url)
         .execute(&state.pool)
         .await
-        .map_err(|e| err_internal(format!("Profile upsert failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Profile upsert failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
     }
 
     // 4. Sign access + refresh JWTs
     let access_token = create_token(user_id, "user", &state.jwt_secret)
-        .map_err(|e| err_internal(format!("Token creation failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Token creation failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
     let refresh_token = create_refresh_token(user_id, "user", &state.jwt_secret)
-        .map_err(|e| err_internal(format!("Refresh token creation failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Refresh token creation failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     Ok(Json(json!({
         "token": access_token,
@@ -235,11 +253,14 @@ pub async fn refresh(
 //
 // Flow: Mobile app opens browser → Kakao login → Kakao redirects here with code
 // → backend exchanges code for Kakao token → upserts user → generates JWT
-// → redirects to majimi:// deep link with tokens
+// → redirects to mazimi:// deep link with tokens
 
 #[derive(Debug, Deserialize)]
 pub struct KakaoCallbackQuery {
     pub code: String,
+    /// The original redirect_uri the client sent to Kakao.
+    /// If present, reuse it for the token exchange so the URIs always match.
+    pub redirect_uri: Option<String>,
 }
 
 /// GET /api/v1/auth/kakao/callback?code=xxx
@@ -260,12 +281,39 @@ pub async fn kakao_callback(
     let kakao_client_id = std::env::var("KAKAO_CLIENT_ID").unwrap_or_default();
     let kakao_client_secret = std::env::var("KAKAO_CLIENT_SECRET").unwrap_or_default();
 
-    // Build the redirect_uri that matches what the mobile app sent to Kakao.
-    // In production this would be the public domain; for local dev it's the
-    // machine's LAN IP so the mobile device can reach it.
+    // Use the redirect_uri the client originally sent to Kakao so the URIs
+    // always match, regardless of which IP/hostname was used.  Falls back to
+    // CALLBACK_HOST env var → request Host header → localhost.
+    //
+    // Security: validate the host against an allowlist to prevent open redirect.
     let app_port = std::env::var("APP_PORT").unwrap_or_else(|_| "8080".to_string());
-    let host = std::env::var("CALLBACK_HOST").unwrap_or_else(|_| "localhost".to_string());
-    let callback_uri = format!("http://{}:{}/api/v1/auth/kakao/callback", host, app_port);
+    let callback_host = std::env::var("CALLBACK_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let default_uri = format!("http://{}:{}/api/v1/auth/kakao/callback", callback_host, app_port);
+
+    let callback_uri = if let Some(ref uri) = query.redirect_uri {
+        // Validate host against allowlist (parse "//host:port/path" after scheme)
+        let host_part = uri
+            .split("://")
+            .nth(1)
+            .unwrap_or("")
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .split(':')
+            .next()
+            .unwrap_or("");
+        let allowed = host_part == "localhost"
+            || host_part == "127.0.0.1"
+            || host_part == callback_host.as_str();
+        if allowed {
+            uri.clone()
+        } else {
+            tracing::warn!("redirect_uri host '{}' not in allowlist, falling back to default", host_part);
+            default_uri
+        }
+    } else {
+        default_uri
+    };
 
     // 1. Exchange authorization code for Kakao access token
     let token_resp = reqwest::Client::new()
@@ -279,16 +327,27 @@ pub async fn kakao_callback(
         ])
         .send()
         .await
-        .map_err(|e| err_internal(format!("Kakao token request failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Kakao token request failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     let token_data: serde_json::Value = token_resp
         .json()
         .await
-        .map_err(|e| err_internal(format!("Kakao token parse failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Kakao token parse failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
+
+    tracing::info!("Kakao token exchange completed — callback_uri={callback_uri}");
 
     let kakao_access_token = token_data["access_token"]
         .as_str()
-        .ok_or_else(|| err_internal("No access_token in Kakao response".to_string()))?;
+        .ok_or_else(|| {
+            tracing::error!("No access_token in Kakao response: {token_data}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     // 2. Get user info from Kakao
     let kakao_resp = reqwest::Client::new()
@@ -296,12 +355,18 @@ pub async fn kakao_callback(
         .bearer_auth(kakao_access_token)
         .send()
         .await
-        .map_err(|e| err_internal(format!("Kakao user API failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Kakao user API failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     let kakao_user: KakaoUserMe = kakao_resp
         .json()
         .await
-        .map_err(|e| err_internal(format!("Kakao user parse failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Kakao user parse failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     let kakao_id = kakao_user.id.to_string();
     let profile = kakao_user
@@ -324,7 +389,10 @@ pub async fn kakao_callback(
     .bind(&kakao_id)
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| err_internal(format!("DB upsert failed: {e}")))?;
+    .map_err(|e| {
+        tracing::error!("DB upsert failed: {e}");
+        err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+    })?;
 
     // 3b. Upsert nickname/image into user_profiles for new users
     let profile_exists: bool = sqlx::query_scalar(
@@ -350,18 +418,27 @@ pub async fn kakao_callback(
     .bind(&image_url)
     .execute(&state.pool)
     .await
-    .map_err(|e| err_internal(format!("Profile upsert failed: {e}")))?;
+    .map_err(|e| {
+        tracing::error!("Profile upsert failed: {e}");
+        err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+    })?;
 
     // 4. Generate JWTs
     let access_token = create_token(user_id, "user", &state.jwt_secret)
-        .map_err(|e| err_internal(format!("Token creation failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Token creation failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
     let refresh_token = create_refresh_token(user_id, "user", &state.jwt_secret)
-        .map_err(|e| err_internal(format!("Refresh token creation failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Refresh token creation failed: {e}");
+            err_internal("인증 처리 중 오류가 발생했습니다".to_string())
+        })?;
 
     // 5. Redirect to app deep link with tokens
     let is_new = if profile_exists { "0" } else { "1" };
     let deep_link = format!(
-        "majimi://login?token={}&refresh_token={}&nickname={}&image={}&is_new={}",
+        "mazimi://login?token={}&refresh_token={}&nickname={}&image={}&is_new={}",
         urlencoding::encode(&access_token),
         urlencoding::encode(&refresh_token),
         urlencoding::encode(&nickname),

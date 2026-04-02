@@ -1,9 +1,17 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1774433053487,
-  "projectRoot": "/Users/woominseong/Desktop/창업",
+  "lastScanned": 1775129965822,
+  "projectRoot": "/Users/woominseong/Desktop/최상위/창업",
   "techStack": {
     "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
       {
         "name": "Rust",
         "version": null,
@@ -59,21 +67,21 @@
       "path": "apps",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1774433053474,
+      "lastAccessed": 1775129965804,
       "keyFiles": []
     },
     "crates": {
       "path": "crates",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1774433053474,
+      "lastAccessed": 1775129965804,
       "keyFiles": []
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 15,
-      "lastAccessed": 1774433053475,
+      "lastAccessed": 1775129965810,
       "keyFiles": [
         "api-keys-guide.md",
         "ccg-auto-application-strategy.md",
@@ -86,21 +94,21 @@
       "path": "infra",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1774433053475,
+      "lastAccessed": 1775129965810,
       "keyFiles": []
     },
     "packages": {
       "path": "packages",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1774433053475,
+      "lastAccessed": 1775129965810,
       "keyFiles": []
     },
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 2,
-      "lastAccessed": 1774433053476,
+      "lastAccessed": 1775129965811,
       "keyFiles": [
         "backup.sh",
         "deploy.sh"
@@ -110,14 +118,14 @@
       "path": "target",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1774433053476,
+      "lastAccessed": 1775129965811,
       "keyFiles": []
     },
     "crates/api": {
       "path": "crates/api",
       "purpose": "API routes",
       "fileCount": 1,
-      "lastAccessed": 1774433053477,
+      "lastAccessed": 1775129965812,
       "keyFiles": [
         "Cargo.toml"
       ]
@@ -125,8 +133,8 @@
     "infra/migrations": {
       "path": "infra/migrations",
       "purpose": "Database migrations",
-      "fileCount": 18,
-      "lastAccessed": 1774433053477,
+      "fileCount": 20,
+      "lastAccessed": 1775129965812,
       "keyFiles": [
         "20260320000001_init.sql",
         "20260320000002_seed.sql",
@@ -137,309 +145,201 @@
       "path": "packages/config",
       "purpose": "Configuration files",
       "fileCount": 0,
-      "lastAccessed": 1774433053478,
+      "lastAccessed": 1775129965812,
       "keyFiles": []
     }
   },
   "hotPaths": [
     {
-      "path": "crates/api/src/routes/auth.rs",
-      "accessCount": 20,
-      "lastAccessed": 1774501243290,
+      "path": "magimi_psst_improved.md",
+      "accessCount": 12,
+      "lastAccessed": 1775135306921,
       "type": "file"
     },
     {
-      "path": "apps/mobile/app/(tabs)/index.tsx",
-      "accessCount": 20,
-      "lastAccessed": 1774510499650,
-      "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 16,
-      "lastAccessed": 1774501188493,
-      "type": "directory"
-    },
-    {
-      "path": "apps/mobile/app/login.tsx",
-      "accessCount": 15,
-      "lastAccessed": 1774510504128,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/lib/api.ts",
-      "accessCount": 14,
-      "lastAccessed": 1774501262933,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile",
-      "accessCount": 13,
-      "lastAccessed": 1774501122136,
-      "type": "directory"
-    },
-    {
-      "path": "crates/api/src/auth.rs",
-      "accessCount": 11,
-      "lastAccessed": 1774499297162,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/routes/recommend.rs",
-      "accessCount": 11,
-      "lastAccessed": 1774501341024,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/lib.rs",
-      "accessCount": 10,
-      "lastAccessed": 1774498888926,
-      "type": "file"
-    },
-    {
-      "path": "crates/core/src/rule_engine.rs",
-      "accessCount": 10,
-      "lastAccessed": 1774499268544,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/store/onboarding.ts",
-      "accessCount": 9,
-      "lastAccessed": 1774503717486,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/store/auth.ts",
-      "accessCount": 8,
-      "lastAccessed": 1774503683340,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/routes/payment.rs",
+      "path": "magimi_psst_example_style.md",
       "accessCount": 7,
-      "lastAccessed": 1774498927245,
+      "lastAccessed": 1775133622865,
       "type": "file"
     },
     {
-      "path": "crates/core/src/models.rs",
-      "accessCount": 7,
-      "lastAccessed": 1774501209673,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/app",
-      "accessCount": 7,
-      "lastAccessed": 1774510495020,
-      "type": "directory"
-    },
-    {
-      "path": "crates/api/src/routes/state.rs",
+      "path": "apps/mobile/constants/theme.ts",
       "accessCount": 6,
-      "lastAccessed": 1774498932687,
+      "lastAccessed": 1775130445101,
       "type": "file"
     },
     {
-      "path": "crates",
-      "accessCount": 6,
-      "lastAccessed": 1774498941150,
-      "type": "directory"
-    },
-    {
-      "path": "crates/api/src/routes/profile.rs",
-      "accessCount": 6,
-      "lastAccessed": 1774501181976,
-      "type": "file"
-    },
-    {
-      "path": "crates/worker/src/pipeline.rs",
+      "path": "apps/mobile/app/(tabs)/_layout.tsx",
       "accessCount": 5,
-      "lastAccessed": 1774498879084,
+      "lastAccessed": 1775130450502,
       "type": "file"
     },
     {
-      "path": "crates/api/src/routes/mod.rs",
-      "accessCount": 4,
-      "lastAccessed": 1774498390191,
+      "path": "apps/mobile/app/(tabs)/profile.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1775130510901,
       "type": "file"
     },
     {
-      "path": "crates/api/src/routes/my.rs",
-      "accessCount": 4,
-      "lastAccessed": 1774498545845,
+      "path": "apps/mobile/components/RecommendationCard.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1775130569593,
       "type": "file"
     },
     {
-      "path": "crates/api/src/routes/programs.rs",
+      "path": "apps/mobile/app/document-vault.tsx",
       "accessCount": 4,
-      "lastAccessed": 1774498628862,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src",
-      "accessCount": 4,
-      "lastAccessed": 1774498637648,
+      "lastAccessed": 1775130603837,
       "type": "directory"
-    },
-    {
-      "path": "crates/api/Cargo.toml",
-      "accessCount": 4,
-      "lastAccessed": 1774498650868,
-      "type": "file"
-    },
-    {
-      "path": "crates/core/src/config.rs",
-      "accessCount": 4,
-      "lastAccessed": 1774498714951,
-      "type": "file"
-    },
-    {
-      "path": ".env.example",
-      "accessCount": 4,
-      "lastAccessed": 1774498915466,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/routes/push.rs",
-      "accessCount": 4,
-      "lastAccessed": 1774498922933,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/routes/bookmark.rs",
-      "accessCount": 4,
-      "lastAccessed": 1774499238544,
-      "type": "file"
-    },
-    {
-      "path": "crates/core/src/lib.rs",
-      "accessCount": 4,
-      "lastAccessed": 1774499256201,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/lib/crypto.ts",
-      "accessCount": 4,
-      "lastAccessed": 1774499298204,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/app/_layout.tsx",
-      "accessCount": 4,
-      "lastAccessed": 1774510498426,
-      "type": "file"
     },
     {
       "path": "apps/mobile/app/programs/[id].tsx",
       "accessCount": 4,
-      "lastAccessed": 1774510512834,
+      "lastAccessed": 1775130619602,
       "type": "file"
     },
     {
-      "path": "apps/mobile/app/apply-assistant.tsx",
-      "accessCount": 4,
-      "lastAccessed": 1774510513316,
-      "type": "file"
-    },
-    {
-      "path": "crates/api/src/main.rs",
+      "path": "apps/mobile/app/preview.tsx",
       "accessCount": 3,
-      "lastAccessed": 1774498373093,
+      "lastAccessed": 1775130571289,
       "type": "file"
     },
     {
-      "path": "crates/api/src/routes/admin.rs",
+      "path": "apps/mobile",
       "accessCount": 3,
-      "lastAccessed": 1774498392282,
-      "type": "file"
+      "lastAccessed": 1775130610429,
+      "type": "directory"
     },
     {
-      "path": "crates/api/src/routes/dashboard.rs",
+      "path": "apps/mobile/app/_layout.tsx",
       "accessCount": 3,
-      "lastAccessed": 1774498406354,
+      "lastAccessed": 1775132174001,
       "type": "file"
     },
     {
-      "path": "infra/migrations/20260320000001_init.sql",
-      "accessCount": 3,
-      "lastAccessed": 1774498459577,
-      "type": "file"
-    },
-    {
-      "path": "crates/worker/src/lib.rs",
-      "accessCount": 3,
-      "lastAccessed": 1774498482598,
-      "type": "file"
-    },
-    {
-      "path": "crates/worker/src/sources/dreamspon.rs",
+      "path": "apps/mobile/app/login.tsx",
       "accessCount": 2,
-      "lastAccessed": 1774496791825,
+      "lastAccessed": 1775130456997,
       "type": "file"
     },
     {
-      "path": "crates/api/src/routes/alerts.rs",
+      "path": "apps/mobile/app/(tabs)/index.tsx",
       "accessCount": 2,
-      "lastAccessed": 1774498378070,
+      "lastAccessed": 1775130458826,
       "type": "file"
     },
     {
-      "path": "crates/api/src/routes/health.rs",
+      "path": "apps/mobile/components/BenefitAmount.tsx",
       "accessCount": 2,
-      "lastAccessed": 1774498380264,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/lib/logger.ts",
-      "accessCount": 2,
-      "lastAccessed": 1774498387034,
-      "type": "file"
-    },
-    {
-      "path": "apps/mobile/lib/cache.ts",
-      "accessCount": 2,
-      "lastAccessed": 1774498395554,
-      "type": "file"
-    },
-    {
-      "path": "infra/migrations/20260322000001_rls_policies.sql",
-      "accessCount": 2,
-      "lastAccessed": 1774498396779,
-      "type": "file"
-    },
-    {
-      "path": "crates/worker/src/main.rs",
-      "accessCount": 2,
-      "lastAccessed": 1774498508229,
-      "type": "file"
-    },
-    {
-      "path": "Cargo.toml",
-      "accessCount": 2,
-      "lastAccessed": 1774498651098,
-      "type": "file"
-    },
-    {
-      "path": "crates/core/Cargo.toml",
-      "accessCount": 1,
-      "lastAccessed": 1774498358070,
-      "type": "file"
-    },
-    {
-      "path": "crates/worker/Cargo.toml",
-      "accessCount": 1,
-      "lastAccessed": 1774498358507,
-      "type": "file"
-    },
-    {
-      "path": "crates/worker/src/sources/youth_center.rs",
-      "accessCount": 1,
-      "lastAccessed": 1774498387464,
+      "lastAccessed": 1775130563290,
       "type": "file"
     },
     {
       "path": "apps/mobile/lib/notifications.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775130572711,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/lib/pdf-generator.ts",
+      "accessCount": 2,
+      "lastAccessed": 1775130574569,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/stack-calculator.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1775130584071,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/onboarding/step1.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1775130585302,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/onboarding/step3.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1775130586545,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/.env.local",
+      "accessCount": 2,
+      "lastAccessed": 1775131971525,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/(tabs)/explore.tsx",
       "accessCount": 1,
-      "lastAccessed": 1774498387542,
+      "lastAccessed": 1775130067140,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/(tabs)/manage.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1775130067410,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/onboarding/index.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1775130068606,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/app/onboarding/step2.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1775130525293,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/lib/api.ts",
+      "accessCount": 1,
+      "lastAccessed": 1775132173536,
+      "type": "file"
+    },
+    {
+      "path": "crates/api/src/lib.rs",
+      "accessCount": 1,
+      "lastAccessed": 1775132180672,
+      "type": "file"
+    },
+    {
+      "path": "apps/mobile/store/auth.ts",
+      "accessCount": 1,
+      "lastAccessed": 1775132181225,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 1,
+      "lastAccessed": 1775132782316,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1775132782440,
+      "type": "file"
+    },
+    {
+      "path": "compose.yml",
+      "accessCount": 1,
+      "lastAccessed": 1775132782662,
+      "type": "file"
+    },
+    {
+      "path": ".env.example",
+      "accessCount": 1,
+      "lastAccessed": 1775132782716,
+      "type": "file"
+    },
+    {
+      "path": "docs/features.md",
+      "accessCount": 1,
+      "lastAccessed": 1775142982442,
       "type": "file"
     }
   ],

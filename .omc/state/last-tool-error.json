@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"gh repo edit woominsung1116/majimi --visibility public\",\"description\":\"Change repo visibility to public\"}",
-  "error": "Exit code 1\nuse of --visibility flag requires --accept-visibility-change-consequences flag\n\nUsage:  gh repo edit [<repository>] [flags]\n\nFlags:\n      --accept-visibility-change-consequences    Accept the consequences of changing the repository visibility\n      --add-topic strings                        Add repository topic\n      --allow-forking                            Allow forking of an organization repository\n      --allow-update-branch                      Allow a pull request head branch ...",
-  "timestamp": "2026-03-26T12:42:37.898Z",
+  "tool_input_preview": "{\"command\":\"# GitHub 레포 이름 변경\\ngh repo rename mazimi 2>&1\",\"description\":\"Rename GitHub repo to mazimi\"}",
+  "error": "Exit code 1\n--yes required when passing a single argument\n\nUsage:  gh repo rename [<new-name>] [flags]\n\nFlags:\n  -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format\n  -y, --yes                      Skip the confirmation prompt",
+  "timestamp": "2026-04-02T23:11:28.897Z",
   "retry_count": 1
 }

@@ -342,26 +342,26 @@ export default function TabLayout() {
       <Tabs.Screen
         name="manage"
         options={{
-          title: "신청 관리",
-          headerTitle: "신청 관리",
+          title: "관리",
+          headerTitle: "관리",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={<IconManage focused={focused} />} focused={focused} />
           ),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="신청 관리" focused={focused} color={color} />
+            <TabLabel label="관리" focused={focused} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "내 정보",
-          headerTitle: "내 정보",
+          title: "프로필",
+          headerTitle: "프로필",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon={<IconProfile focused={focused} />} focused={focused} />
           ),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="내 정보" focused={focused} color={color} />
+            <TabLabel label="프로필" focused={focused} color={color} />
           ),
         }}
       />

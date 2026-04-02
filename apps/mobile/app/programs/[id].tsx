@@ -14,6 +14,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import {
+  Alert,
   View,
   Text,
   ScrollView,
@@ -45,6 +46,7 @@ import {
   layout,
 } from "@/constants/theme";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
+import { useAuthStore } from "@/store/auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -853,7 +855,7 @@ function PreCheckCard({
                       </Text>
                       {fromVault && (
                         <View style={styles.vaultBadge}>
-                          <Ionicons name="folder-open-outline" size={10} color="#2563eb" />
+                          <Ionicons name="folder-open-outline" size={10} color="#5CB1A7" />
                           <Text style={styles.vaultBadgeText}>보관함에서 가져옴</Text>
                         </View>
                       )}
@@ -1074,6 +1076,7 @@ export default function ProgramDetailScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
+  const { user } = useAuthStore();
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("support");
@@ -1204,6 +1207,13 @@ export default function ProgramDetailScreen() {
   const bottomBarHeight = 80 + (insets.bottom > 0 ? insets.bottom : spacing[4]);
 
   async function handleBookmark() {
+    if (!user) {
+      Alert.alert("로그인 필요", "북마크를 사용하려면 로그인이 필요합니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     if (bookmarkLoading) return;
     setBookmarkLoading(true);
     try {
@@ -1221,10 +1231,24 @@ export default function ProgramDetailScreen() {
   }
 
   function handleApply() {
+    if (!user) {
+      Alert.alert("로그인 필요", "신청 도우미를 사용하려면 로그인이 필요합니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     router.push(`/apply-assistant?programId=${program!.id}`);
   }
 
   function handleAutoFill() {
+    if (!user) {
+      Alert.alert("로그인 필요", "신청 정보 자동 입력을 사용하려면 로그인이 필요합니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     router.push(`/auto-fill?programId=${program!.id}`);
   }
 
@@ -1862,7 +1886,7 @@ const styles = StyleSheet.create({
   vaultBadgeText: {
     fontSize: 10,
     fontWeight: typography.fontWeight.semibold,
-    color: "#2563eb",
+    color: "#5CB1A7",
   },
 
   // ── Tab navigation ──

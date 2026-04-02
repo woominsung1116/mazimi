@@ -1,14 +1,17 @@
 /**
- * 마지미 Design Token System — "CheerUp Blue" / Editorial Financial Guidance
+ * 마지미 Design Token System — "Moss Stone" / Editorial Financial Guidance
  *
  * Based on the Stitch design system (Material Design 3 + custom editorial layer).
  * Single source of truth for the mobile app's visual design.
+ *
+ * Theme concept: 마지미 마스코트(돌멩이)에서 영감을 받은 올리브 그린 + 따뜻한 스톤 팔레트.
+ * Primary는 이끼 낀 돌의 올리브 그린, Surface는 따뜻한 자갈/돌 톤.
  *
  * Design principles:
  *  - No-Line Rule: 1px solid borders for sectioning are PROHIBITED. Use
  *    background color shifts and tonal transitions instead.
  *  - Surface hierarchy through layering, not borders.
- *  - Tinted shadows using secondary_fixed_dim (#b6c7eb) instead of pure black.
+ *  - Tinted shadows using secondary_fixed_dim (#C9BFB3) instead of pure black.
  *  - Glass effect for headers (80% opacity + blur).
  *  - Gradient accents for primary CTAs.
  */
@@ -16,57 +19,57 @@
 import { Platform, type ViewStyle } from "react-native";
 
 // ---------------------------------------------------------------------------
-// Colors — Material Design 3 tokens (Stitch "CheerUp Blue" palette)
+// Colors — Material Design 3 tokens (Moss Stone palette)
 // ---------------------------------------------------------------------------
 
 export const colors = {
-  // Primary
-  primary: "#0058bc",
-  primaryContainer: "#0070eb",
-  primaryFixed: "#d8e2ff",
-  primaryFixedDim: "#adc6ff",
+  // Primary — 틸/민트 그린 (차분한 자연)
+  primary: "#5CB1A7",
+  primaryContainer: "#4DA89E",
+  primaryFixed: "#D0EDE9",
+  primaryFixedDim: "#A8D4CD",
   onPrimary: "#ffffff",
   onPrimaryContainer: "#fefcff",
-  onPrimaryFixed: "#001a41",
-  onPrimaryFixedVariant: "#004493",
+  onPrimaryFixed: "#0D2B26",
+  onPrimaryFixedVariant: "#3D5228",
 
-  // Secondary
-  secondary: "#4e5f7e",
-  secondaryContainer: "#cadaff",
-  secondaryFixed: "#d7e2ff",
-  secondaryFixedDim: "#b6c7eb", // tinted shadow color
+  // Secondary — 따뜻한 어스 브라운
+  secondary: "#6B6358",
+  secondaryContainer: "#E8DFD5",
+  secondaryFixed: "#EDE4DA",
+  secondaryFixedDim: "#C9BFB3", // tinted shadow color (warm stone)
   onSecondary: "#ffffff",
-  onSecondaryContainer: "#4f5f7f",
+  onSecondaryContainer: "#5C5449",
 
-  // Tertiary
-  tertiary: "#4b605d",
-  tertiaryContainer: "#647976",
-  tertiaryFixed: "#d0e7e3",
-  tertiaryFixedDim: "#b5cbc7",
+  // Tertiary — 세이지/머드
+  tertiary: "#5A6355",
+  tertiaryContainer: "#6E7868",
+  tertiaryFixed: "#D5DDD0",
+  tertiaryFixedDim: "#BCC5B6",
 
-  // Surface
-  surface: "#f8f9fa",
-  surfaceBright: "#f8f9fa",
-  surfaceDim: "#d9dadb",
-  surfaceContainer: "#edeeef",
-  surfaceContainerLow: "#f3f4f5",
-  surfaceContainerHigh: "#e7e8e9",
-  surfaceContainerHighest: "#e1e3e4",
-  surfaceContainerLowest: "#ffffff",
-  surfaceVariant: "#e1e3e4",
-  surfaceTint: "#005bc1",
+  // Surface — 따뜻한 스톤/자갈 톤 (밝기 UP)
+  surface: "#F3F0EB",
+  surfaceBright: "#F3F0EB",
+  surfaceDim: "#DCD9D4",
+  surfaceContainer: "#EAE7E2",
+  surfaceContainerLow: "#EFECE7",
+  surfaceContainerHigh: "#E2DFDA",
+  surfaceContainerHighest: "#DCDAD5",
+  surfaceContainerLowest: "#FAF8F4",    // 가장 밝은 스톤 (기존보다 밝게)
+  surfaceVariant: "#DCDAD5",
+  surfaceTint: "#5CB1A7",
 
-  // On-surface
-  onSurface: "#191c1d",
-  onSurfaceVariant: "#414755",
-  onBackground: "#191c1d",
-  inverseSurface: "#2e3132",
-  inverseOnSurface: "#f0f1f2",
-  inversePrimary: "#adc6ff",
+  // On-surface — 스톤 배경 위 가시성 강화
+  onSurface: "#141310",
+  onSurfaceVariant: "#3A3832",
+  onBackground: "#141310",
+  inverseSurface: "#323029",
+  inverseOnSurface: "#F2EFEA",
+  inversePrimary: "#A8BA8E",
 
-  // Outline
-  outline: "#717786",
-  outlineVariant: "#c1c6d7",
+  // Outline — 대비 강화
+  outline: "#635F58",
+  outlineVariant: "#B5B0A9",
 
   // Error
   error: "#ba1a1a",
@@ -75,28 +78,28 @@ export const colors = {
   onErrorContainer: "#93000a",
 
   // Background
-  background: "#f8f9fa",
+  background: "#F3F0EB",
 
   // Semantic aliases (for backward compat and convenience)
-  card: "#ffffff",                        // = surfaceContainerLowest
-  textPrimary: "#191c1d",                 // = onSurface
-  textSecondary: "#414755",               // = onSurfaceVariant
-  textMuted: "#717786",                   // = outline
-  textDisabled: "#b6c7eb",               // = secondaryFixedDim
+  card: "#FAF8F4",                        // = surfaceContainerLowest (warm stone)
+  textPrimary: "#141310",                 // = onSurface (강화)
+  textSecondary: "#3A3832",               // = onSurfaceVariant (강화)
+  textMuted: "#635F58",                   // = outline (강화)
+  textDisabled: "#C9BFB3",               // = secondaryFixedDim
   textInverse: "#ffffff",
 
   // Tab bar
-  tabBarBackground: "rgba(255, 255, 255, 0.88)",
-  tabBarActive: "#0058bc",               // = primary
-  tabBarActiveBackground: "#dde9ff",     // ≈ blue-50 tinted
-  tabBarInactive: "#717786",             // = outline
+  tabBarBackground: "rgba(250, 248, 244, 0.88)",
+  tabBarActive: "#5CB1A7",               // = primary (teal)
+  tabBarActiveBackground: "#D0EDE9",     // ≈ teal tinted
+  tabBarInactive: "#635F58",             // = outline (강화)
 
   // Overlay / scrim
-  overlay: "rgba(25, 28, 29, 0.4)",
-  overlayLight: "rgba(25, 28, 29, 0.06)",
+  overlay: "rgba(28, 27, 24, 0.4)",
+  overlayLight: "rgba(28, 27, 24, 0.06)",
 
   // Decorative background blobs (large blurred circles)
-  decorativeBlob: "rgba(0, 88, 188, 0.05)",
+  decorativeBlob: "rgba(92, 177, 167, 0.05)",
 } as const;
 
 export type ColorToken = keyof typeof colors;
@@ -207,7 +210,7 @@ export const typography = {
       fontSize: 11,
       fontWeight: "400" as const,
       lineHeight: 15,
-      color: "#b6c7eb",
+      color: "#C9BFB3",
     },
     tabLabel: {
       fontSize: 11,
@@ -290,7 +293,7 @@ export const borderRadius = {
 export type BorderRadiusToken = keyof typeof borderRadius;
 
 // ---------------------------------------------------------------------------
-// Shadows — tinted with secondaryFixedDim (#b6c7eb), no harsh black
+// Shadows — tinted with secondaryFixedDim (#C9BFB3), no harsh black
 // ---------------------------------------------------------------------------
 
 type ShadowStyle = Pick<
@@ -334,22 +337,22 @@ export const shadows = {
   none: {} as ShadowStyle,
 
   /** Subtle card shadow — tinted blue */
-  card: makeShadow("#b6c7eb", 0.05, 16, 1, 4),
+  card: makeShadow("#C9BFB3", 0.05, 16, 1, 4),
 
   /** Standard card with a bit more depth */
-  cardMd: makeShadow("#b6c7eb", 0.08, 24, 2, 6),
+  cardMd: makeShadow("#C9BFB3", 0.08, 24, 2, 6),
 
   /** Large card / sheet */
-  cardLg: makeShadow("#b6c7eb", 0.10, 32, 3, 8),
+  cardLg: makeShadow("#C9BFB3", 0.10, 32, 3, 8),
 
-  /** Primary (blue) CTA button shadow — 20% opacity per Stitch spec */
-  primaryButton: makeShadow("#0058bc", 0.20, 12, 4, 4),
+  /** Primary (teal) CTA button shadow — 20% opacity per Stitch spec */
+  primaryButton: makeShadow("#5CB1A7", 0.20, 12, 4, 4),
 
   /** Floating action / modal bottom */
-  floating: makeShadow("#b6c7eb", 0.12, 24, 8, 4),
+  floating: makeShadow("#C9BFB3", 0.12, 24, 8, 4),
 
   /** Top bar / header underline replacement */
-  header: makeShadow("#b6c7eb", 0.06, 8, 2, 2),
+  header: makeShadow("#C9BFB3", 0.06, 8, 2, 2),
 } as const;
 
 export type ShadowToken = keyof typeof shadows;

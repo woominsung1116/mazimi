@@ -34,8 +34,8 @@ sudo apt-get install -y git
 서버 IP를 도메인에 연결한다. DNS 레코드 예시:
 
 ```
-A    majimi.kr        →  <서버 공인 IP>
-A    api.majimi.kr    →  <서버 공인 IP>
+A    mazimi.kr        →  <서버 공인 IP>
+A    api.mazimi.kr    →  <서버 공인 IP>
 ```
 
 ### 2-2. Caddyfile 설정
@@ -43,16 +43,16 @@ A    api.majimi.kr    →  <서버 공인 IP>
 `infra/caddy/Caddyfile` 파일을 도메인에 맞게 수정한다:
 
 ```caddyfile
-majimi.kr {
+mazimi.kr {
     reverse_proxy web:3000
     encode gzip
 }
 
-api.majimi.kr {
+api.mazimi.kr {
     reverse_proxy api:8080
     encode gzip
     header {
-        Access-Control-Allow-Origin "https://majimi.kr"
+        Access-Control-Allow-Origin "https://mazimi.kr"
     }
 }
 ```
@@ -71,8 +71,8 @@ Caddy는 Let's Encrypt ACME를 통해 HTTPS 인증서를 **자동 발급·갱신
 ssh ubuntu@<서버 IP>
 
 # 프로젝트 클론
-git clone https://github.com/<org>/majimi.git /opt/majimi
-cd /opt/majimi
+git clone https://github.com/<org>/mazimi.git /opt/mazimi
+cd /opt/mazimi
 ```
 
 ### 3-2. 환경변수 설정
@@ -86,7 +86,7 @@ nano .env
 ### 3-3. 최초 실행
 
 ```bash
-cd /opt/majimi
+cd /opt/mazimi
 
 # 이미지 빌드 + 전체 서비스 시작
 docker compose up -d --build
@@ -99,7 +99,7 @@ docker compose logs -f api
 ### 3-4. 업데이트 배포
 
 ```bash
-cd /opt/majimi
+cd /opt/mazimi
 git pull origin main
 docker compose up -d --build --no-deps api worker web
 ```
@@ -129,7 +129,7 @@ DB_PASSWORD=<강력한_비밀번호>
 JWT_SECRET=<최소_64자_랜덤_문자열>
 
 # NextAuth
-NEXTAUTH_URL=https://majimi.kr
+NEXTAUTH_URL=https://mazimi.kr
 NEXTAUTH_SECRET=<최소_32자_랜덤_문자열>
 
 # 카카오 OAuth
@@ -178,10 +178,10 @@ crontab -e
 crontab에 추가:
 
 ```
-0 3 * * * /opt/majimi/scripts/backup.sh >> /var/log/majimi-backup.log 2>&1
+0 3 * * * /opt/mazimi/scripts/backup.sh >> /var/log/mazimi-backup.log 2>&1
 ```
 
-백업 파일은 `/opt/majimi/backups/` 로컬 디렉토리 또는 S3에 저장된다.
+백업 파일은 `/opt/mazimi/backups/` 로컬 디렉토리 또는 S3에 저장된다.
 
 ---
 
@@ -193,14 +193,14 @@ API 서버는 `/health` 엔드포인트를 제공한다.
 
 ```bash
 # 수동 확인
-curl -f https://api.majimi.kr/health
+curl -f https://api.mazimi.kr/health
 ```
 
 ### 6-2. Docker 헬스체크 상태 확인
 
 ```bash
 docker compose ps          # STATUS 열에서 healthy 확인
-docker inspect majimi-api-1 | grep -A 10 Health
+docker inspect mazimi-api-1 | grep -A 10 Health
 ```
 
 ### 6-3. Uptime 모니터링 (무료 외부 서비스)
@@ -213,7 +213,7 @@ docker inspect majimi-api-1 | grep -A 10 Health
 설정 방법:
 1. 서비스 가입 후 "Add Monitor" 클릭
 2. Monitor Type: `HTTP(s)`
-3. URL: `https://api.majimi.kr/health`
+3. URL: `https://api.mazimi.kr/health`
 4. 알림: 이메일 또는 Slack 웹훅 입력
 
 ### 6-4. 로그 확인

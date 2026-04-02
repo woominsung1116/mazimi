@@ -1,4 +1,4 @@
-# Majimi 배포 가이드
+# Mazimi 배포 가이드
 
 전체 흐름: VPS 구매 → DNS 설정 → Docker 설치 → 코드 배포 → SSL 자동 발급
 
@@ -30,14 +30,14 @@ DNS 공급자(가비아, Cloudflare 등)에서 아래 레코드를 추가한다.
 
 | 유형 | 이름 | 값 | TTL |
 |------|------|----|-----|
-| A | `@` (또는 `majimi.kr`) | VPS IP | 300 |
+| A | `@` (또는 `mazimi.kr`) | VPS IP | 300 |
 | A | `www` | VPS IP | 300 |
 
 Cloudflare 사용 시 **Proxy(오렌지 구름)를 OFF** 하고 DNS-only(회색 구름)로 설정해야 Caddy가 Let's Encrypt TLS 챌린지를 처리할 수 있다.
 
 전파 확인:
 ```bash
-dig majimi.kr +short
+dig mazimi.kr +short
 # VPS IP가 반환되면 준비 완료
 ```
 
@@ -83,8 +83,8 @@ docker compose version
 
 ```bash
 # 프로젝트 클론
-git clone https://github.com/your-org/majimi.git /opt/majimi
-cd /opt/majimi
+git clone https://github.com/your-org/mazimi.git /opt/mazimi
+cd /opt/mazimi
 
 # 환경변수 파일 생성
 cp .env.production.example .env.production
@@ -95,7 +95,7 @@ nano .env.production   # 또는 vim
 
 | 변수 | 설명 | 예시 |
 |------|------|------|
-| `DOMAIN` | 실제 도메인 | `majimi.kr` |
+| `DOMAIN` | 실제 도메인 | `mazimi.kr` |
 | `DATABASE_URL` | PostgreSQL DSN | `postgres://wello:pw@db:5432/wello` |
 | `DB_PASSWORD` | PG 비밀번호 | openssl rand -base64 32 |
 | `REDIS_PASSWORD` | Redis 비밀번호 | openssl rand -base64 32 |
@@ -111,7 +111,7 @@ deploy.sh가 `CHANGE_ME` 플레이스홀더를 감지하면 자동으로 secrets
 ## 6. deploy.sh 실행
 
 ```bash
-cd /opt/majimi
+cd /opt/mazimi
 chmod +x scripts/deploy.sh scripts/backup.sh
 
 ./scripts/deploy.sh
@@ -140,10 +140,10 @@ Caddy는 HTTPS 첫 요청 시 Let's Encrypt에서 TLS 인증서를 자동 발급
 **확인 방법:**
 ```bash
 # Caddy 로그에서 인증서 발급 확인
-docker compose -f /opt/majimi/compose.yml logs caddy | grep -i "certificate"
+docker compose -f /opt/mazimi/compose.yml logs caddy | grep -i "certificate"
 
 # HTTPS 응답 확인
-curl -I https://majimi.kr
+curl -I https://mazimi.kr
 ```
 
 ---
@@ -154,20 +154,20 @@ curl -I https://majimi.kr
 ```bash
 make status
 # 또는
-docker compose -f /opt/majimi/compose.yml ps
+docker compose -f /opt/mazimi/compose.yml ps
 ```
 
 ### 로그 실시간 확인
 ```bash
 make logs
 # 특정 서비스만
-docker compose -f /opt/majimi/compose.yml logs -f api
-docker compose -f /opt/majimi/compose.yml logs -f web
+docker compose -f /opt/mazimi/compose.yml logs -f api
+docker compose -f /opt/mazimi/compose.yml logs -f web
 ```
 
 ### 헬스 엔드포인트
 ```bash
-curl https://majimi.kr/api/health
+curl https://mazimi.kr/api/health
 # {"status":"ok"}
 ```
 
@@ -185,7 +185,7 @@ docker stats
 crontab -e
 
 # 아래 줄 추가:
-0 3 * * * /opt/majimi/scripts/backup.sh >> /var/log/majimi-backup.log 2>&1
+0 3 * * * /opt/mazimi/scripts/backup.sh >> /var/log/mazimi-backup.log 2>&1
 ```
 
 수동 백업:
@@ -195,7 +195,7 @@ make backup
 ./scripts/backup.sh
 ```
 
-백업 파일 위치: `/opt/majimi/backups/wello_YYYYMMDD_HHMMSS.sql.gz`
+백업 파일 위치: `/opt/mazimi/backups/wello_YYYYMMDD_HHMMSS.sql.gz`
 
 ---
 
@@ -227,7 +227,7 @@ make backup
 ## 업데이트 배포 (코드 변경 후 재배포)
 
 ```bash
-cd /opt/majimi
+cd /opt/mazimi
 git pull origin main
 make deploy
 ```

@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     }),
   },
   radioItemSelected: {
-    borderColor: "rgba(0, 88, 188, 0.08)",
+    borderColor: "rgba(92, 177, 167, 0.08)",
   },
   radioItemPressed: {
     transform: [{ scale: 0.98 }],

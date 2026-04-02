@@ -37,9 +37,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { api, type ApiProgram, type ApplicationStatus } from "@/lib/api";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
+import { useAuthStore } from "@/store/auth";
+import { useVaultDocuments, type StoredDocument, type DocumentType } from "@/lib/vault";
 import {
   borderRadius,
   colors,
@@ -225,6 +226,58 @@ interface DocumentItem {
   issuer: string;
   daysNeeded: number;
   issueUrl?: string;
+}
+
+// ---------------------------------------------------------------------------
+// 보관함 연동 — StoredDocument, useVaultDocuments는 @/lib/vault에서 임포트
+// ---------------------------------------------------------------------------
+
+/**
+ * 서류 이름 → DocumentType 매핑 (우선 타입 기반 매칭)
+ */
+const DOC_NAME_TO_TYPE: Record<string, DocumentType[]> = {
+  "주민등록등본": ["resident_register"],
+  "주민등록초본": ["resident_register"],
+  "소득금액증명원": ["income_proof"],
+  "소득증명원": ["income_proof"],
+  "임대차계약서": ["family_relation"],
+  "통장": ["bank_statement"],
+  "재학증명서": ["enrollment_cert"],
+  "휴학증명서": ["leave_cert"],
+  "졸업증명서": ["graduation_cert"],
+  "건강보험자격득실확인서": ["health_insurance"],
+  "건강보험료납부확인서": ["health_insurance"],
+  "증명사진": ["other"],
+  "성적증명서": ["other"],
+};
+
+/**
+ * checklist 서류 이름이 보관함 서류와 매칭되는지 확인한다.
+ * 1차: DocumentType 기반 매칭 (정확도 높음)
+ * 2차: 이름 퍼지 매칭 (인식되지 않는 서류용)
+ * - 완전 포함: "주민등록등본" ⊂ "주민등록등본 (2025)"  → match
+ * - 역방향 포함: vault "재학증명서" ⊃ checklist "재학(휴학)증명서" 핵심어  → match
+ */
+function isDocInVault(docName: string, vaultDocs: StoredDocument[]): boolean {
+  if (vaultDocs.length === 0) return false;
+
+  const needle = docName.replace(/[()（）\s]/g, "").toLowerCase();
+
+  // 1차: DocumentType 기반 매칭
+  const matchedTypes = DOC_NAME_TO_TYPE[needle] ?? DOC_NAME_TO_TYPE[docName.trim()];
+  if (matchedTypes) {
+    return vaultDocs.some((v) => matchedTypes.includes(v.type));
+  }
+
+  // 2차: 이름 퍼지 매칭 (인식되지 않는 서류)
+  return vaultDocs.some((v) => {
+    const haystack = (v.name + " " + v.type).replace(/[()（）\s]/g, "").toLowerCase();
+    // 양방향 포함 검사
+    if (haystack.includes(needle) || needle.includes(haystack)) return true;
+    // 핵심어(3자 이상) 추출 후 단어 단위 교집합
+    const keywords = needle.match(/[가-힣a-z0-9]{3,}/g) ?? [];
+    return keywords.some((kw) => haystack.includes(kw));
+  });
 }
 
 const DEFAULT_DOCS: DocumentItem[] = [
@@ -483,10 +536,20 @@ interface Step2Props {
   checked: Record<string, boolean>;
   onToggle: (id: string) => void;
   onNext: () => void;
+  vaultDocs: StoredDocument[];
+  onOpenVault: () => void;
 }
 
-function Step2({ docs, checked, onToggle }: Step2Props) {
-  const readyCount = docs.filter((d) => checked[d.id]).length;
+function Step2({ docs, checked, onToggle, vaultDocs, onOpenVault }: Step2Props) {
+  // 보관함 매칭 결과 미리 계산
+  const vaultMatches = docs.reduce<Record<string, boolean>>((acc, doc) => {
+    acc[doc.id] = isDocInVault(doc.name, vaultDocs);
+    return acc;
+  }, {});
+
+  // 보관함 매칭 + 수동 체크 합산으로 준비 완료 수 계산
+  const readyCount = docs.filter((d) => checked[d.id] || vaultMatches[d.id]).length;
+  const vaultReadyCount = docs.filter((d) => vaultMatches[d.id]).length;
 
   return (
     <ScrollView
@@ -527,11 +590,31 @@ function Step2({ docs, checked, onToggle }: Step2Props) {
         />
       </View>
 
+      {/* 보관함 바로가기 버튼 */}
+      <TouchableOpacity
+        style={stepStyles.vaultShortcutBtn}
+        onPress={onOpenVault}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="서류 보관함 열기"
+      >
+        <Ionicons name="folder-open-outline" size={16} color={colors.primary} />
+        <Text style={stepStyles.vaultShortcutText}>서류 보관함 열기</Text>
+        {vaultReadyCount > 0 && (
+          <View style={stepStyles.vaultShortcutBadge}>
+            <Text style={stepStyles.vaultShortcutBadgeText}>{vaultReadyCount}개 보관 중</Text>
+          </View>
+        )}
+        <Ionicons name="chevron-forward" size={14} color={colors.primary} style={{ marginLeft: "auto" }} />
+      </TouchableOpacity>
+
       {/* Document rows */}
       <View style={stepStyles.sectionCard}>
         <Text style={stepStyles.sectionTitle}>필요 서류</Text>
         {docs.map((doc) => {
           const isChecked = !!checked[doc.id];
+          const inVault = vaultMatches[doc.id];
+          const isReady = isChecked || inVault;
           return (
             <View key={doc.id} style={stepStyles.docCard}>
               <TouchableOpacity
@@ -539,17 +622,17 @@ function Step2({ docs, checked, onToggle }: Step2Props) {
                 onPress={() => onToggle(doc.id)}
                 activeOpacity={0.8}
                 accessibilityRole="checkbox"
-                accessibilityState={{ checked: isChecked }}
+                accessibilityState={{ checked: isReady }}
                 accessibilityLabel={doc.name}
               >
-                <View style={[stepStyles.checkbox, isChecked && stepStyles.checkboxChecked]}>
-                  {isChecked && (
+                <View style={[stepStyles.checkbox, isReady && stepStyles.checkboxChecked]}>
+                  {isReady && (
                     <Ionicons name="checkmark" size={12} color={colors.onPrimary} />
                   )}
                 </View>
                 <View style={stepStyles.docInfo}>
                   <View style={stepStyles.docTitleRow}>
-                    <Text style={[stepStyles.docName, isChecked && stepStyles.docNameChecked]}>
+                    <Text style={[stepStyles.docName, isReady && stepStyles.docNameChecked]}>
                       {doc.name}
                     </Text>
                     <View
@@ -569,6 +652,17 @@ function Step2({ docs, checked, onToggle }: Step2Props) {
                         {doc.required ? "필수" : "선택"}
                       </Text>
                     </View>
+                    {/* 보관함 매칭 배지 */}
+                    {inVault ? (
+                      <View style={stepStyles.vaultBadge}>
+                        <Ionicons name="checkmark-circle" size={11} color="#16a34a" />
+                        <Text style={stepStyles.vaultBadgeText}>보관함에 있어요</Text>
+                      </View>
+                    ) : (
+                      <View style={stepStyles.needBadge}>
+                        <Text style={stepStyles.needBadgeText}>준비 필요</Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={stepStyles.docIssuer}>
                     {doc.issuer} · 약 {doc.daysNeeded}일 소요
@@ -577,7 +671,7 @@ function Step2({ docs, checked, onToggle }: Step2Props) {
               </TouchableOpacity>
 
               {/* Issue link for unprepared docs */}
-              {!isChecked && doc.issueUrl ? (
+              {!isReady && doc.issueUrl ? (
                 <View style={stepStyles.docIssueRow}>
                   <Ionicons
                     name="open-outline"
@@ -1307,6 +1401,63 @@ const stepStyles = StyleSheet.create({
     color: colors.primary,
   },
 
+  // 보관함 바로가기 버튼 (Step 2)
+  vaultShortcutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    backgroundColor: colors.primaryFixed,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+  },
+  vaultShortcutText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+    flex: 1,
+  },
+  vaultShortcutBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+  },
+  vaultShortcutBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.onPrimary,
+  },
+
+  // 보관함 매칭 배지 — 있어요
+  vaultBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#dcfce7",
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+  },
+  vaultBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: "#16a34a",
+  },
+
+  // 준비 필요 배지
+  needBadge: {
+    backgroundColor: "#fff7ed",
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+  },
+  needBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: "#d97706",
+  },
+
   // Info note row
   infoNote: {
     flexDirection: "row",
@@ -1404,6 +1555,7 @@ export default function ApplyAssistantScreen() {
   const { programId } = useLocalSearchParams<{ programId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const { visible: toastVisible, msg: toastMsg, fade: toastFade, show: showToast } = useToast();
 
@@ -1411,6 +1563,9 @@ export default function ApplyAssistantScreen() {
   const [docChecked, setDocChecked] = useState<Record<string, boolean>>(
     () => Object.fromEntries(DEFAULT_DOCS.map((d) => [d.id, false]))
   );
+
+  // 서류 보관함 연동
+  const vaultDocs = useVaultDocuments();
 
   // Onboarding store + server profile
   const localStore = useOnboardingStore();
@@ -1421,6 +1576,7 @@ export default function ApplyAssistantScreen() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
+    enabled: !!user,
   });
 
   const [editableProfile, setEditableProfile] = useState<MergedProfile | null>(null);
@@ -1451,7 +1607,7 @@ export default function ApplyAssistantScreen() {
   const { data: program, isLoading } = useQuery({
     queryKey: ["program", programId],
     queryFn: () => api.getProgram(programId!),
-    enabled: !!programId,
+    enabled: !!programId && !!user,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
@@ -1467,6 +1623,45 @@ export default function ApplyAssistantScreen() {
       });
     },
   });
+
+  if (!user) {
+    const headerTopPad = insets.top > 0 ? insets.top : spacing[5];
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.header, { paddingTop: headerTopPad }]}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="뒤로 가기"
+            >
+              <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>신청 도우미</Text>
+            </View>
+            <View style={styles.headerBackBtn} />
+          </View>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.onSurface, marginBottom: 8 }}>
+            로그인이 필요해요
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 24 }}>
+            신청 도우미를 사용하려면 로그인해주세요.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/login")}
+            style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>로그인하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   // Step 4 → Step 5: mark as "applying"
   function handleFillDone() {
@@ -1606,6 +1801,8 @@ export default function ApplyAssistantScreen() {
                 setDocChecked((prev) => ({ ...prev, [id]: !prev[id] }))
               }
               onNext={handleNext}
+              vaultDocs={vaultDocs}
+              onOpenVault={() => router.push("/document-vault")}
             />
           )}
           {step === 3 && (

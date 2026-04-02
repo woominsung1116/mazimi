@@ -95,7 +95,7 @@ const CATEGORIES: CategoryInfo[] = [
     key: "youth_policy",
     label: "청년정책",
     iconName: "business-outline",
-    color: "#2563eb",
+    color: "#5CB1A7",
     bgColor: "#dbeafe",
   },
   {

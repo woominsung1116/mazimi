@@ -33,7 +33,7 @@ import { colors, typography, borderRadius, layout, shadows } from "@/constants/t
 // Constants
 // ---------------------------------------------------------------------------
 
-const CACHE_KEY = "majimi_preview_cache_v2";
+const CACHE_KEY = "mazimi_preview_cache_v2";
 const COUNTER_DURATION_MS = 1800;
 
 // Breakdown category config — order matters for display

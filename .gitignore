@@ -5,6 +5,7 @@ target/
 # Build
 .next/
 out/
+dist/
 
 # Environment — never commit secrets
 .env
@@ -39,3 +40,6 @@ redisdata*/
 
 # Misc
 *.log
+**/.omc/
+**/.omx/
+apps/*/.expo/

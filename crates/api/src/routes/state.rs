@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
-use majimi_core::models::UserProgramState;
+use mazimi_core::models::UserProgramState;
 
 use crate::auth::AuthUser;
 

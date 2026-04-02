@@ -53,10 +53,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import Constants from "expo-constants";
 import { generateEncryptionKey, encryptFile } from "@/lib/crypto";
-// TODO: import { decryptFile } from "@/lib/crypto" and call it before opening
-// or sharing an encrypted document (doc.encrypted === true). Pass the same
-// userId used during encryption, call decryptFile(doc.fileUri, key) to get a
-// temp URI, open/share from there, then delete the temp file when done.
+import { VAULT_STORAGE_KEY } from "@/lib/vault";
 import {
   colors,
   typography,
@@ -71,7 +68,7 @@ import { useAuthStore } from "@/store/auth";
 // Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "document_vault_v1";
+// VAULT_STORAGE_KEY는 @/lib/vault의 VAULT_VAULT_STORAGE_KEY로 통합됨
 
 /** Days after issuedAt before we show "갱신 필요" */
 const RENEWAL_THRESHOLD_DAYS = 90;
@@ -132,8 +129,8 @@ const DOC_TYPE_CONFIG: Record<DocumentType, DocTypeConfig> = {
     label: "주민등록등본",
     shortLabel: "등본",
     iconText: "ID",
-    accentColor: "#0058bc",
-    backgroundColor: "#d8e2ff",
+    accentColor: "#5CB1A7",
+    backgroundColor: "#D0EDE9",
     issuerLabel: "정부24",
     issuerUrl: "https://www.gov.kr/mw/AA020InfoCappView.do?HighCtgCD=A01001&CappBizCD=13100000015",
   },
@@ -186,8 +183,8 @@ const DOC_TYPE_CONFIG: Record<DocumentType, DocTypeConfig> = {
     label: "가족관계증명서",
     shortLabel: "가족",
     iconText: "FAM",
-    accentColor: "#0058bc",
-    backgroundColor: "#d8e2ff",
+    accentColor: "#5CB1A7",
+    backgroundColor: "#D0EDE9",
     issuerLabel: "정부24",
     issuerUrl: "https://www.gov.kr",
   },
@@ -351,7 +348,7 @@ function getMatchedBenefits(docs: StoredDocument[]): BenefitMatch[] {
 
 async function loadDocuments(): Promise<StoredDocument[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await AsyncStorage.getItem(VAULT_STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as StoredDocument[];
   } catch {
@@ -360,7 +357,7 @@ async function loadDocuments(): Promise<StoredDocument[]> {
 }
 
 async function saveDocuments(docs: StoredDocument[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+  await AsyncStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(docs));
 }
 
 /**
@@ -1472,17 +1469,19 @@ const emptyStyles = StyleSheet.create({
 export default function DocumentVaultScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Load from AsyncStorage on mount
   useEffect(() => {
+    if (!user) return;
     loadDocuments().then((docs) => {
       setDocuments(docs);
       setIsLoading(false);
     });
-  }, []);
+  }, [user]);
 
   const handleAdd = useCallback(async (doc: StoredDocument) => {
     setDocuments((prev) => {
@@ -1515,6 +1514,44 @@ export default function DocumentVaultScreen() {
   }).length;
 
   const bottomPad = Math.max(insets.bottom, spacing[4]) + spacing[10];
+
+  if (!user) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top : spacing[5] }]}>
+          <View style={styles.headerInner}>
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="뒤로 가기"
+            >
+              <Text style={styles.headerBackArrow}>←</Text>
+            </TouchableOpacity>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.headerTitle}>서류 보관함</Text>
+            </View>
+            <View style={styles.headerBackBtn} />
+          </View>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.onSurface, marginBottom: 8 }}>
+            로그인이 필요해요
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginBottom: 24 }}>
+            서류 보관함을 사용하려면 로그인해주세요.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/login")}
+            style={{ backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>로그인하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>

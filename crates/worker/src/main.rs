@@ -7,7 +7,7 @@ use sqlx::postgres::PgPoolOptions;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing_subscriber::EnvFilter;
 
-use majimi_core::AppConfig;
+use mazimi_core::AppConfig;
 
 use crate::notifications::NotificationDispatcher;
 use crate::sources::dreamspon::DreamsponSource;
@@ -15,7 +15,6 @@ use crate::sources::financial::FssFinancialSource;
 use crate::sources::gov_benefits::GovBenefitsSource;
 use crate::sources::local_scraper::LocalScraperSource;
 use crate::sources::scholarship::ScholarshipSource;
-use crate::sources::worknet::WorknetSource;
 use crate::sources::youth_center::YouthCenterSource;
 
 #[tokio::main]
@@ -87,18 +86,6 @@ async fn main() -> anyhow::Result<()> {
                         }
                         Err(e) => {
                             tracing::warn!(source = "gov_benefits", error = %e, "source skipped (env not set)");
-                        }
-                    }
-
-                    // 고용24(워크넷) 청년 채용/인턴십
-                    match WorknetSource::from_env() {
-                        Ok(src) => {
-                            if let Err(e) = pipeline::run_ingestion(&pool, &src).await {
-                                tracing::error!(source = "worknet", error = %e, "ingestion failed");
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!(source = "worknet", error = %e, "source skipped (env not set)");
                         }
                     }
 
