@@ -86,7 +86,7 @@ jobs:
           restore-keys: rust-test-
 
       - name: cargo test --workspace
-        run: cargo test --workspace
+        run: cargo test --workspace -- --test-threads=1
         env:
           DATABASE_URL: postgres://wello:wello@localhost:5432/wello
           REDIS_URL: redis://localhost:6379

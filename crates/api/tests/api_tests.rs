@@ -46,9 +46,9 @@ async fn health_returns_200_ok() {
         .await
         .expect("request failed");
 
-    assert_eq!(resp.status(), 200);
-
+    let status = resp.status().as_u16();
     let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(status, 200, "health check failed: {body}");
     assert_eq!(body["status"], "ok");
 }
 
