@@ -303,17 +303,10 @@ pub async fn kakao_callback(
     );
 
     let callback_uri = if let Some(ref uri) = query.redirect_uri {
-        // Validate host against allowlist (parse "//host:port/path" after scheme)
-        let host_part = uri
-            .split("://")
-            .nth(1)
-            .unwrap_or("")
-            .split('/')
-            .next()
-            .unwrap_or("")
-            .split(':')
-            .next()
-            .unwrap_or("");
+        // Validate host against allowlist
+        let after_scheme = uri.split_once("://").map(|(_, rest)| rest).unwrap_or("");
+        let host_port = after_scheme.split('/').next().unwrap_or("");
+        let host_part = host_port.split(':').next().unwrap_or("");
         let allowed = host_part == "localhost"
             || host_part == "127.0.0.1"
             || host_part == callback_host.as_str();

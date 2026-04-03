@@ -205,6 +205,12 @@
       "type": "directory"
     },
     {
+      "path": "crates/api/src/routes/auth.rs",
+      "accessCount": 4,
+      "lastAccessed": 1775178896989,
+      "type": "file"
+    },
+    {
       "path": "apps/mobile/app/preview.tsx",
       "accessCount": 3,
       "lastAccessed": 1775130571289,
@@ -283,6 +289,12 @@
       "type": "file"
     },
     {
+      "path": "crates/worker/src/sources/local_scraper.rs",
+      "accessCount": 2,
+      "lastAccessed": 1775178987861,
+      "type": "file"
+    },
+    {
       "path": "apps/mobile/app/(tabs)/explore.tsx",
       "accessCount": 1,
       "lastAccessed": 1775130067140,
@@ -358,6 +370,18 @@
       "path": "crates/core/src",
       "accessCount": 1,
       "lastAccessed": 1775178428113,
+      "type": "directory"
+    },
+    {
+      "path": "crates/worker/src/pipeline.rs",
+      "accessCount": 1,
+      "lastAccessed": 1775178904923,
+      "type": "directory"
+    },
+    {
+      "path": "crates",
+      "accessCount": 1,
+      "lastAccessed": 1775178912532,
       "type": "directory"
     }
   ],

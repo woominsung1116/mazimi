@@ -229,7 +229,7 @@ async fn process_record(
     .bind(&norm.summary) // $6  summary
     .bind(&norm.provider_name) // $7  provider_name
     .bind(&norm.official_url) // $8  official_url
-    .bind(&program_status) // $9  program_status
+    .bind(program_status) // $9  program_status
     .bind(norm.application_start_at) // $10 application_start_at
     .bind(norm.application_end_at) // $11 application_end_at
     .bind(norm.min_age) // $12 min_age

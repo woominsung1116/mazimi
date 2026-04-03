@@ -443,9 +443,8 @@ fn extract_href(
 /// Extract scheme + host from a URL string (e.g. "https://example.com").
 fn extract_origin(url: &str) -> Option<String> {
     // Naive split — avoids pulling in url crate as a dependency.
-    let after_scheme = url.splitn(2, "://").nth(1)?;
-    let host_and_rest = after_scheme.splitn(2, '/').next()?;
-    let scheme = url.splitn(2, "://").next()?;
+    let (scheme, after_scheme) = url.split_once("://")?;
+    let host_and_rest = after_scheme.split('/').next()?;
     Some(format!("{}://{}", scheme, host_and_rest))
 }
 

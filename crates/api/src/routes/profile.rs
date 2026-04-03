@@ -74,7 +74,7 @@ pub async fn save_profile(
     .bind(input.is_multicultural_family.unwrap_or(false))
     .bind(input.is_low_income_household.unwrap_or(false))
     .bind(input.veteran_family.unwrap_or(false))
-    .bind(&input.preferred_categories.clone().unwrap_or_default())
+    .bind(input.preferred_categories.clone().unwrap_or_default())
     .bind(&input.school_type)
     .bind(&input.age_band)
     .execute(&pool)

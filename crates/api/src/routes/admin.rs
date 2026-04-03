@@ -160,34 +160,31 @@ pub async fn create_program(
         .application_start_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| {
+        .and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
-        })
-        .flatten();
+        });
 
     let application_end_at = input
         .application_end_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| {
+        .and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
-        })
-        .flatten();
+        });
 
     let deadline_at = input
         .deadline_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| {
+        .and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
-        })
-        .flatten();
+        });
 
     let program = sqlx::query_as::<_, Program>(
         r#"
@@ -211,7 +208,7 @@ pub async fn create_program(
     .bind(&input.summary)
     .bind(&input.provider_name)
     .bind(&input.official_url)
-    .bind(&program_status)
+    .bind(program_status)
     .bind(application_start_at)
     .bind(application_end_at)
     .bind(input.benefit_amount_monthly)
@@ -284,36 +281,33 @@ pub async fn update_program(
         .application_start_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| {
+        .and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         })
-        .flatten()
         .or(existing.application_start_at);
 
     let application_end_at = input
         .application_end_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| {
+        .and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         })
-        .flatten()
         .or(existing.application_end_at);
 
     let deadline_at = input
         .deadline_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| {
+        .and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         })
-        .flatten()
         .or(existing.deadline_at);
 
     let program = sqlx::query_as::<_, Program>(
@@ -334,7 +328,7 @@ pub async fn update_program(
     .bind(&summary)
     .bind(&provider_name)
     .bind(&official_url)
-    .bind(&program_status)
+    .bind(program_status)
     .bind(application_start_at)
     .bind(application_end_at)
     .bind(benefit_amount_monthly)

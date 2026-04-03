@@ -637,7 +637,7 @@ mod tests {
         let eval = evaluate(&profile, &rule);
         let program = make_program();
         let score = compute_final_score(&eval, &program);
-        assert!(score >= 0.0 && score <= 100.0, "score={score}");
+        assert!((0.0..=100.0).contains(&score), "score={score}");
     }
 
     #[test]
