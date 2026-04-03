@@ -301,6 +301,12 @@
       "type": "file"
     },
     {
+      "path": "crates/api/src/routes/health.rs",
+      "accessCount": 2,
+      "lastAccessed": 1775180669746,
+      "type": "directory"
+    },
+    {
       "path": "apps/mobile/app/(tabs)/explore.tsx",
       "accessCount": 1,
       "lastAccessed": 1775130067140,
