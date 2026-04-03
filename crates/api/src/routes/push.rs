@@ -29,7 +29,10 @@ pub async fn register_push_token(
 
     const VALID_PLATFORMS: &[&str] = &["ios", "android", "web"];
     if !VALID_PLATFORMS.contains(&body.platform.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, Json(json!({ "error": "Invalid platform" }))));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Invalid platform" })),
+        ));
     }
 
     let err_internal = |msg: String| {

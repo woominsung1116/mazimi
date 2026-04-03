@@ -102,26 +102,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: ESLint
-        run: pnpm lint
+        run: npx next lint
 
       - name: TypeScript typecheck
-        run: pnpm exec tsc --noEmit
+        run: npx tsc --noEmit
 
   build-docker:
     name: Build Docker images

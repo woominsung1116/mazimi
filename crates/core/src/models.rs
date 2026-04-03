@@ -386,6 +386,8 @@ mod tests {
             age_band: None,
             profile_version: 1,
             updated_at: fixed_now(),
+            nickname: None,
+            profile_image_url: None,
         };
         assert_eq!(profile.profile_version, 1);
         assert_eq!(profile.region_code, Some("busan".to_string()));

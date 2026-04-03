@@ -127,18 +127,16 @@ pub async fn list_alerts(
         )
     })?;
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM alert_deliveries WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM alert_deliveries WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("DB error: {e}") })),
+            )
+        })?;
 
     Ok(Json(json!({
         "total": total,

@@ -108,7 +108,10 @@ impl DataSource for DreamsponSource {
 
             let items = response.list.unwrap_or_default();
             if items.is_empty() {
-                info!(source = self.name(), page, "empty list — stopping pagination");
+                info!(
+                    source = self.name(),
+                    page, "empty list — stopping pagination"
+                );
                 break;
             }
 
@@ -146,7 +149,11 @@ impl DataSource for DreamsponSource {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
-        info!(source = self.name(), total = records.len(), "fetch complete");
+        info!(
+            source = self.name(),
+            total = records.len(),
+            "fetch complete"
+        );
         Ok(records)
     }
 }

@@ -18,7 +18,8 @@ impl AppConfig {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()?,
             database_url: std::env::var("DATABASE_URL")?,
-            redis_url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+            redis_url: std::env::var("REDIS_URL")
+                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
             jwt_secret: std::env::var("JWT_SECRET")?,
         })
     }
@@ -47,14 +48,13 @@ impl WorkerApiKeys {
         // for sources that do not have their own dedicated env var.
         let gov_key = std::env::var("GOV_API_KEY").unwrap_or_default();
 
-        let gov_benefits_api_key = std::env::var("GOV_BENEFITS_API_KEY")
-            .unwrap_or_else(|_| gov_key.clone());
+        let gov_benefits_api_key =
+            std::env::var("GOV_BENEFITS_API_KEY").unwrap_or_else(|_| gov_key.clone());
 
-        let youth_center_api_key = std::env::var("YOUTH_CENTER_API_KEY")
-            .unwrap_or_else(|_| gov_key.clone());
+        let youth_center_api_key =
+            std::env::var("YOUTH_CENTER_API_KEY").unwrap_or_else(|_| gov_key.clone());
 
-        let kosaf_api_key = std::env::var("KOSAF_API_KEY")
-            .unwrap_or_else(|_| gov_key.clone());
+        let kosaf_api_key = std::env::var("KOSAF_API_KEY").unwrap_or_else(|_| gov_key.clone());
 
         let fss_api_key = std::env::var("FSS_API_KEY").unwrap_or_default();
 

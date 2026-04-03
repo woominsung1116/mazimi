@@ -181,10 +181,7 @@ async fn run_for_type(
 
 /// `AlertCandidate`로부터 `NotificationPayload`를 조립한다.
 /// 카카오 템플릿 변수와 FCM 본문을 동시에 구성한다.
-fn build_payload(
-    c: &AlertCandidate,
-    days_left: i64,
-) -> NotificationPayload {
+fn build_payload(c: &AlertCandidate, days_left: i64) -> NotificationPayload {
     // 카카오 템플릿 코드: DEADLINE_D7 / DEADLINE_D3 / DEADLINE_D1
     let template_code = format!("DEADLINE_D{}", days_left);
 

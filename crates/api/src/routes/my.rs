@@ -1,12 +1,8 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use crate::auth::AuthUser;
+use axum::{extract::State, http::StatusCode, Json};
+use mazimi_core::models::Program;
 use serde_json::{json, Value};
 use sqlx::PgPool;
-use mazimi_core::models::Program;
-use crate::auth::AuthUser;
 
 /// GET /api/v1/my/saved
 /// Returns bookmarked programs for the authenticated user (JWT-based).

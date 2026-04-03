@@ -34,8 +34,7 @@ impl GovBenefitsSource {
     }
 
     pub fn from_env() -> Result<Self> {
-        let key = std::env::var("GOV_BENEFITS_API_KEY")
-            .context("GOV_BENEFITS_API_KEY not set")?;
+        let key = std::env::var("GOV_BENEFITS_API_KEY").context("GOV_BENEFITS_API_KEY not set")?;
         Ok(Self::new(key))
     }
 
@@ -57,8 +56,12 @@ impl GovBenefitsSource {
             .await
             .context("gov_benefits: failed to read response body")?;
 
-        serde_json::from_str::<GovApiResponse>(&text)
-            .with_context(|| format!("gov_benefits: JSON parse failed. body={}", &text[..text.len().min(300)]))
+        serde_json::from_str::<GovApiResponse>(&text).with_context(|| {
+            format!(
+                "gov_benefits: JSON parse failed. body={}",
+                &text[..text.len().min(300)]
+            )
+        })
     }
 }
 
@@ -108,7 +111,11 @@ impl DataSource for GovBenefitsSource {
             page += 1;
         }
 
-        info!(source = self.name(), total = records.len(), "fetch complete");
+        info!(
+            source = self.name(),
+            total = records.len(),
+            "fetch complete"
+        );
         Ok(records)
     }
 }

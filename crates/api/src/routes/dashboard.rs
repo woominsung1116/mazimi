@@ -1,12 +1,8 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
+use mazimi_core::models::Program;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
-use mazimi_core::models::Program;
 
 use crate::auth::AuthUser;
 
@@ -26,13 +22,12 @@ pub async fn get_dashboard(
     };
 
     // Bookmarked count
-    let bookmarked_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_bookmarks WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(db_err)?;
+    let bookmarked_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM user_bookmarks WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(db_err)?;
 
     // Applying count (states: applying, applied, waiting)
     let applying_count: i64 = sqlx::query_scalar(

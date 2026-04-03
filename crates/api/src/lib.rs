@@ -47,11 +47,19 @@ impl axum::extract::FromRef<AppState> for JwtSecret {
 }
 
 pub fn build_app(pool: PgPool, jwt_secret: String) -> Router {
-    build_app_with_env(pool, jwt_secret, std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()))
+    build_app_with_env(
+        pool,
+        jwt_secret,
+        std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()),
+    )
 }
 
 pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> Router {
-    let state = AppState { pool, jwt_secret, app_env };
+    let state = AppState {
+        pool,
+        jwt_secret,
+        app_env,
+    };
 
     // ── Rate limiter configs ──
     //
@@ -94,23 +102,38 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
     // ── Auth routes: strict limit (5/min per IP) ──
     let auth_routes = Router::new()
         .route("/api/v1/auth/kakao", post(routes::auth::kakao_login))
-        .route("/api/v1/auth/kakao/callback", get(routes::auth::kakao_callback))
+        .route(
+            "/api/v1/auth/kakao/callback",
+            get(routes::auth::kakao_callback),
+        )
         .route("/api/v1/auth/refresh", post(routes::auth::refresh))
         .layer(GovernorLayer::new(Arc::clone(&auth_governor_conf)));
 
     // ── Admin routes: moderate limit (30/min per IP) + JWT auth ──
     // Role enforcement (admin-only) is done inside each handler via AdminUser extractor.
     let admin_routes = Router::new()
-        .route("/api/v1/admin/programs", get(routes::admin::list_admin_programs))
-        .route("/api/v1/admin/programs", post(routes::admin::create_program))
-        .route("/api/v1/admin/programs/{id}", put(routes::admin::update_program))
+        .route(
+            "/api/v1/admin/programs",
+            get(routes::admin::list_admin_programs),
+        )
+        .route(
+            "/api/v1/admin/programs",
+            post(routes::admin::create_program),
+        )
+        .route(
+            "/api/v1/admin/programs/{id}",
+            put(routes::admin::update_program),
+        )
         .route(
             "/api/v1/admin/programs/{id}/publish",
             post(routes::admin::toggle_publish),
         )
         .route("/api/v1/admin/stats", get(routes::admin::get_stats))
         .route("/api/v1/admin/sync", post(routes::admin::trigger_sync))
-        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(GovernorLayer::new(Arc::clone(&admin_governor_conf)));
 
     // ── General public routes: relaxed limit (100/min per IP) ──
@@ -119,7 +142,10 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
         .route("/api/v1/health", get(routes::health::health_detail))
         .route("/api/v1/programs", get(routes::programs::list_programs))
         .route("/api/v1/programs/{id}", get(routes::programs::get_program))
-        .route("/api/v1/recommend/preview", post(routes::recommend::preview))
+        .route(
+            "/api/v1/recommend/preview",
+            post(routes::recommend::preview),
+        )
         .layer(GovernorLayer::new(Arc::clone(&api_governor_conf)));
 
     // ── Protected routes: general limit (100/min per IP) + JWT auth ──
@@ -127,11 +153,16 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
         .route("/api/v1/auth/me", get(routes::auth::me))
         .route(
             "/api/v1/push/register",
-            post(routes::push::register_push_token)
-                .delete(routes::push::unregister_push_token),
+            post(routes::push::register_push_token).delete(routes::push::unregister_push_token),
         )
-        .route("/api/v1/profile", post(routes::profile::save_profile).get(routes::profile::get_my_profile))
-        .route("/api/v1/profile/{user_id}", get(routes::profile::get_profile))
+        .route(
+            "/api/v1/profile",
+            post(routes::profile::save_profile).get(routes::profile::get_my_profile),
+        )
+        .route(
+            "/api/v1/profile/{user_id}",
+            get(routes::profile::get_profile),
+        )
         .route(
             "/api/v1/programs/{program_id}/bookmark",
             post(routes::bookmark::toggle_bookmark),
@@ -155,7 +186,10 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
             put(routes::alerts::update_notification_preferences),
         )
         .route("/api/v1/my/saved", get(routes::my::get_saved))
-        .route("/api/v1/my/applications", get(routes::state::list_applications))
+        .route(
+            "/api/v1/my/applications",
+            get(routes::state::list_applications),
+        )
         .route(
             "/api/v1/my/applications/{program_id}",
             get(routes::state::get_application),
@@ -164,7 +198,10 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
             "/api/v1/my/applications/{program_id}",
             put(routes::state::update_application),
         )
-        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(GovernorLayer::new(Arc::clone(&api_governor_conf)));
 
     Router::new()
@@ -251,8 +288,8 @@ async fn auth_middleware(
         return Err(unauthorized("Token type must be 'access'"));
     }
 
-    let user_id = uuid::Uuid::parse_str(&claims.sub)
-        .map_err(|_| unauthorized("Malformed token subject"))?;
+    let user_id =
+        uuid::Uuid::parse_str(&claims.sub).map_err(|_| unauthorized("Malformed token subject"))?;
 
     let auth_user = auth::AuthUser {
         id: user_id,
@@ -293,10 +330,7 @@ async fn auth_middleware(
 //   - Strict-Transport-Security             — HSTS for HTTPS deployments
 //   - X-Powered-By is removed if present    — hides implementation details
 
-async fn security_headers_middleware(
-    req: Request<axum::body::Body>,
-    next: Next,
-) -> Response {
+async fn security_headers_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
 
@@ -304,10 +338,7 @@ async fn security_headers_middleware(
         "x-content-type-options",
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert(
-        "x-frame-options",
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
     // max-age=63072000 = 2 years; includeSubDomains covers all subdomains
     headers.insert(
         "strict-transport-security",

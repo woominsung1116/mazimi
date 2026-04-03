@@ -232,10 +232,7 @@ impl ExpoPushClient {
     /// 반환: `(ok_count, error_ticket_ids)`
     // TODO: wire up in a scheduled job once receipt-checking is needed
     #[allow(dead_code)]
-    pub async fn check_receipts(
-        &self,
-        ticket_ids: &[String],
-    ) -> Result<(usize, Vec<String>)> {
+    pub async fn check_receipts(&self, ticket_ids: &[String]) -> Result<(usize, Vec<String>)> {
         if ticket_ids.is_empty() {
             return Ok((0, vec![]));
         }

@@ -96,10 +96,7 @@ impl DataSource for ScholarshipSource {
             for item in items {
                 // Use 상품명 + 운영기관명 combo as a stable source ID since
                 // the API does not expose a numeric code.
-                let name = item
-                    .get("상품명")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let name = item.get("상품명").and_then(|v| v.as_str()).unwrap_or("");
                 let org = item
                     .get("운영기관명")
                     .and_then(|v| v.as_str())
@@ -125,7 +122,11 @@ impl DataSource for ScholarshipSource {
             page += 1;
         }
 
-        info!(source = self.name(), total = records.len(), "fetch complete");
+        info!(
+            source = self.name(),
+            total = records.len(),
+            "fetch complete"
+        );
         Ok(records)
     }
 }

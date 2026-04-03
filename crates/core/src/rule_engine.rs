@@ -117,11 +117,20 @@ pub struct RuleEvalResult {
 fn extract_field(profile: &UserProfile, field: &str) -> Option<Value> {
     match field {
         "birth_year" => profile.birth_year.map(Value::from),
-        "region_code" | "region" => profile.region_code.as_ref().map(|v| Value::from(v.as_str())),
+        "region_code" | "region" => profile
+            .region_code
+            .as_ref()
+            .map(|v| Value::from(v.as_str())),
         "city_code" => profile.city_code.as_ref().map(|v| Value::from(v.as_str())),
-        "school_name" => profile.school_name.as_ref().map(|v| Value::from(v.as_str())),
+        "school_name" => profile
+            .school_name
+            .as_ref()
+            .map(|v| Value::from(v.as_str())),
         "school_year" => profile.school_year.map(Value::from),
-        "school_type" => profile.school_type.as_ref().map(|v| Value::from(v.as_str())),
+        "school_type" => profile
+            .school_type
+            .as_ref()
+            .map(|v| Value::from(v.as_str())),
         "enrollment_status" => profile
             .enrollment_status
             .as_ref()
@@ -130,10 +139,16 @@ fn extract_field(profile: &UserProfile, field: &str) -> Option<Value> {
             .employment_status
             .as_ref()
             .map(|v| Value::from(v.as_str())),
-        "major_group" => profile.major_group.as_ref().map(|v| Value::from(v.as_str())),
+        "major_group" => profile
+            .major_group
+            .as_ref()
+            .map(|v| Value::from(v.as_str())),
         "income_bracket" => profile.income_bracket.map(Value::from),
         "kosaf_support_bracket" => profile.kosaf_support_bracket.map(Value::from),
-        "housing_type" => profile.housing_type.as_ref().map(|v| Value::from(v.as_str())),
+        "housing_type" => profile
+            .housing_type
+            .as_ref()
+            .map(|v| Value::from(v.as_str())),
         "household_size" => profile.household_size.map(Value::from),
         "age_band" => profile.age_band.as_ref().map(|v| Value::from(v.as_str())),
         "has_disability" => Some(Value::Bool(profile.has_disability)),
@@ -215,15 +230,9 @@ fn explain_unknown(field: &str) -> String {
         "income_bracket" | "kosaf_support_bracket" => {
             "소득 구간 정보가 필요합니다 (입력 시 더 정확한 추천이 가능해요)".to_string()
         }
-        "enrollment_status" => {
-            "재학 여부를 입력하면 더 정확한 추천이 가능해요".to_string()
-        }
-        "employment_status" => {
-            "취업 상태를 입력하면 더 정확한 추천이 가능해요".to_string()
-        }
-        "region_code" | "region" => {
-            "거주 지역 정보가 필요합니다".to_string()
-        }
+        "enrollment_status" => "재학 여부를 입력하면 더 정확한 추천이 가능해요".to_string(),
+        "employment_status" => "취업 상태를 입력하면 더 정확한 추천이 가능해요".to_string(),
+        "region_code" | "region" => "거주 지역 정보가 필요합니다".to_string(),
         "birth_year" => "생년 정보가 필요합니다".to_string(),
         "school_type" => "학교 유형을 입력하면 더 정확한 추천이 가능해요".to_string(),
         "major_group" => "전공 계열을 입력하면 더 정확한 추천이 가능해요".to_string(),
@@ -457,7 +466,7 @@ pub fn compute_final_score(rule_result: &RuleEvalResult, program: &Program) -> f
     //    If the program is region-specific it is more targeted → higher priority.
     let region_score: f64 = match &program.regions {
         Some(regions) if !regions.is_empty() => 10.0, // region-targeted
-        _ => 5.0,                                      // nationwide
+        _ => 5.0,                                     // nationwide
     };
 
     // ⑤ 유저 선호 카테고리 (0–10) — placeholder until preference engine is built
@@ -507,6 +516,8 @@ mod tests {
             age_band: None,
             profile_version: 1,
             updated_at: Utc::now(),
+            nickname: None,
+            profile_image_url: None,
         }
     }
 

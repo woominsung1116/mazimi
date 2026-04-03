@@ -3,19 +3,16 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use mazimi_core::models::Program;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
-use mazimi_core::models::Program;
 
 use crate::auth::AdminUser;
 
 /// POST /api/v1/admin/sync
-pub async fn trigger_sync(
-    _admin: AdminUser,
-    State(pool): State<PgPool>,
-) -> Json<Value> {
+pub async fn trigger_sync(_admin: AdminUser, State(pool): State<PgPool>) -> Json<Value> {
     tokio::spawn(async move {
         tracing::info!("manual sync triggered via admin API");
 
@@ -163,21 +160,33 @@ pub async fn create_program(
         .application_start_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&chrono::Utc)))
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        })
         .flatten();
 
     let application_end_at = input
         .application_end_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&chrono::Utc)))
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        })
         .flatten();
 
     let deadline_at = input
         .deadline_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&chrono::Utc)))
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        })
         .flatten();
 
     let program = sqlx::query_as::<_, Program>(
@@ -259,8 +268,12 @@ pub async fn update_program(
     let provider_name = input.provider_name.or(existing.provider_name);
     let official_url = input.official_url.or(existing.official_url);
     let program_status = input.program_status.unwrap_or(existing.program_status);
-    let benefit_amount_monthly = input.benefit_amount_monthly.or(existing.benefit_amount_monthly);
-    let benefit_amount_semester = input.benefit_amount_semester.or(existing.benefit_amount_semester);
+    let benefit_amount_monthly = input
+        .benefit_amount_monthly
+        .or(existing.benefit_amount_monthly);
+    let benefit_amount_semester = input
+        .benefit_amount_semester
+        .or(existing.benefit_amount_semester);
     let benefit_amount_once = input.benefit_amount_once.or(existing.benefit_amount_once);
     let min_age = input.min_age.or(existing.min_age);
     let max_age = input.max_age.or(existing.max_age);
@@ -271,7 +284,11 @@ pub async fn update_program(
         .application_start_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&chrono::Utc)))
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        })
         .flatten()
         .or(existing.application_start_at);
 
@@ -279,7 +296,11 @@ pub async fn update_program(
         .application_end_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&chrono::Utc)))
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        })
         .flatten()
         .or(existing.application_end_at);
 
@@ -287,7 +308,11 @@ pub async fn update_program(
         .deadline_at
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map(|s| chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&chrono::Utc)))
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .ok()
+                .map(|d| d.with_timezone(&chrono::Utc))
+        })
         .flatten()
         .or(existing.deadline_at);
 

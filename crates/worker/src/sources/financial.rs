@@ -85,11 +85,7 @@ impl FssFinancialSource {
         }
     }
 
-    async fn fetch_kind_page(
-        &self,
-        kind: FssProductKind,
-        page: u32,
-    ) -> Result<FssApiResponse> {
+    async fn fetch_kind_page(&self, kind: FssProductKind, page: u32) -> Result<FssApiResponse> {
         let url = kind.base_url();
         let text = self
             .client
@@ -98,17 +94,32 @@ impl FssFinancialSource {
                 ("auth", self.api_key.as_str()),
                 ("pageNo", &page.to_string()),
                 ("numOfRows", &PAGE_SIZE.to_string()),
-                ("financeCd", ""),  // empty = all institution types
+                ("financeCd", ""),         // empty = all institution types
                 ("topFinGrpNo", "020000"), // 은행권 (banks)
             ])
             .send()
             .await
-            .with_context(|| format!("fss_financial: HTTP request failed for {:?}", kind.source_prefix()))?
+            .with_context(|| {
+                format!(
+                    "fss_financial: HTTP request failed for {:?}",
+                    kind.source_prefix()
+                )
+            })?
             .error_for_status()
-            .with_context(|| format!("fss_financial: non-2xx response for {:?}", kind.source_prefix()))?
+            .with_context(|| {
+                format!(
+                    "fss_financial: non-2xx response for {:?}",
+                    kind.source_prefix()
+                )
+            })?
             .text()
             .await
-            .with_context(|| format!("fss_financial: failed to read response body for {:?}", kind.source_prefix()))?;
+            .with_context(|| {
+                format!(
+                    "fss_financial: failed to read response body for {:?}",
+                    kind.source_prefix()
+                )
+            })?;
 
         serde_json::from_str::<FssApiResponse>(&text).with_context(|| {
             format!(
@@ -135,10 +146,8 @@ impl FssFinancialSource {
 
             let resp = self.fetch_kind_page(kind, page).await?;
 
-            let products: Vec<FssBaseProduct> = resp
-                .result
-                .and_then(|r| r.baseList)
-                .unwrap_or_default();
+            let products: Vec<FssBaseProduct> =
+                resp.result.and_then(|r| r.baseList).unwrap_or_default();
 
             if products.is_empty() {
                 warn!(
@@ -206,7 +215,11 @@ impl DataSource for FssFinancialSource {
     async fn fetch_all(&self) -> Result<Vec<RawRecord>> {
         let mut all = Vec::new();
 
-        for kind in [FssProductKind::Deposit, FssProductKind::Saving, FssProductKind::Loan] {
+        for kind in [
+            FssProductKind::Deposit,
+            FssProductKind::Saving,
+            FssProductKind::Loan,
+        ] {
             match self.fetch_kind_all(kind).await {
                 Ok(mut records) => {
                     info!(
@@ -305,7 +318,10 @@ pub fn normalize_financial(payload: &Value) -> NormalizedProgram {
     let kind_tag = payload["_fss_kind"].as_str().unwrap_or("금융상품");
 
     let institution = payload["kor_co_nm"].as_str().unwrap_or("").to_string();
-    let product_name = payload["fin_prdt_nm"].as_str().unwrap_or("Unknown").to_string();
+    let product_name = payload["fin_prdt_nm"]
+        .as_str()
+        .unwrap_or("Unknown")
+        .to_string();
 
     // Title: "은행명 - 상품명 (종류)"
     let title = if institution.is_empty() {
@@ -328,9 +344,7 @@ pub fn normalize_financial(payload: &Value) -> NormalizedProgram {
     };
 
     // FSS product page URL is not returned by the API; use the portal URL.
-    let official_url: Option<String> = Some(
-        "https://finlife.fss.or.kr/main/main.do".to_string(),
-    );
+    let official_url: Option<String> = Some("https://finlife.fss.or.kr/main/main.do".to_string());
 
     // dcls_strt_day / dcls_end_day are "YYYYMMDD" strings.
     let application_start_at = parse_fss_date(payload["dcls_strt_day"].as_str());
@@ -375,11 +389,9 @@ fn parse_fss_date(s: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
         .collect();
 
     match parts.as_slice() {
-        [y, m, d] if *y >= 2000 && *y <= 2100 => {
-            chrono::NaiveDate::from_ymd_opt(*y as i32, *m, *d)
-                .and_then(|nd| nd.and_hms_opt(0, 0, 0))
-                .map(|dt| dt.and_utc())
-        }
+        [y, m, d] if *y >= 2000 && *y <= 2100 => chrono::NaiveDate::from_ymd_opt(*y as i32, *m, *d)
+            .and_then(|nd| nd.and_hms_opt(0, 0, 0))
+            .map(|dt| dt.and_utc()),
         _ => None,
     }
 }

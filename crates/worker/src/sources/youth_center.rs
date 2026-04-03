@@ -35,8 +35,7 @@ impl YouthCenterSource {
     }
 
     pub fn from_env() -> Result<Self> {
-        let key = std::env::var("YOUTH_CENTER_API_KEY")
-            .context("YOUTH_CENTER_API_KEY not set")?;
+        let key = std::env::var("YOUTH_CENTER_API_KEY").context("YOUTH_CENTER_API_KEY not set")?;
         Ok(Self::new(key))
     }
 
@@ -58,13 +57,12 @@ impl YouthCenterSource {
             .await
             .context("youth_center: failed to read response body")?;
 
-        xml_from_str::<YouthCenterRoot>(&text)
-            .with_context(|| {
-                format!(
-                    "youth_center: XML parse failed. body={}",
-                    &text[..text.len().min(500)]
-                )
-            })
+        xml_from_str::<YouthCenterRoot>(&text).with_context(|| {
+            format!(
+                "youth_center: XML parse failed. body={}",
+                &text[..text.len().min(500)]
+            )
+        })
     }
 }
 
@@ -120,7 +118,11 @@ impl DataSource for YouthCenterSource {
             page += 1;
         }
 
-        info!(source = self.name(), total = records.len(), "fetch complete");
+        info!(
+            source = self.name(),
+            total = records.len(),
+            "fetch complete"
+        );
         Ok(records)
     }
 }

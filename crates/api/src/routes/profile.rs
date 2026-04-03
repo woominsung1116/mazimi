@@ -3,10 +3,10 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use mazimi_core::models::{ProfileInput, UserProfile};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
-use mazimi_core::models::{ProfileInput, UserProfile};
 
 use crate::auth::AuthUser;
 
@@ -87,16 +87,17 @@ pub async fn save_profile(
     })?;
 
     // Fetch back the saved profile
-    let profile = sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("Failed to fetch profile: {e}") })),
-            )
-        })?;
+    let profile =
+        sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("Failed to fetch profile: {e}") })),
+                )
+            })?;
 
     Ok(Json(json!({
         "user_id": user_id,
@@ -113,16 +114,17 @@ pub async fn get_my_profile(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
 
-    let profile = sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+    let profile =
+        sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("DB error: {e}") })),
+                )
+            })?;
 
     match profile {
         Some(p) => Ok(Json(json!({
@@ -153,16 +155,17 @@ pub async fn get_profile(
         ));
     }
 
-    let profile = sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+    let profile =
+        sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("DB error: {e}") })),
+                )
+            })?;
 
     match profile {
         Some(p) => Ok(Json(json!({

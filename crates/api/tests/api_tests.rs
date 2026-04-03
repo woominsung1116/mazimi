@@ -63,7 +63,10 @@ async fn list_programs_returns_list() {
     assert_eq!(resp.status(), 200);
 
     let body: Value = resp.json().await.expect("invalid json");
-    assert!(body["total"].is_number(), "response must have 'total' field");
+    assert!(
+        body["total"].is_number(),
+        "response must have 'total' field"
+    );
     assert!(body["items"].is_array(), "response must have 'items' array");
 }
 

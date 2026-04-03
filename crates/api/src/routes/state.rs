@@ -4,12 +4,12 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
+use mazimi_core::models::UserProgramState;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
-use mazimi_core::models::UserProgramState;
 
 use crate::auth::AuthUser;
 

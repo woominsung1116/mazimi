@@ -23,7 +23,9 @@ pub async fn preview(
     if input.birth_year < 1920 || input.birth_year > current_year {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": format!("birth_year must be between 1920 and {}", current_year) })),
+            Json(
+                json!({ "error": format!("birth_year must be between 1920 and {}", current_year) }),
+            ),
         ));
     }
 
@@ -87,9 +89,7 @@ pub async fn preview(
     for prog in &programs {
         // ── Region filter (hard) ──
         let region_match = match &prog.regions {
-            Some(regions) if !regions.is_empty() => {
-                regions.iter().any(|r| r == &input.region_code)
-            }
+            Some(regions) if !regions.is_empty() => regions.iter().any(|r| r == &input.region_code),
             _ => true, // nationwide
         };
         if !region_match {
@@ -121,10 +121,7 @@ pub async fn preview(
                         );
                         // Parse failed — fall through to inline scoring.
                         let (score, reasons, missing) = inline_score(prog, &input, user_age);
-                        items.push((
-                            score as f64,
-                            build_item(prog, score, reasons, missing),
-                        ));
+                        items.push((score as f64, build_item(prog, score, reasons, missing)));
                         continue;
                     }
                 };
@@ -335,4 +332,3 @@ fn explain_missing(field: &str) -> String {
         other => format!("{} 확인 필요", other),
     }
 }
-

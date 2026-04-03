@@ -16,9 +16,7 @@ async fn main() -> anyhow::Result<()> {
         .connect(&config.database_url)
         .await?;
 
-    sqlx::migrate!("../../infra/migrations")
-        .run(&pool)
-        .await?;
+    sqlx::migrate!("../../infra/migrations").run(&pool).await?;
 
     tracing::info!("DB connected and migrations applied");
 
@@ -28,7 +26,11 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("API server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

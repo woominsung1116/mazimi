@@ -174,10 +174,7 @@ async fn process_record(
     let norm = normalize(source_name, &record.source_id, &record.payload);
 
     // 4. Compute program_status from application dates
-    let program_status = compute_program_status(
-        norm.application_start_at,
-        norm.application_end_at,
-    );
+    let program_status = compute_program_status(norm.application_start_at, norm.application_end_at);
 
     // 5. Upsert into programs table.
     //    search_tsv is built from title + summary + provider_name using the
@@ -224,21 +221,21 @@ async fn process_record(
              updated_at           = now() \
          RETURNING id",
     )
-    .bind(Uuid::new_v4())            // $1  id
-    .bind(&norm.program_type)        // $2  program_type
-    .bind(source_name)               // $3  source_type
-    .bind(&record.source_id)         // $4  source_id
-    .bind(&norm.title)               // $5  title
-    .bind(&norm.summary)             // $6  summary
-    .bind(&norm.provider_name)       // $7  provider_name
-    .bind(&norm.official_url)        // $8  official_url
-    .bind(&program_status)           // $9  program_status
+    .bind(Uuid::new_v4()) // $1  id
+    .bind(&norm.program_type) // $2  program_type
+    .bind(source_name) // $3  source_type
+    .bind(&record.source_id) // $4  source_id
+    .bind(&norm.title) // $5  title
+    .bind(&norm.summary) // $6  summary
+    .bind(&norm.provider_name) // $7  provider_name
+    .bind(&norm.official_url) // $8  official_url
+    .bind(&program_status) // $9  program_status
     .bind(norm.application_start_at) // $10 application_start_at
-    .bind(norm.application_end_at)   // $11 application_end_at
-    .bind(norm.min_age)              // $12 min_age
-    .bind(norm.max_age)              // $13 max_age
-    .bind(&norm.regions)             // $14 regions  (Vec<String> → text[])
-    .bind(&record.payload)           // $15 raw_payload
+    .bind(norm.application_end_at) // $11 application_end_at
+    .bind(norm.min_age) // $12 min_age
+    .bind(norm.max_age) // $13 max_age
+    .bind(&norm.regions) // $14 regions  (Vec<String> → text[])
+    .bind(&record.payload) // $15 raw_payload
     .bind(serde_json::to_value(&norm).ok()) // $16 normalized_payload
     .fetch_one(pool)
     .await?;
@@ -293,10 +290,7 @@ fn normalize(
         "fss_financial" => crate::sources::financial::normalize_financial(payload),
         _ => NormalizedProgram {
             program_type: "benefit".into(),
-            title: payload["title"]
-                .as_str()
-                .unwrap_or("Unknown")
-                .to_string(),
+            title: payload["title"].as_str().unwrap_or("Unknown").to_string(),
             summary: None,
             provider_name: None,
             official_url: None,
@@ -310,10 +304,7 @@ fn normalize(
 }
 
 fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
-    let title = p["polyBizSjnm"]
-        .as_str()
-        .unwrap_or("Unknown")
-        .to_string();
+    let title = p["polyBizSjnm"].as_str().unwrap_or("Unknown").to_string();
 
     // Prefer sporCn (지원 내용) over polyItcnCn for the summary since it is
     // more concise; fall back to polyItcnCn if sporCn is absent.
@@ -372,10 +363,7 @@ fn normalize_gov_benefits(p: &serde_json::Value) -> NormalizedProgram {
     let official_url = p["상세조회URL"].as_str().map(|s| s.to_string());
 
     // 지원대상 and 서비스분야 used to infer program_type
-    let program_type = infer_gov_program_type(
-        p["지원대상"].as_str(),
-        p["서비스분야"].as_str(),
-    );
+    let program_type = infer_gov_program_type(p["지원대상"].as_str(), p["서비스분야"].as_str());
 
     NormalizedProgram {
         program_type,
@@ -454,9 +442,7 @@ fn normalize_local_scraper(p: &serde_json::Value) -> NormalizedProgram {
     let regions = region.map(|r| vec![r]).unwrap_or_default();
 
     // Best-effort deadline parsing from free-form Korean/mixed text.
-    let end = p["deadline_text"]
-        .as_str()
-        .and_then(parse_scraper_deadline);
+    let end = p["deadline_text"].as_str().and_then(parse_scraper_deadline);
 
     // Heuristic program_type from title keywords.
     let program_type = infer_scraper_program_type(title.as_str());
@@ -501,11 +487,9 @@ fn parse_scraper_deadline(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         .collect();
 
     match parts.as_slice() {
-        [y, m, d] if *y >= 2000 && *y <= 2100 => {
-            chrono::NaiveDate::from_ymd_opt(*y as i32, *m, *d)
-                .and_then(|nd| nd.and_hms_opt(23, 59, 59))
-                .map(|dt| dt.and_utc())
-        }
+        [y, m, d] if *y >= 2000 && *y <= 2100 => chrono::NaiveDate::from_ymd_opt(*y as i32, *m, *d)
+            .and_then(|nd| nd.and_hms_opt(23, 59, 59))
+            .map(|dt| dt.and_utc()),
         _ => None,
     }
 }
@@ -515,9 +499,14 @@ fn infer_scraper_program_type(title: &str) -> String {
     let t = title.to_lowercase();
     if t.contains("장학") || t.contains("학자금") || t.contains("scholarship") {
         "scholarship".into()
-    } else if t.contains("주거") || t.contains("임대") || t.contains("전세") || t.contains("청년주택") {
+    } else if t.contains("주거")
+        || t.contains("임대")
+        || t.contains("전세")
+        || t.contains("청년주택")
+    {
         "housing".into()
-    } else if t.contains("취업") || t.contains("창업") || t.contains("인턴") || t.contains("고용") {
+    } else if t.contains("취업") || t.contains("창업") || t.contains("인턴") || t.contains("고용")
+    {
         "employment".into()
     } else {
         "benefit".into()
@@ -526,18 +515,15 @@ fn infer_scraper_program_type(title: &str) -> String {
 
 /// Crude heuristic: inspect target/theme text to assign program_type.
 fn infer_gov_program_type(target: Option<&str>, theme: Option<&str>) -> String {
-    let combined = format!(
-        "{} {}",
-        target.unwrap_or(""),
-        theme.unwrap_or("")
-    )
-    .to_lowercase();
+    let combined = format!("{} {}", target.unwrap_or(""), theme.unwrap_or("")).to_lowercase();
 
     if combined.contains("장학") || combined.contains("학자금") {
         "scholarship".into()
-    } else if combined.contains("주거") || combined.contains("임대") || combined.contains("전세") {
+    } else if combined.contains("주거") || combined.contains("임대") || combined.contains("전세")
+    {
         "housing".into()
-    } else if combined.contains("취업") || combined.contains("창업") || combined.contains("고용") {
+    } else if combined.contains("취업") || combined.contains("창업") || combined.contains("고용")
+    {
         "employment".into()
     } else {
         "benefit".into()

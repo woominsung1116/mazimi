@@ -133,12 +133,7 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let unauthorized = |msg: &str| {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": msg })),
-            )
-        };
+        let unauthorized = |msg: &str| (StatusCode::UNAUTHORIZED, Json(json!({ "error": msg })));
 
         let auth_header = parts
             .headers
@@ -157,8 +152,8 @@ impl FromRequestParts<AppState> for AuthUser {
             return Err(unauthorized("Token type must be 'access'"));
         }
 
-        let user_id = Uuid::parse_str(&claims.sub)
-            .map_err(|_| unauthorized("Malformed token subject"))?;
+        let user_id =
+            Uuid::parse_str(&claims.sub).map_err(|_| unauthorized("Malformed token subject"))?;
 
         Ok(AuthUser {
             id: user_id,

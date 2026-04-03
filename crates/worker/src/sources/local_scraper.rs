@@ -144,9 +144,7 @@ impl LocalScraperSource {
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             // Politely identify ourselves; some portals reject the default reqwest UA.
-            .user_agent(
-                "Mozilla/5.0 (compatible; Mazimi-Bot/1.0; +https://mazimi.kr/bot)",
-            )
+            .user_agent("Mozilla/5.0 (compatible; Mazimi-Bot/1.0; +https://mazimi.kr/bot)")
             .build()
             .unwrap_or_default();
         Self { client }
@@ -247,11 +245,7 @@ impl LocalScraperSource {
 
             // Build a stable source_id from name + title slug so re-runs can
             // detect unchanged items via content hash comparison.
-            let source_id = format!(
-                "{}::{}",
-                src.name,
-                slug(&title)
-            );
+            let source_id = format!("{}::{}", src.name, slug(&title));
 
             let payload = json!({
                 "source_portal": src.name,
@@ -307,11 +301,7 @@ impl LocalScraperSource {
             {
                 Ok(resp) => {
                     if !resp.status().is_success() {
-                        last_err = anyhow!(
-                            "HTTP {} for {}",
-                            resp.status(),
-                            src.url
-                        );
+                        last_err = anyhow!("HTTP {} for {}", resp.status(), src.url);
                         warn!(
                             source = src.name,
                             attempt,
@@ -462,7 +452,13 @@ fn extract_origin(url: &str) -> Option<String> {
 /// Convert a title into a short ASCII-ish slug for use in source_id.
 fn slug(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .take(80)
         .collect::<String>()
         .trim_matches('_')

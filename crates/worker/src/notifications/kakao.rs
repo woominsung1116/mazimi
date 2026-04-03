@@ -58,12 +58,11 @@ impl KakaoClient {
     /// 환경변수에서 클라이언트를 초기화한다.
     /// `KAKAO_BIZ_API_KEY` 또는 `KAKAO_BIZ_SENDER_KEY`가 없으면 `Err` 반환.
     pub fn from_env() -> Result<Self> {
-        let api_key = std::env::var("KAKAO_BIZ_API_KEY")
-            .context("KAKAO_BIZ_API_KEY not set")?;
-        let sender_key = std::env::var("KAKAO_BIZ_SENDER_KEY")
-            .context("KAKAO_BIZ_SENDER_KEY not set")?;
-        let api_url = std::env::var("KAKAO_BIZ_API_URL")
-            .unwrap_or_else(|_| DEFAULT_API_URL.to_string());
+        let api_key = std::env::var("KAKAO_BIZ_API_KEY").context("KAKAO_BIZ_API_KEY not set")?;
+        let sender_key =
+            std::env::var("KAKAO_BIZ_SENDER_KEY").context("KAKAO_BIZ_SENDER_KEY not set")?;
+        let api_url =
+            std::env::var("KAKAO_BIZ_API_URL").unwrap_or_else(|_| DEFAULT_API_URL.to_string());
 
         let http = Client::builder()
             .timeout(Duration::from_secs(10))
@@ -86,10 +85,7 @@ impl KakaoClient {
             .as_deref()
             .context("phone number required for kakao alimtalk")?;
 
-        let url = format!(
-            "{}/v2/sender/{}/message",
-            self.api_url, self.sender_key
-        );
+        let url = format!("{}/v2/sender/{}/message", self.api_url, self.sender_key);
 
         let body = AlimtalkRequest {
             template_code: &payload.template_code,
@@ -125,11 +121,7 @@ impl KakaoClient {
         tracing::debug!(status = %status, body = %raw, "kakao alimtalk raw response");
 
         if !status.is_success() {
-            anyhow::bail!(
-                "kakao alimtalk HTTP error: status={}, body={}",
-                status,
-                raw
-            );
+            anyhow::bail!("kakao alimtalk HTTP error: status={}, body={}", status, raw);
         }
 
         let parsed: AlimtalkResponse =

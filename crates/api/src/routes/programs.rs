@@ -3,11 +3,11 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use mazimi_core::models::Program;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
-use mazimi_core::models::Program;
 
 // ── Query parameters ────────────────────────────────────────────────────────
 
@@ -129,9 +129,7 @@ pub async fn list_programs(
 
     // FTS condition — always $1 when present
     if has_fts {
-        conditions.push(
-            "search_tsv @@ plainto_tsquery('simple', $1)".to_string(),
-        );
+        conditions.push("search_tsv @@ plainto_tsquery('simple', $1)".to_string());
     }
 
     // category → program_type
@@ -271,7 +269,16 @@ pub async fn get_program(
     })?;
 
     // Fetch eligibility rules (latest version first)
-    let eligibility_rules = sqlx::query_as::<_, (Uuid, serde_json::Value, Option<serde_json::Value>, Option<serde_json::Value>, i32)>(
+    let eligibility_rules = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            serde_json::Value,
+            Option<serde_json::Value>,
+            Option<serde_json::Value>,
+            i32,
+        ),
+    >(
         "SELECT id, rule_json, hard_filter_json, explain_json, version \
          FROM eligibility_rules \
          WHERE program_id = $1 \
@@ -282,35 +289,40 @@ pub async fn get_program(
     .await
     .map_err(db_error)?
     .into_iter()
-    .map(|(eid, rule_json, hard_filter_json, explain_json, version)| EligibilityRule {
-        id: eid,
-        rule_json,
-        hard_filter_json,
-        explain_json,
-        version,
-    })
+    .map(
+        |(eid, rule_json, hard_filter_json, explain_json, version)| EligibilityRule {
+            id: eid,
+            rule_json,
+            hard_filter_json,
+            explain_json,
+            version,
+        },
+    )
     .collect::<Vec<_>>();
 
     // Fetch required documents ordered by sort_order
-    let required_documents = sqlx::query_as::<_, (Uuid, String, Option<String>, Option<bool>, Option<i32>)>(
-        "SELECT id, document_name, description, is_required, sort_order \
+    let required_documents =
+        sqlx::query_as::<_, (Uuid, String, Option<String>, Option<bool>, Option<i32>)>(
+            "SELECT id, document_name, description, is_required, sort_order \
          FROM program_documents \
          WHERE program_id = $1 \
          ORDER BY sort_order ASC, document_name ASC",
-    )
-    .bind(id)
-    .fetch_all(&pool)
-    .await
-    .map_err(db_error)?
-    .into_iter()
-    .map(|(did, document_name, description, is_required, sort_order)| ProgramDocument {
-        id: did,
-        document_name,
-        description,
-        is_required,
-        sort_order,
-    })
-    .collect::<Vec<_>>();
+        )
+        .bind(id)
+        .fetch_all(&pool)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(
+            |(did, document_name, description, is_required, sort_order)| ProgramDocument {
+                id: did,
+                document_name,
+                description,
+                is_required,
+                sort_order,
+            },
+        )
+        .collect::<Vec<_>>();
 
     Ok(Json(ProgramDetail {
         program,
