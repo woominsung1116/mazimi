@@ -14,6 +14,11 @@ async fn start_test_server() -> String {
         .await
         .expect("Failed to connect to test database");
 
+    sqlx::migrate!("../../infra/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+
     let app = api::build_app(pool, "test-secret".to_string());
 
     let listener = TcpListener::bind("127.0.0.1:0")

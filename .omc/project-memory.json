@@ -295,6 +295,12 @@
       "type": "file"
     },
     {
+      "path": "crates/api/tests/api_tests.rs",
+      "accessCount": 2,
+      "lastAccessed": 1775179402034,
+      "type": "file"
+    },
+    {
       "path": "apps/mobile/app/(tabs)/explore.tsx",
       "accessCount": 1,
       "lastAccessed": 1775130067140,
