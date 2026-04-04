@@ -28,7 +28,7 @@ export default function BenefitAmount({
   };
 
   return (
-    <span className={`font-bold text-blue-600 ${sizeClasses[size]}`}>
+    <span className={`font-bold text-teal-600 ${sizeClasses[size]}`}>
       {unit} {formatAmount(amount)}원
     </span>
   );

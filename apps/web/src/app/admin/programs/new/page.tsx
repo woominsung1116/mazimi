@@ -90,13 +90,13 @@ export default function NewProgramPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">제목 *</label>
           <input name="title" value={form.title} onChange={handleChange} required
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">유형 *</label>
           <select name="program_type" value={form.program_type} onChange={handleChange}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
             {PROGRAM_TYPES.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
@@ -104,36 +104,36 @@ export default function NewProgramPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">요약</label>
           <textarea name="summary" value={form.summary ?? ""} onChange={handleChange} rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">제공 기관</label>
           <input name="provider_name" value={form.provider_name ?? ""} onChange={handleChange}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">공식 URL</label>
           <input name="official_url" value={form.official_url ?? ""} onChange={handleChange} type="url"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">월 지원금 (원)</label>
             <input name="benefit_amount_monthly" type="number" value={form.benefit_amount_monthly ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">학기 지원금 (원)</label>
             <input name="benefit_amount_semester" type="number" value={form.benefit_amount_semester ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">일시 지원금 (원)</label>
             <input name="benefit_amount_once" type="number" value={form.benefit_amount_once ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
         </div>
 
@@ -141,12 +141,12 @@ export default function NewProgramPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">최소 나이</label>
             <input name="min_age" type="number" value={form.min_age ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">최대 나이</label>
             <input name="max_age" type="number" value={form.max_age ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
         </div>
 
@@ -157,8 +157,8 @@ export default function NewProgramPage() {
               <button type="button" key={r} onClick={() => handleRegionToggle(r)}
                 className={`px-3 py-1 rounded-full text-sm border transition-colors ${
                   form.regions?.includes(r)
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                    ? "bg-teal-600 text-white border-teal-600"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-teal-400"
                 }`}>
                 {r}
               </button>
@@ -169,25 +169,25 @@ export default function NewProgramPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">마감일</label>
           <input name="deadline_at" type="datetime-local" value={form.deadline_at ?? ""} onChange={handleChange}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">신청 시작일</label>
             <input name="application_start_at" type="datetime-local" value={form.application_start_at ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">신청 종료일</label>
             <input name="application_end_at" type="datetime-local" value={form.application_end_at ?? ""} onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <input type="checkbox" name="is_active" id="is_active" checked={form.is_active ?? false} onChange={handleChange}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+            className="w-4 h-4 text-teal-600 rounded border-gray-300 focus:ring-teal-500" />
           <label htmlFor="is_active" className="text-sm font-medium text-gray-700">즉시 활성화</label>
         </div>
 
@@ -197,7 +197,7 @@ export default function NewProgramPage() {
             취소
           </button>
           <button type="submit" disabled={submitting}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="flex-1 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors">
             {submitting ? "등록 중..." : "등록"}
           </button>
         </div>

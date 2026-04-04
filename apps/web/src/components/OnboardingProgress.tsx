@@ -21,16 +21,16 @@ export default function OnboardingProgress({
             {i > 0 && (
               <div
                 className={`h-0.5 w-8 ${
-                  isCompleted ? "bg-blue-600" : "bg-gray-200"
+                  isCompleted ? "bg-teal-600" : "bg-gray-200"
                 }`}
               />
             )}
             <div
               className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
                 isActive
-                  ? "bg-blue-600 text-white"
+                  ? "bg-teal-600 text-white"
                   : isCompleted
-                    ? "bg-blue-600 text-white"
+                    ? "bg-teal-600 text-white"
                     : "bg-gray-200 text-gray-400"
               }`}
             >

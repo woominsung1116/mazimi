@@ -9,7 +9,7 @@ const NAV_ITEMS = [
     label: "홈",
     icon: (active: boolean) => (
       <svg
-        className={`h-6 w-6 ${active ? "text-blue-600" : "text-gray-400"}`}
+        className={`h-6 w-6 ${active ? "text-teal-600" : "text-gray-400"}`}
         fill={active ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -29,7 +29,7 @@ const NAV_ITEMS = [
     label: "추천",
     icon: (active: boolean) => (
       <svg
-        className={`h-6 w-6 ${active ? "text-blue-600" : "text-gray-400"}`}
+        className={`h-6 w-6 ${active ? "text-teal-600" : "text-gray-400"}`}
         fill={active ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -49,7 +49,7 @@ const NAV_ITEMS = [
     label: "대시보드",
     icon: (active: boolean) => (
       <svg
-        className={`h-6 w-6 ${active ? "text-blue-600" : "text-gray-400"}`}
+        className={`h-6 w-6 ${active ? "text-teal-600" : "text-gray-400"}`}
         fill={active ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -69,7 +69,7 @@ const NAV_ITEMS = [
     label: "알림",
     icon: (active: boolean) => (
       <svg
-        className={`h-6 w-6 ${active ? "text-blue-600" : "text-gray-400"}`}
+        className={`h-6 w-6 ${active ? "text-teal-600" : "text-gray-400"}`}
         fill={active ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -89,7 +89,7 @@ const NAV_ITEMS = [
     label: "설정",
     icon: (active: boolean) => (
       <svg
-        className={`h-6 w-6 ${active ? "text-blue-600" : "text-gray-400"}`}
+        className={`h-6 w-6 ${active ? "text-teal-600" : "text-gray-400"}`}
         fill={active ? "currentColor" : "none"}
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -133,14 +133,14 @@ export default function BottomNav() {
               href={href}
               aria-label={label}
               aria-current={active ? "page" : undefined}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
-                active ? "text-blue-600" : "text-gray-400 hover:text-gray-600"
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset ${
+                active ? "text-teal-600" : "text-gray-400 hover:text-gray-600"
               }`}
             >
               {icon(active)}
               <span
                 className={`text-[10px] font-medium leading-none ${
-                  active ? "text-blue-600" : "text-gray-400"
+                  active ? "text-teal-600" : "text-gray-400"
                 }`}
               >
                 {label}

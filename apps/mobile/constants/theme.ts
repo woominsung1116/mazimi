@@ -336,7 +336,7 @@ function makeShadow(
 export const shadows = {
   none: {} as ShadowStyle,
 
-  /** Subtle card shadow — tinted blue */
+  /** Subtle card shadow — tinted warm stone */
   card: makeShadow("#C9BFB3", 0.05, 16, 1, 4),
 
   /** Standard card with a bit more depth */

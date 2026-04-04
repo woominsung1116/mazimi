@@ -62,7 +62,7 @@ export default function AdminProgramsPage() {
         </h1>
         <Link
           href="/admin/programs/new"
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors"
         >
           프로그램 추가
         </Link>
@@ -75,12 +75,12 @@ export default function AdminProgramsPage() {
           placeholder="제목 또는 기관명 검색..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
         />
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
         >
           {PROGRAM_TYPES.map((t) => (
             <option key={t}>{t}</option>
@@ -89,7 +89,7 @@ export default function AdminProgramsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
         >
           {STATUS_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>
@@ -176,7 +176,7 @@ export default function AdminProgramsPage() {
                     <td className="px-4 py-3">
                       <Link
                         href={`/admin/programs/${p.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        className="text-teal-600 hover:text-teal-800 text-sm font-medium"
                       >
                         편집
                       </Link>

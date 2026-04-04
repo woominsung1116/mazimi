@@ -34,7 +34,7 @@ export default function OnboardingStep1() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center px-4">
         <div className="text-center space-y-4">
-          <div className="text-4xl font-bold text-blue-600">
+          <div className="text-4xl font-bold text-teal-600">
             주변 혜택 발견!
           </div>
           <p className="text-gray-500">맞춤 정보를 불러오고 있어요...</p>
@@ -70,7 +70,7 @@ export default function OnboardingStep1() {
                 aria-pressed={region === r}
                 className={`rounded-xl border-2 px-6 min-h-20 text-lg font-semibold transition-colors ${
                   region === r
-                    ? "border-blue-600 bg-blue-50 text-blue-600"
+                    ? "border-teal-600 bg-teal-50 text-teal-600"
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                 }`}
               >
@@ -88,7 +88,7 @@ export default function OnboardingStep1() {
           <select
             value={birthYear || ""}
             onChange={(e) => setBirthYear(Number(e.target.value))}
-            className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3.5 text-base text-gray-900 focus:border-blue-600 focus:outline-none transition-colors appearance-none"
+            className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3.5 text-base text-gray-900 focus:border-teal-600 focus:outline-none transition-colors appearance-none"
           >
             <option value="" disabled>
               출생연도를 선택하세요
@@ -109,7 +109,7 @@ export default function OnboardingStep1() {
           aria-label="다음 단계로 이동"
           className={`w-full rounded-xl px-6 py-4 text-lg font-semibold transition-colors ${
             canProceed
-              ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+              ? "bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
               : "bg-gray-200 text-gray-400 cursor-not-allowed"
           }`}
         >

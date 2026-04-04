@@ -54,7 +54,7 @@ export default function ProgramsPage() {
               onClick={() => setTypeFilter(t)}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
                 typeFilter === t
-                  ? "bg-blue-600 text-white"
+                  ? "bg-teal-600 text-white"
                   : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
               }`}
             >
@@ -72,7 +72,7 @@ export default function ProgramsPage() {
               onClick={() => setRegionFilter(r)}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
                 regionFilter === r
-                  ? "bg-blue-600 text-white"
+                  ? "bg-teal-600 text-white"
                   : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300"
               }`}
             >
@@ -84,7 +84,7 @@ export default function ProgramsPage() {
         {/* List */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="h-8 w-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : programs.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm border border-gray-100">
@@ -115,7 +115,7 @@ export default function ProgramsPage() {
                 <p className="text-sm text-gray-500 mt-0.5 mb-2">
                   {program.provider_name}
                 </p>
-                <p className="text-sm font-medium text-blue-600">
+                <p className="text-sm font-medium text-teal-600">
                   {formatBenefit(program)}
                 </p>
               </Link>

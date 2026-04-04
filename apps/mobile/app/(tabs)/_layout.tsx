@@ -210,7 +210,7 @@ function IconProfile({ focused }: IconProps) {
 
 // ---------------------------------------------------------------------------
 // Tab icon wrapper — applies the active pill background per Stitch spec
-// Active:   bg-blue-50 text-blue-700 rounded-full px-5 py-2
+// Active:   bg-teal-50 text-teal-700 rounded-full px-5 py-2
 // Inactive: text-slate-400 px-5 py-2
 // ---------------------------------------------------------------------------
 
@@ -302,7 +302,7 @@ export default function TabLayout() {
         },
         headerTintColor: colors.onSurface,
         headerTitleStyle: {
-          // text-2xl font-extrabold text-blue-600 font-headline
+          // text-2xl font-extrabold text-teal-600 font-headline
           fontWeight: typography.fontWeight.extrabold,
           fontSize: typography.fontSize["2xl"],
           color: colors.primary,

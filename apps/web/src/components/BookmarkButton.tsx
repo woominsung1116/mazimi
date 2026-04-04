@@ -37,8 +37,8 @@ export default function BookmarkButton({
       aria-label={bookmarked ? "북마크 해제" : "북마크"}
       className={`p-2 rounded-full transition-colors ${
         bookmarked
-          ? "text-blue-600 bg-blue-50"
-          : "text-gray-400 hover:text-blue-500 hover:bg-blue-50"
+          ? "text-teal-600 bg-teal-50"
+          : "text-gray-400 hover:text-teal-500 hover:bg-teal-50"
       } disabled:opacity-50`}
     >
       <svg

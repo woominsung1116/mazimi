@@ -18,7 +18,7 @@ const STEPS: { value: ApplicationStatus; label: string }[] = [
 
 const STEP_ACTIVE_COLORS: Record<ApplicationStatus, string> = {
   interested: "bg-gray-500",
-  planning: "bg-blue-600",
+  planning: "bg-teal-600",
   applying: "bg-yellow-500",
   applied: "bg-green-600",
   waiting: "bg-orange-500",

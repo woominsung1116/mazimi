@@ -45,7 +45,7 @@ export default function AdminDashboard() {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors"
         >
           {syncing ? (
             <>
@@ -59,7 +59,7 @@ export default function AdminDashboard() {
       </div>
 
       {syncMessage && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700">
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-4 py-3 text-sm text-teal-700">
           {syncMessage}
         </div>
       )}
@@ -77,7 +77,7 @@ export default function AdminDashboard() {
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             <p className="text-sm text-gray-500">활성 프로그램</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">
+            <p className="text-2xl font-bold text-teal-600 mt-1">
               {stats.active_programs.toLocaleString()}
             </p>
           </div>
@@ -104,7 +104,7 @@ export default function AdminDashboard() {
             </h2>
             <Link
               href="/admin/programs"
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              className="text-sm text-teal-600 hover:text-teal-800 font-medium"
             >
               전체 보기
             </Link>
@@ -133,7 +133,7 @@ export default function AdminDashboard() {
                     <td className="px-5 py-3 text-gray-900 max-w-xs">
                       <Link
                         href={`/admin/programs/${p.id}`}
-                        className="hover:text-blue-600 truncate block"
+                        className="hover:text-teal-600 truncate block"
                       >
                         {p.title}
                       </Link>

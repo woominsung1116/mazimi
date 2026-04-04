@@ -64,7 +64,7 @@ export default function OnboardingStep2() {
                 onClick={() => setStatus(s.value)}
                 className={`rounded-xl border-2 px-4 py-3 text-base font-semibold transition-all ${
                   status === s.value
-                    ? "border-blue-600 bg-blue-50 text-blue-600"
+                    ? "border-teal-600 bg-teal-50 text-teal-600"
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                 }`}
               >
@@ -87,7 +87,7 @@ export default function OnboardingStep2() {
             value={schoolName}
             onChange={(e) => setSchoolName(e.target.value)}
             placeholder="예: 부산대학교"
-            className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3.5 text-base text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none transition-colors"
+            className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3.5 text-base text-gray-900 placeholder:text-gray-400 focus:border-teal-600 focus:outline-none transition-colors"
           />
         </div>
 
@@ -100,7 +100,7 @@ export default function OnboardingStep2() {
             <button
               type="button"
               onClick={() => setIncomeBracket(null)}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              className="text-xs text-teal-600 hover:text-teal-700 font-medium"
             >
               건너뛰기
             </button>
@@ -113,7 +113,7 @@ export default function OnboardingStep2() {
                 onClick={() => setIncomeBracket(bracket)}
                 className={`rounded-lg border-2 py-2.5 text-sm font-semibold transition-all ${
                   incomeBracket === bracket
-                    ? "border-blue-600 bg-blue-50 text-blue-600"
+                    ? "border-teal-600 bg-teal-50 text-teal-600"
                     : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                 }`}
               >
@@ -133,7 +133,7 @@ export default function OnboardingStep2() {
           disabled={!canSubmit}
           className={`w-full rounded-xl px-6 py-4 text-lg font-semibold transition-all ${
             canSubmit
-              ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+              ? "bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
               : "bg-gray-200 text-gray-400 cursor-not-allowed"
           }`}
         >

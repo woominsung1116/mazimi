@@ -9,7 +9,7 @@ export default function Header() {
       <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
         <Link
           href="/dashboard"
-          className="text-lg font-bold text-blue-600 tracking-tight"
+          className="text-lg font-bold text-teal-600 tracking-tight"
           aria-label="마지미 홈으로"
         >
           마지미
@@ -19,7 +19,7 @@ export default function Header() {
           <Link
             href="/settings"
             aria-label="알림 설정"
-            className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
+            className="p-2 text-gray-600 hover:text-teal-600 transition-colors"
           >
             <svg
               className="h-5 w-5"

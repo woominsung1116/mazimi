@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
 
 const STATUS_COLORS: Record<ApplicationStatus, string> = {
   interested: "bg-gray-100 text-gray-600",
-  planning: "bg-blue-100 text-blue-700",
+  planning: "bg-teal-100 text-teal-700",
   applying: "bg-yellow-100 text-yellow-700",
   applied: "bg-green-100 text-green-700",
   waiting: "bg-orange-100 text-orange-700",

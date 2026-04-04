@@ -38,7 +38,7 @@ export default function TodoChecklist({ items }: TodoChecklistProps) {
                 type="checkbox"
                 checked={done}
                 onChange={() => toggle(i)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
               />
               <span
                 className={`text-sm transition-colors ${

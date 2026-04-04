@@ -75,7 +75,7 @@ const typeIcon: Record<AlertType, React.ReactNode> = {
   ),
   new_program: (
     <svg
-      className="h-5 w-5 text-blue-600"
+      className="h-5 w-5 text-teal-600"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -122,7 +122,7 @@ export default function AlertCard({
   return (
     <div
       className={`rounded-xl border border-gray-100 px-4 py-4 shadow-sm ${
-        isRead ? "bg-white" : "bg-blue-50"
+        isRead ? "bg-white" : "bg-teal-50"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -147,7 +147,7 @@ export default function AlertCard({
           <p className="text-sm text-gray-600 mt-1">{message}</p>
 
           {amountMessage && (
-            <p className="text-sm font-medium text-blue-600 mt-1">
+            <p className="text-sm font-medium text-teal-600 mt-1">
               {amountMessage}
             </p>
           )}
@@ -156,7 +156,7 @@ export default function AlertCard({
         {!isRead && (
           <span
             aria-label="읽지 않은 알림"
-            className="shrink-0 mt-1.5 h-2 w-2 rounded-full bg-blue-600"
+            className="shrink-0 mt-1.5 h-2 w-2 rounded-full bg-teal-600"
           />
         )}
       </div>

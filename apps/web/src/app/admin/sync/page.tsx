@@ -42,7 +42,7 @@ export default function AdminSyncPage() {
         </p>
 
         {result && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700">
+          <div className="bg-teal-50 border border-teal-200 rounded-lg px-4 py-3 text-sm text-teal-700">
             <span className="font-medium">{result.status}</span> — {result.message}
           </div>
         )}
@@ -56,7 +56,7 @@ export default function AdminSyncPage() {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors"
         >
           {syncing ? (
             <>

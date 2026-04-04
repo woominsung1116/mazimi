@@ -58,7 +58,7 @@ export default function AdminLayout({
                     href={item.href}
                     className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? "bg-blue-50 text-blue-700"
+                        ? "bg-teal-50 text-teal-700"
                         : "text-gray-600 hover:bg-gray-100"
                     }`}
                   >
@@ -82,7 +82,7 @@ export default function AdminLayout({
                 key={item.href}
                 href={item.href}
                 className={`flex-1 py-3 text-center text-xs font-medium transition-colors ${
-                  isActive ? "text-blue-700" : "text-gray-500"
+                  isActive ? "text-teal-700" : "text-gray-500"
                 }`}
               >
                 {item.label}

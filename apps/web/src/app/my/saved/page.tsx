@@ -48,7 +48,7 @@ export default function SavedPage() {
           <p className="text-gray-500">저장한 항목이 없습니다.</p>
           <Link
             href="/programs"
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+            className="inline-flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700"
           >
             프로그램 둘러보기
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +75,7 @@ export default function SavedPage() {
                   </div>
                   <p className="font-semibold text-gray-900 truncate">{program.title}</p>
                   <p className="text-sm text-gray-500 mt-0.5">{program.provider_name}</p>
-                  <p className="text-sm font-medium text-blue-600 mt-1">
+                  <p className="text-sm font-medium text-teal-600 mt-1">
                     {formatBenefit(program)}
                   </p>
                 </Link>

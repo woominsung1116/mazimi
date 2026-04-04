@@ -43,7 +43,7 @@ export default function PreviewPage() {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center space-y-3">
-          <div className="h-8 w-8 mx-auto border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="h-8 w-8 mx-auto border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-gray-500">맞춤 추천을 분석하고 있어요...</p>
         </div>
       </main>
@@ -58,7 +58,7 @@ export default function PreviewPage() {
           <p className="text-sm text-gray-500">{error}</p>
           <Link
             href="/onboarding"
-            className="inline-block rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="inline-block rounded-xl bg-teal-600 px-6 py-3 text-sm font-semibold text-white hover:bg-teal-700 transition-colors"
           >
             다시 시도하기
           </Link>
@@ -80,7 +80,7 @@ export default function PreviewPage() {
     <main className="min-h-screen px-4 py-8 pb-24">
       <div className="w-full max-w-md mx-auto">
         {/* Summary Card */}
-        <div className="rounded-xl bg-blue-600 p-5 text-white mb-6">
+        <div className="rounded-xl bg-teal-600 p-5 text-white mb-6">
           <p className="text-sm opacity-80 mb-3">
             {region} / {enrollmentStatus} 기준 추천 결과
           </p>
@@ -122,7 +122,7 @@ export default function PreviewPage() {
           <div className="max-w-md mx-auto space-y-2">
             <button
               type="button"
-              className="w-full rounded-xl bg-blue-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-blue-700 transition-colors"
+              className="w-full rounded-xl bg-teal-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-teal-700 transition-colors"
             >
               내 조건 저장하기
             </button>
@@ -154,7 +154,7 @@ function RecommendationCard({ item }: { item: RecommendationItem }) {
     item.match_score >= 90
       ? "bg-green-100 text-green-700"
       : item.match_score >= 70
-        ? "bg-blue-100 text-blue-700"
+        ? "bg-teal-100 text-teal-700"
         : item.match_score >= 50
           ? "bg-yellow-100 text-yellow-700"
           : "bg-gray-100 text-gray-600";
@@ -182,7 +182,7 @@ function RecommendationCard({ item }: { item: RecommendationItem }) {
         </span>
       </div>
       <h3 className="font-semibold text-gray-900">{item.title}</h3>
-      <p className="text-sm font-medium text-blue-600 mt-1">{formatBenefitAmount()}</p>
+      <p className="text-sm font-medium text-teal-600 mt-1">{formatBenefitAmount()}</p>
 
       {item.reasons.length > 0 && (
         <div className="mt-2">
@@ -231,7 +231,7 @@ function RecommendationCard({ item }: { item: RecommendationItem }) {
           href={item.official_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 mt-3 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
         >
           공식 사이트에서 신청
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

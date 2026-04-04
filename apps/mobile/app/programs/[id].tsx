@@ -7,7 +7,7 @@
  * - Status tracker bar (관심 → 신청예정 → 신청중 → 신청완료 → 결과대기 → 수혜완료)
  * - AI summary card (collapsible, 마지미가 요약해드려요!)
  * - 4-tab navigation: 지원내용 / 선정기준 / 신청방법 / 구비서류
- * - Fixed bottom bar: 자세히 보기 (outline) / 바로 신청하기 (filled blue)
+ * - Fixed bottom bar: 자세히 보기 (outline) / 바로 신청하기 (filled teal)
  *
  * Data source: api.getProgram(id) → GET /api/v1/programs/:id
  */

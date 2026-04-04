@@ -28,7 +28,7 @@ export default function RecommendationCard({
     match_score >= 90
       ? "bg-green-100 text-green-700"
       : match_score >= 70
-        ? "bg-blue-100 text-blue-700"
+        ? "bg-teal-100 text-teal-700"
         : match_score >= 50
           ? "bg-yellow-100 text-yellow-700"
           : "bg-gray-100 text-gray-600";
@@ -58,7 +58,7 @@ export default function RecommendationCard({
             <h3 className="font-semibold text-gray-900 truncate">
               {title}
             </h3>
-            <p className="text-sm font-medium text-blue-600 mt-1">
+            <p className="text-sm font-medium text-teal-600 mt-1">
               {formatBenefitAmount()}
             </p>
           </div>
@@ -172,7 +172,7 @@ export default function RecommendationCard({
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`${title} 공식 사이트에서 신청하기 (새 창)`}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
             >
               공식 사이트에서 신청
               <svg

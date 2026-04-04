@@ -28,7 +28,7 @@ export default function AlertBell() {
           ? `알림 ${unreadCount}개 읽지 않음`
           : "알림 보기"
       }
-      className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors"
+      className="relative p-2 text-gray-600 hover:text-teal-600 transition-colors"
     >
       <svg
         className="h-6 w-6"

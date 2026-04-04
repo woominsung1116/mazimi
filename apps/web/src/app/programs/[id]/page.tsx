@@ -31,7 +31,7 @@ export default function ProgramDetailPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="h-8 w-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -43,7 +43,7 @@ export default function ProgramDetailPage() {
           <p className="text-gray-700">프로그램 정보를 불러오지 못했어요</p>
           <Link
             href="/programs"
-            className="inline-block rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="inline-block rounded-xl bg-teal-600 px-6 py-3 text-sm font-semibold text-white hover:bg-teal-700 transition-colors"
           >
             목록으로 돌아가기
           </Link>
@@ -96,9 +96,9 @@ export default function ProgramDetailPage() {
         </div>
 
         {/* Benefit */}
-        <div className="rounded-xl bg-blue-50 p-5 mb-6">
-          <p className="text-sm text-blue-700 mb-1">지원 금액</p>
-          <p className="text-xl font-bold text-blue-600">{formatBenefit(program)}</p>
+        <div className="rounded-xl bg-teal-50 p-5 mb-6">
+          <p className="text-sm text-teal-700 mb-1">지원 금액</p>
+          <p className="text-xl font-bold text-teal-600">{formatBenefit(program)}</p>
         </div>
 
         {/* Summary */}
@@ -137,7 +137,7 @@ export default function ProgramDetailPage() {
                 href={program.official_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full rounded-xl bg-blue-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-blue-700 transition-colors"
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-teal-600 px-6 py-3.5 text-base font-semibold text-white hover:bg-teal-700 transition-colors"
               >
                 공식 사이트에서 신청하기
                 <svg

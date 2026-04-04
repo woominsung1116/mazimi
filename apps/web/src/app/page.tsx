@@ -21,13 +21,13 @@ export default function Home() {
         {/* Hero */}
         <div className="space-y-5">
           {/* 지역 pill */}
-          <div className="inline-flex items-center rounded-full bg-blue-50 border border-blue-100 px-3.5 py-1.5">
-            <span className="text-xs font-semibold text-blue-600">부산 · 대구 청년 혜택</span>
+          <div className="inline-flex items-center rounded-full bg-teal-50 border border-teal-100 px-3.5 py-1.5">
+            <span className="text-xs font-semibold text-teal-600">부산 · 대구 청년 혜택</span>
           </div>
 
           <h1 className="text-5xl font-bold tracking-tight text-gray-900 leading-tight">
             이번 학기,<br />
-            <span className="text-blue-600">놓치고 있는 혜택</span>이<br />
+            <span className="text-teal-600">놓치고 있는 혜택</span>이<br />
             있어요
           </h1>
 
@@ -46,12 +46,12 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="text-left">
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">등록된 청년 정책</p>
-              <p className="text-4xl font-bold text-blue-600 mt-1">
+              <p className="text-4xl font-bold text-teal-600 mt-1">
                 {programCount !== null ? `${programCount}건` : "--건"}
               </p>
             </div>
             <div className="text-right space-y-1">
-              <span className="inline-flex items-center rounded-full bg-blue-50 border border-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-600">
+              <span className="inline-flex items-center rounded-full bg-teal-50 border border-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-600">
                 부산 · 대구
               </span>
               <p className="text-sm font-medium text-gray-500">실시간 업데이트</p>
@@ -63,7 +63,7 @@ export default function Home() {
         <div className="space-y-3">
           <Link
             href="/onboarding"
-            className="inline-flex items-center justify-center w-full rounded-xl bg-blue-600 px-6 py-4 text-lg font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center w-full rounded-xl bg-teal-600 px-6 py-4 text-lg font-semibold text-white hover:bg-teal-700 active:bg-teal-800 transition-colors shadow-sm"
             aria-label="맞춤 혜택 찾기 시작하기"
           >
             내 혜택 찾기

@@ -103,7 +103,7 @@ export default function ApplicationsPage() {
           <p className="text-gray-500">신청 중인 프로그램이 없습니다.</p>
           <Link
             href="/programs"
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+            className="inline-flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700"
           >
             프로그램 둘러보기
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,13 +168,13 @@ export default function ApplicationsPage() {
                         }
                         placeholder="메모를 입력하세요..."
                         rows={3}
-                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                       />
                       <button
                         type="button"
                         onClick={() => handleMemoSave(app.program_id, app.current_status)}
                         disabled={saving[app.program_id]}
-                        className="mt-2 w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        className="mt-2 w-full rounded-lg bg-teal-600 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors disabled:opacity-50"
                       >
                         {saving[app.program_id] ? "저장 중..." : "저장"}
                       </button>
@@ -183,7 +183,7 @@ export default function ApplicationsPage() {
                     {/* Link to program */}
                     <Link
                       href={`/programs/${app.program_id}`}
-                      className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+                      className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700"
                     >
                       프로그램 상세 보기
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

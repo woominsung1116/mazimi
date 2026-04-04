@@ -29,8 +29,8 @@ function Toggle({ checked, onChange, id, label, description }: ToggleProps) {
         id={id}
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${
-          checked ? "bg-blue-600" : "bg-gray-200"
+        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
+          checked ? "bg-teal-600" : "bg-gray-200"
         }`}
       >
         <span
@@ -171,7 +171,7 @@ export default function SettingsPage() {
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="w-full rounded-xl bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
+        className="w-full rounded-xl bg-teal-600 py-3 text-sm font-medium text-white hover:bg-teal-700 transition-colors disabled:opacity-60"
       >
         {saving ? "저장 중..." : "저장하기"}
       </button>

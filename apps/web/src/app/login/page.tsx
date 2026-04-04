@@ -19,7 +19,7 @@ function LoginContent() {
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
       </div>
     );
   }
@@ -29,8 +29,8 @@ function LoginContent() {
       <div className="w-full max-w-md mx-auto space-y-8">
         {/* 로고 / 타이틀 */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center rounded-full bg-blue-50 border border-blue-100 px-3.5 py-1.5 mb-2">
-            <span className="text-xs font-semibold text-blue-600">부산 · 대구 청년 혜택</span>
+          <div className="inline-flex items-center rounded-full bg-teal-50 border border-teal-100 px-3.5 py-1.5 mb-2">
+            <span className="text-xs font-semibold text-teal-600">부산 · 대구 청년 혜택</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-900">마지미 로그인</h1>
           <p className="text-gray-500 text-sm">
@@ -113,7 +113,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-gray-50">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
         </div>
       }
     >

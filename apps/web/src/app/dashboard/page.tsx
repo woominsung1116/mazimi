@@ -50,19 +50,19 @@ export default function DashboardPage() {
 
       {/* 예상 수혜액 카드 */}
       <section
-        className="rounded-xl bg-blue-600 p-6 text-white shadow"
+        className="rounded-xl bg-teal-600 p-6 text-white shadow"
         aria-label="예상 수혜액"
       >
-        <p className="text-sm font-semibold text-blue-100 mb-4">예상 수혜액</p>
+        <p className="text-sm font-semibold text-teal-100 mb-4">예상 수혜액</p>
         <div className="flex gap-8">
           <div>
-            <p className="text-xs font-medium text-blue-200 mb-1">월</p>
+            <p className="text-xs font-medium text-teal-200 mb-1">월</p>
             <div className="text-3xl font-bold text-white">
               <BenefitAmount amount={data.estimated_monthly} unit="" size="lg" />
             </div>
           </div>
-          <div className="border-l border-blue-500 pl-8">
-            <p className="text-xs font-medium text-blue-200 mb-1">학기</p>
+          <div className="border-l border-teal-500 pl-8">
+            <p className="text-xs font-medium text-teal-200 mb-1">학기</p>
             <div className="text-3xl font-bold text-white">
               <BenefitAmount amount={data.estimated_semester} unit="" size="lg" />
             </div>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
             <ul className="space-y-2">
               {data.todo_items.map((item, i) => (
                 <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                  <span className="text-blue-600 mt-0.5">-</span>
+                  <span className="text-teal-600 mt-0.5">-</span>
                   {item}
                 </li>
               ))}
@@ -115,14 +115,14 @@ export default function DashboardPage() {
         <Link
           href="/my/saved"
           aria-label="저장 목록 보기"
-          className="flex-1 text-center rounded-xl border border-blue-600 text-blue-600 py-3 text-sm font-medium hover:bg-blue-50 transition-colors"
+          className="flex-1 text-center rounded-xl border border-teal-600 text-teal-600 py-3 text-sm font-medium hover:bg-teal-50 transition-colors"
         >
           저장 목록
         </Link>
         <Link
           href="/my/applications"
           aria-label="신청 현황 보기"
-          className="flex-1 text-center rounded-xl bg-blue-600 text-white py-3 text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="flex-1 text-center rounded-xl bg-teal-600 text-white py-3 text-sm font-medium hover:bg-teal-700 transition-colors"
         >
           신청 현황
         </Link>
