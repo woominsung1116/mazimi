@@ -43,3 +43,10 @@ redisdata*/
 **/.omc/
 **/.omx/
 apps/*/.expo/
+
+# Personal / working files (not for repo)
+*.pdf
+KakaoTalk_*
+magimi_psst_*
+구현*.md
+웰로*.md
