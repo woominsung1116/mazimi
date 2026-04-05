@@ -67,6 +67,7 @@ impl FssFinancialSource {
         Self {
             client: Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
+                .user_agent("Mozilla/5.0 (compatible; Mazimi-Bot/1.0; +https://mazimi.kr/bot)")
                 .build()
                 .unwrap_or_default(),
             api_key,
