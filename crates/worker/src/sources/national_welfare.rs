@@ -18,7 +18,7 @@ use tracing::{info, warn};
 use super::{content_hash, DataSource, RawRecord};
 
 const BASE_URL: &str =
-    "http://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfarelistV001";
+    "https://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfarelistV001";
 const PAGE_SIZE: u32 = 100;
 const MAX_PAGES: u32 = 200;
 
@@ -112,19 +112,22 @@ impl DataSource for NationalWelfareSource {
                 );
 
                 let payload = json!({
-                    "servId":         item.serv_id,
-                    "servNm":         item.serv_nm,
-                    "servDgst":       item.serv_dgst,
-                    "bizChrDeptNm":   item.biz_chr_dept_nm,
-                    "srvPvsnNm":      item.srv_pvsn_nm,
-                    "sprtCycNm":      item.sprt_cyc_nm,
-                    "aplyMtdNm":      item.aply_mtd_nm,
-                    "intrsThemaNmArray": item.intrs_thema_nm_array,
-                    "trgterIndvdlNmArray": item.trgter_indvdl_nm_array,
-                    "servDtlLink":    item.serv_dtl_link,
-                    "inqNum":         item.inq_num,
-                    "lastModYmd":     item.last_mod_ymd,
-                    "source":         "national_welfare",
+                    "servId":             item.serv_id,
+                    "servNm":             item.serv_nm,
+                    "servDgst":           item.serv_dgst,
+                    "jurMnofNm":          item.jur_mnof_nm,
+                    "jurOrgNm":           item.jur_org_nm,
+                    "srvPvsnNm":          item.srv_pvsn_nm,
+                    "sprtCycNm":          item.sprt_cyc_nm,
+                    "intrsThemaArray":    item.intrs_thema_array,
+                    "trgterIndvdlArray":  item.trgter_indvdl_array,
+                    "lifeArray":          item.life_array,
+                    "onapPsbltYn":        item.onap_psblt_yn,
+                    "rprsCtadr":          item.rprs_ctadr,
+                    "servDtlLink":        item.serv_dtl_link,
+                    "inqNum":             item.inq_num,
+                    "svcfrstRegTs":       item.svc_frst_reg_ts,
+                    "source":             "national_welfare",
                 });
 
                 let hash = content_hash(&payload);
@@ -155,27 +158,30 @@ impl DataSource for NationalWelfareSource {
     }
 }
 
-// ── XML response shapes ───────────────────────────────────────────────────────
+// ── XML response shapes (V001) ───────────────────────────────────────────────
 //
 // <wantedList>
-//   <totalCount>12345</totalCount>
+//   <totalCount>370</totalCount>
 //   <pageNo>1</pageNo>
 //   <numOfRows>100</numOfRows>
 //   <resultCode>0</resultCode>
 //   <resultMessage>SUCCESS</resultMessage>
 //   <servList>
-//     <servId>WLF00001234</servId>
+//     <servId>WLF00000022</servId>
 //     <servNm>서비스명</servNm>
 //     <servDgst>서비스 요약</servDgst>
-//     <bizChrDeptNm>주관부처명</bizChrDeptNm>
+//     <jurMnofNm>주관부처</jurMnofNm>
+//     <jurOrgNm>주관기관</jurOrgNm>
 //     <srvPvsnNm>제공유형</srvPvsnNm>
 //     <sprtCycNm>지원주기</sprtCycNm>
-//     <aplyMtdNm>신청방법</aplyMtdNm>
-//     <intrsThemaNmArray>관심테마</intrsThemaNmArray>
-//     <trgterIndvdlNmArray>지원대상</trgterIndvdlNmArray>
+//     <intrsThemaArray>관심테마</intrsThemaArray>
+//     <trgterIndvdlArray>지원대상</trgterIndvdlArray>
+//     <lifeArray>생애주기</lifeArray>
+//     <onapPsbltYn>온라인신청가능여부</onapPsbltYn>
+//     <rprsCtadr>대표연락처</rprsCtadr>
 //     <servDtlLink>https://www.bokjiro.go.kr/...</servDtlLink>
 //     <inqNum>12345</inqNum>
-//     <lastModYmd>20260101</lastModYmd>
+//     <svcfrstRegTs>20210903</svcfrstRegTs>
 //   </servList>
 //   ...
 // </wantedList>
@@ -197,24 +203,38 @@ struct NationalWelfareItem {
     serv_nm: Option<String>,
     #[serde(rename = "servDgst")]
     serv_dgst: Option<String>,
-    #[serde(rename = "bizChrDeptNm")]
-    biz_chr_dept_nm: Option<String>,
+    /// V001: jurMnofNm (주관부처, 구 bizChrDeptNm 대체)
+    #[serde(rename = "jurMnofNm")]
+    jur_mnof_nm: Option<String>,
+    /// V001: jurOrgNm (주관기관)
+    #[serde(rename = "jurOrgNm")]
+    jur_org_nm: Option<String>,
     #[serde(rename = "srvPvsnNm")]
     srv_pvsn_nm: Option<String>,
     #[serde(rename = "sprtCycNm")]
     sprt_cyc_nm: Option<String>,
-    #[serde(rename = "aplyMtdNm")]
-    aply_mtd_nm: Option<String>,
-    #[serde(rename = "intrsThemaNmArray")]
-    intrs_thema_nm_array: Option<String>,
-    #[serde(rename = "trgterIndvdlNmArray")]
-    trgter_indvdl_nm_array: Option<String>,
+    /// V001: intrsThemaArray (구 intrsThemaNmArray)
+    #[serde(rename = "intrsThemaArray")]
+    intrs_thema_array: Option<String>,
+    /// V001: trgterIndvdlArray (구 trgterIndvdlNmArray)
+    #[serde(rename = "trgterIndvdlArray")]
+    trgter_indvdl_array: Option<String>,
+    /// V001: 생애주기 (영유아, 아동, 청소년 등)
+    #[serde(rename = "lifeArray")]
+    life_array: Option<String>,
+    /// V001: 온라인 신청 가능 여부 (Y/N)
+    #[serde(rename = "onapPsbltYn")]
+    onap_psblt_yn: Option<String>,
+    /// V001: 대표 연락처
+    #[serde(rename = "rprsCtadr")]
+    rprs_ctadr: Option<String>,
     #[serde(rename = "servDtlLink")]
     serv_dtl_link: Option<String>,
     #[serde(rename = "inqNum")]
     inq_num: Option<u64>,
-    #[serde(rename = "lastModYmd")]
-    last_mod_ymd: Option<String>,
+    /// V001: 최초 등록일 (구 lastModYmd 대체)
+    #[serde(rename = "svcfrstRegTs")]
+    svc_frst_reg_ts: Option<String>,
 }
 
 // ── Normalization (called from pipeline.rs) ───────────────────────────────────
@@ -222,12 +242,12 @@ struct NationalWelfareItem {
 pub fn normalize_national_welfare(p: &serde_json::Value) -> crate::pipeline::NormalizedProgram {
     let title = p["servNm"].as_str().unwrap_or("Unknown").to_string();
     let summary = p["servDgst"].as_str().map(|s| s.to_string());
-    let provider_name = p["bizChrDeptNm"].as_str().map(|s| s.to_string());
+    let provider_name = p["jurMnofNm"].as_str().map(|s| s.to_string());
     let official_url = p["servDtlLink"].as_str().map(|s| s.to_string());
 
     let program_type = infer_national_welfare_type(
-        p["intrsThemaNmArray"].as_str(),
-        p["trgterIndvdlNmArray"].as_str(),
+        p["intrsThemaArray"].as_str(),
+        p["trgterIndvdlArray"].as_str(),
         p["srvPvsnNm"].as_str(),
     );
 
