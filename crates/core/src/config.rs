@@ -12,15 +12,30 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         dotenvy::dotenv().ok();
+
+        let app_env = std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string());
+        let jwt_secret = std::env::var("JWT_SECRET")?;
+
+        // Reject weak JWT secrets in non-local environments.
+        // A 32-character minimum ensures at least 256 bits of entropy
+        // when the secret is random, and blocks placeholder values like
+        // "change-me-in-production" from reaching staging/prod.
+        if app_env != "local" && jwt_secret.len() < 32 {
+            anyhow::bail!(
+                "JWT_SECRET must be at least 32 characters in non-local environments (current length: {})",
+                jwt_secret.len()
+            );
+        }
+
         Ok(Self {
-            app_env: std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()),
+            app_env,
             app_port: std::env::var("APP_PORT")
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()?,
             database_url: std::env::var("DATABASE_URL")?,
             redis_url: std::env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
-            jwt_secret: std::env::var("JWT_SECRET")?,
+            jwt_secret,
         })
     }
 }
