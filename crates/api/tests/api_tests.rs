@@ -3,8 +3,10 @@ use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+use uuid::Uuid;
 
 const DATABASE_URL: &str = "postgres://wello:wello@localhost:5432/wello";
+const JWT_SECRET: &str = "test-secret";
 
 /// Starts the app on a random port, returns the base URL.
 async fn start_test_server() -> String {
@@ -19,7 +21,7 @@ async fn start_test_server() -> String {
         .await
         .expect("Failed to run migrations");
 
-    let app = api::build_app_with_env(pool, "test-secret".to_string(), "local".to_string());
+    let app = api::build_app_with_env(pool, JWT_SECRET.to_string(), "local".to_string());
 
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -31,6 +33,81 @@ async fn start_test_server() -> String {
     });
 
     format!("http://{addr}")
+}
+
+/// Create a test user in the DB and return (user_id, access_token, refresh_token).
+async fn create_test_user(base: &str) -> (Uuid, String, String) {
+    // Insert user directly via a dedicated endpoint is not available for arbitrary users,
+    // so we insert into DB via a direct pool connection and generate tokens ourselves.
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(DATABASE_URL)
+        .await
+        .expect("Failed to connect for test user setup");
+
+    let user_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO users (auth_provider, auth_provider_id, role, created_at, updated_at)
+        VALUES ('test', $1, 'user', now(), now())
+        ON CONFLICT (auth_provider, auth_provider_id) DO UPDATE SET updated_at = now()
+        RETURNING id
+        "#,
+    )
+    .bind(Uuid::new_v4().to_string())
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert test user");
+
+    // Insert a minimal profile so endpoints that read it don't 404
+    sqlx::query(
+        r#"
+        INSERT INTO user_profiles (user_id, birth_year, region_code, updated_at)
+        VALUES ($1, 2000, 'busan', now())
+        ON CONFLICT (user_id) DO NOTHING
+        "#,
+    )
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert test user profile");
+
+    let _ = base; // unused but keeps signature consistent
+
+    let access_token = api::auth::create_token(user_id, "user", JWT_SECRET)
+        .expect("Failed to create access token");
+    let refresh_token = api::auth::create_refresh_token(user_id, "user", JWT_SECRET)
+        .expect("Failed to create refresh token");
+
+    (user_id, access_token, refresh_token)
+}
+
+/// Create a test admin user in the DB and return (user_id, access_token).
+async fn create_test_admin(base: &str) -> (Uuid, String) {
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(DATABASE_URL)
+        .await
+        .expect("Failed to connect for admin setup");
+
+    let user_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO users (auth_provider, auth_provider_id, role, created_at, updated_at)
+        VALUES ('test', $1, 'admin', now(), now())
+        ON CONFLICT (auth_provider, auth_provider_id) DO UPDATE SET updated_at = now()
+        RETURNING id
+        "#,
+    )
+    .bind(format!("admin-{}", Uuid::new_v4()))
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert test admin user");
+
+    let _ = base;
+
+    let access_token = api::auth::create_token(user_id, "admin", JWT_SECRET)
+        .expect("Failed to create admin access token");
+
+    (user_id, access_token)
 }
 
 // ── GET /health ──
@@ -109,6 +186,7 @@ async fn recommend_preview_busan_2000_returns_items() {
 async fn save_profile_creates_user_and_profile() {
     let base = start_test_server().await;
     let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
 
     let payload = json!({
         "birth_year": 2001,
@@ -117,6 +195,7 @@ async fn save_profile_creates_user_and_profile() {
 
     let resp = client
         .post(format!("{base}/api/v1/profile"))
+        .bearer_auth(&token)
         .json(&payload)
         .send()
         .await
@@ -181,4 +260,836 @@ async fn recommend_preview_is_reproducible() {
         body1["items"], body2["items"],
         "items (including order) must be identical across calls"
     );
+}
+
+// ── POST /api/v1/auth/refresh ──
+
+#[tokio::test]
+async fn auth_refresh_returns_new_tokens() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, _, refresh_token) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/auth/refresh"))
+        .json(&json!({ "refresh_token": refresh_token }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "refresh should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(body["token"].is_string(), "response must have 'token': {body}");
+    assert!(
+        body["refresh_token"].is_string(),
+        "response must have 'refresh_token': {body}"
+    );
+}
+
+#[tokio::test]
+async fn auth_refresh_rejects_access_token() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, access_token, _) = create_test_user(&base).await;
+
+    // Passing an access token to the refresh endpoint should be rejected
+    let resp = client
+        .post(format!("{base}/api/v1/auth/refresh"))
+        .json(&json!({ "refresh_token": access_token }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/auth/me ──
+
+#[tokio::test]
+async fn auth_me_returns_user_info() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (user_id, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/auth/me"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "auth/me should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(
+        body["id"].as_str().unwrap_or(""),
+        user_id.to_string(),
+        "returned id must match"
+    );
+    assert!(body["role"].is_string(), "response must have 'role': {body}");
+}
+
+#[tokio::test]
+async fn auth_me_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/auth/me"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/profile ──
+
+#[tokio::test]
+async fn get_profile_returns_own_profile() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (user_id, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/profile"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "GET /profile should succeed: body omitted");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(
+        body["user_id"].as_str().unwrap_or(""),
+        user_id.to_string(),
+        "user_id must match"
+    );
+}
+
+#[tokio::test]
+async fn get_profile_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/profile"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── POST /api/v1/programs/{id}/bookmark ──
+
+#[tokio::test]
+async fn bookmark_toggle_works() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    // Get a program id to bookmark
+    let programs_resp = client
+        .get(format!("{base}/api/v1/programs"))
+        .send()
+        .await
+        .expect("programs request failed");
+    let programs_body: Value = programs_resp.json().await.expect("invalid json");
+    let items = programs_body["items"].as_array().expect("items must be array");
+
+    if items.is_empty() {
+        // No programs to bookmark; skip
+        return;
+    }
+
+    let program_id = items[0]["id"].as_str().expect("program must have id");
+
+    // First toggle: should bookmark
+    let resp1 = client
+        .post(format!("{base}/api/v1/programs/{program_id}/bookmark"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+    assert_eq!(resp1.status(), 200);
+    let body1: Value = resp1.json().await.expect("invalid json");
+    assert_eq!(body1["bookmarked"], true, "first toggle must bookmark");
+
+    // Second toggle: should unbookmark
+    let resp2 = client
+        .post(format!("{base}/api/v1/programs/{program_id}/bookmark"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+    assert_eq!(resp2.status(), 200);
+    let body2: Value = resp2.json().await.expect("invalid json");
+    assert_eq!(body2["bookmarked"], false, "second toggle must unbookmark");
+}
+
+#[tokio::test]
+async fn bookmark_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let fake_id = Uuid::new_v4();
+
+    let resp = client
+        .post(format!("{base}/api/v1/programs/{fake_id}/bookmark"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── POST /api/v1/programs/{id}/state ──
+
+#[tokio::test]
+async fn upsert_state_works() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let programs_resp = client
+        .get(format!("{base}/api/v1/programs"))
+        .send()
+        .await
+        .expect("programs request failed");
+    let programs_body: Value = programs_resp.json().await.expect("invalid json");
+    let items = programs_body["items"].as_array().expect("items must be array");
+
+    if items.is_empty() {
+        return;
+    }
+
+    let program_id = items[0]["id"].as_str().expect("program must have id");
+
+    let resp = client
+        .post(format!("{base}/api/v1/programs/{program_id}/state"))
+        .bearer_auth(&token)
+        .json(&json!({ "state": "interested", "memo": "test memo" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "upsert state should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(body["state"], "interested", "state must match");
+}
+
+#[tokio::test]
+async fn upsert_state_rejects_invalid_state() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+    let fake_id = Uuid::new_v4();
+
+    let resp = client
+        .post(format!("{base}/api/v1/programs/{fake_id}/state"))
+        .bearer_auth(&token)
+        .json(&json!({ "state": "invalid_state_xyz" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn upsert_state_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let fake_id = Uuid::new_v4();
+
+    let resp = client
+        .post(format!("{base}/api/v1/programs/{fake_id}/state"))
+        .json(&json!({ "state": "interested" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/dashboard ──
+
+#[tokio::test]
+async fn dashboard_returns_stats() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/dashboard"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "dashboard should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(
+        body["bookmarked_count"].is_number(),
+        "must have bookmarked_count: {body}"
+    );
+    assert!(
+        body["applying_count"].is_number(),
+        "must have applying_count: {body}"
+    );
+    assert!(
+        body["upcoming_deadlines"].is_array(),
+        "must have upcoming_deadlines: {body}"
+    );
+    assert!(
+        body["estimated_monthly"].is_number(),
+        "must have estimated_monthly: {body}"
+    );
+    assert!(
+        body["estimated_semester"].is_number(),
+        "must have estimated_semester: {body}"
+    );
+    assert!(
+        body["todo_items"].is_array(),
+        "must have todo_items: {body}"
+    );
+}
+
+#[tokio::test]
+async fn dashboard_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/dashboard"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/alerts ──
+
+#[tokio::test]
+async fn list_alerts_returns_paginated_list() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/alerts"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "list alerts should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(body["total"].is_number(), "must have total: {body}");
+    assert!(body["items"].is_array(), "must have items: {body}");
+}
+
+#[tokio::test]
+async fn list_alerts_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/alerts"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── POST /api/v1/alerts/preferences ──
+
+#[tokio::test]
+async fn upsert_alert_preferences_returns_subscriptions() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    // Need an active program to subscribe to
+    let programs_resp = client
+        .get(format!("{base}/api/v1/programs"))
+        .send()
+        .await
+        .expect("programs request failed");
+    let programs_body: Value = programs_resp.json().await.expect("invalid json");
+    let items = programs_body["items"].as_array().expect("items must be array");
+
+    // Filter to active programs
+    let active = items
+        .iter()
+        .find(|p| p["is_active"].as_bool().unwrap_or(false));
+
+    if active.is_none() {
+        // No active programs; the handler returns 404 — just verify that
+        let fake_id = Uuid::new_v4();
+        let resp = client
+            .post(format!("{base}/api/v1/alerts/preferences"))
+            .bearer_auth(&token)
+            .json(&json!({ "program_id": fake_id, "enabled": true }))
+            .send()
+            .await
+            .expect("request failed");
+        assert_eq!(resp.status(), 404);
+        return;
+    }
+
+    let program_id = active.unwrap()["id"].as_str().expect("program must have id");
+
+    let resp = client
+        .post(format!("{base}/api/v1/alerts/preferences"))
+        .bearer_auth(&token)
+        .json(&json!({ "program_id": program_id, "enabled": true }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "upsert preferences should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(
+        body["subscriptions"].is_array(),
+        "must have subscriptions: {body}"
+    );
+    assert_eq!(body["updated"]["enabled"], true);
+}
+
+#[tokio::test]
+async fn upsert_alert_preferences_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let fake_id = Uuid::new_v4();
+
+    let resp = client
+        .post(format!("{base}/api/v1/alerts/preferences"))
+        .json(&json!({ "program_id": fake_id, "enabled": true }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/my/applications ──
+
+#[tokio::test]
+async fn list_applications_returns_list() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/my/applications"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "list applications should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(body["total"].is_number(), "must have total: {body}");
+    assert!(body["items"].is_array(), "must have items: {body}");
+}
+
+#[tokio::test]
+async fn list_applications_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/my/applications"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── PUT /api/v1/my/applications/{id} ──
+
+#[tokio::test]
+async fn update_application_works() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let programs_resp = client
+        .get(format!("{base}/api/v1/programs"))
+        .send()
+        .await
+        .expect("programs request failed");
+    let programs_body: Value = programs_resp.json().await.expect("invalid json");
+    let items = programs_body["items"].as_array().expect("items must be array");
+
+    if items.is_empty() {
+        return;
+    }
+
+    let program_id = items[0]["id"].as_str().expect("program must have id");
+
+    // First set an initial state so the row exists
+    let _ = client
+        .post(format!("{base}/api/v1/programs/{program_id}/state"))
+        .bearer_auth(&token)
+        .json(&json!({ "state": "interested" }))
+        .send()
+        .await
+        .expect("state setup failed");
+
+    // Now update via PUT /my/applications/{id}
+    let resp = client
+        .put(format!("{base}/api/v1/my/applications/{program_id}"))
+        .bearer_auth(&token)
+        .json(&json!({ "status": "applying", "memo": "preparing docs" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "update application should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(body["status"], "applying", "status must be updated");
+}
+
+#[tokio::test]
+async fn update_application_rejects_invalid_status() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+    let fake_id = Uuid::new_v4();
+
+    let resp = client
+        .put(format!("{base}/api/v1/my/applications/{fake_id}"))
+        .bearer_auth(&token)
+        .json(&json!({ "status": "not_a_real_status" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn update_application_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let fake_id = Uuid::new_v4();
+
+    let resp = client
+        .put(format!("{base}/api/v1/my/applications/{fake_id}"))
+        .json(&json!({ "status": "applying" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/my/saved ──
+
+#[tokio::test]
+async fn get_saved_returns_bookmarks() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/my/saved"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "get saved should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(body["total"].is_number(), "must have total: {body}");
+    assert!(body["items"].is_array(), "must have items: {body}");
+}
+
+#[tokio::test]
+async fn get_saved_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/my/saved"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── POST /api/v1/push/register ──
+
+#[tokio::test]
+async fn register_push_token_succeeds() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/push/register"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "token": format!("ExponentPushToken[test-{}]", Uuid::new_v4()),
+            "platform": "ios"
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "push register should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(body["success"], true);
+}
+
+#[tokio::test]
+async fn register_push_token_rejects_invalid_platform() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/push/register"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "token": "some-token",
+            "platform": "windows"
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn register_push_token_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/api/v1/push/register"))
+        .json(&json!({ "token": "some-token", "platform": "ios" }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── DELETE /api/v1/push/register ──
+
+#[tokio::test]
+async fn unregister_push_token_succeeds() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    // Register first so there's something to delete
+    let _ = client
+        .post(format!("{base}/api/v1/push/register"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "token": format!("ExponentPushToken[del-{}]", Uuid::new_v4()),
+            "platform": "android"
+        }))
+        .send()
+        .await
+        .expect("register failed");
+
+    let resp = client
+        .delete(format!("{base}/api/v1/push/register"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "push unregister should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(body["success"], true);
+}
+
+#[tokio::test]
+async fn unregister_push_token_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .delete(format!("{base}/api/v1/push/register"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/admin/stats ──
+
+#[tokio::test]
+async fn admin_stats_returns_counts() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, admin_token) = create_test_admin(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/admin/stats"))
+        .bearer_auth(&admin_token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "admin stats should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(
+        body["total_programs"].is_number(),
+        "must have total_programs: {body}"
+    );
+    assert!(
+        body["active_programs"].is_number(),
+        "must have active_programs: {body}"
+    );
+    assert!(
+        body["total_users"].is_number(),
+        "must have total_users: {body}"
+    );
+}
+
+#[tokio::test]
+async fn admin_stats_rejects_regular_user() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/admin/stats"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 403, "regular user must not access admin stats");
+}
+
+#[tokio::test]
+async fn admin_stats_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/admin/stats"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+// ── GET /api/v1/admin/programs ──
+
+#[tokio::test]
+async fn admin_list_programs_returns_list() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, admin_token) = create_test_admin(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/admin/programs"))
+        .bearer_auth(&admin_token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "admin list programs should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert!(body["total"].is_number(), "must have total: {body}");
+    assert!(body["items"].is_array(), "must have items: {body}");
+}
+
+#[tokio::test]
+async fn admin_list_programs_rejects_regular_user() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/admin/programs"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 403);
+}
+
+// ── POST /api/v1/admin/sync ──
+
+#[tokio::test]
+async fn admin_sync_returns_started() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, admin_token) = create_test_admin(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/admin/sync"))
+        .bearer_auth(&admin_token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200, "admin sync should succeed");
+
+    let body: Value = resp.json().await.expect("invalid json");
+    assert_eq!(
+        body["status"], "sync_started",
+        "status must be sync_started: {body}"
+    );
+}
+
+#[tokio::test]
+async fn admin_sync_rejects_regular_user() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/admin/sync"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 403);
+}
+
+#[tokio::test]
+async fn admin_sync_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/api/v1/admin/sync"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
 }
