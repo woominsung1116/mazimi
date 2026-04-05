@@ -11,6 +11,8 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub mod expo_push;
@@ -48,9 +50,14 @@ pub struct NotificationPayload {
 ///
 /// `from_env()`로 생성하면 가용 채널만 활성화하며,
 /// 키가 없는 채널은 서버 시작 시 한 번만 warn 로그를 남긴다.
+///
+/// Expo 전송 시 받은 티켓 ID는 `pending_tickets`에 누적되며,
+/// `check_pending_receipts()`로 Expo 영수증 API를 통해 전달 결과를 확인한다.
 pub struct NotificationDispatcher {
     kakao: Option<kakao::KakaoClient>,
     expo: Option<expo_push::ExpoPushClient>,
+    /// Expo 전송 후 영수증 조회 대기 중인 티켓 ID 목록.
+    pending_tickets: Arc<Mutex<Vec<String>>>,
 }
 
 impl NotificationDispatcher {
@@ -79,7 +86,11 @@ impl NotificationDispatcher {
             }
         };
 
-        Self { kakao, expo }
+        Self {
+            kakao,
+            expo,
+            pending_tickets: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 
     /// 가용한 모든 채널에 발송을 시도한다.
@@ -87,6 +98,7 @@ impl NotificationDispatcher {
     /// - 채널별 실패 → warn 로그 후 계속
     /// - 수신 정보 없음 → debug 로그만
     /// - 항상 `Ok(())` 반환 (알림 실패가 워커 전체를 멈추지 않음)
+    /// - Expo 전송 성공 시 티켓 ID를 `pending_tickets`에 추가한다.
     pub async fn send(&self, payload: &NotificationPayload) -> Result<()> {
         let mut attempted = 0u32;
 
@@ -117,11 +129,17 @@ impl NotificationDispatcher {
                 payload.program_id,
             );
             match expo.send(&msg).await {
-                Ok(ticket) if ticket.status == "ok" => tracing::info!(
-                    user_id   = %payload.user_id,
-                    ticket_id = %ticket.id,
-                    "expo push sent"
-                ),
+                Ok(ticket) if ticket.status == "ok" => {
+                    tracing::info!(
+                        user_id   = %payload.user_id,
+                        ticket_id = %ticket.id,
+                        "expo push sent"
+                    );
+                    // 영수증 확인을 위해 티켓 ID 저장
+                    if !ticket.id.is_empty() {
+                        self.pending_tickets.lock().await.push(ticket.id);
+                    }
+                }
                 Ok(ticket) => tracing::warn!(
                     user_id = %payload.user_id,
                     message = %ticket.message,
@@ -148,6 +166,45 @@ impl NotificationDispatcher {
         }
 
         Ok(())
+    }
+
+    /// 누적된 Expo 티켓 ID를 모두 꺼내 Expo 영수증 API로 전달 상태를 확인한다.
+    ///
+    /// 영수증에서 오류가 확인된 티켓 ID를 warn 로그로 남긴다.
+    /// `DeviceNotRegistered` 오류 토큰 정리 같은 후속 처리는 향후 여기에 추가한다.
+    pub async fn check_pending_receipts(&self) {
+        let ids: Vec<String> = {
+            let mut lock = self.pending_tickets.lock().await;
+            std::mem::take(&mut *lock)
+        };
+
+        if ids.is_empty() {
+            tracing::debug!("expo receipt check: no pending tickets");
+            return;
+        }
+
+        let Some(expo) = &self.expo else {
+            tracing::debug!("expo receipt check: expo client not active, skipping");
+            return;
+        };
+
+        tracing::info!(count = ids.len(), "expo receipt check: checking tickets");
+
+        match expo.check_receipts(&ids).await {
+            Ok((ok_count, error_ids)) => {
+                tracing::info!(
+                    ok_count,
+                    error_count = error_ids.len(),
+                    "expo receipt check complete"
+                );
+                for id in &error_ids {
+                    tracing::warn!(ticket_id = %id, "expo receipt reported error for ticket");
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "expo receipt check failed; tickets lost");
+            }
+        }
     }
 
     /// 활성화된 채널이 하나라도 있으면 true.

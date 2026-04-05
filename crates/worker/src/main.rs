@@ -158,6 +158,19 @@ async fn main() -> anyhow::Result<()> {
         })?)
         .await?;
 
+    // Expo push receipt check every 15 minutes
+    sched
+        .add(Job::new_async("0 */15 * * * *", {
+            let notifier = notifier.clone();
+            move |_uuid, _l| {
+                let notifier = notifier.clone();
+                Box::pin(async move {
+                    notifier.check_pending_receipts().await;
+                })
+            }
+        })?)
+        .await?;
+
     // Deadline alerts every hour (D-7/D-3/D-1)
     sched
         .add(Job::new_async("0 0 * * * *", {

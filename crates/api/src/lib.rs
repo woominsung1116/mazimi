@@ -146,6 +146,10 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
             "/api/v1/recommend/preview",
             post(routes::recommend::preview),
         )
+        .route(
+            "/api/v1/stack-check",
+            post(routes::stack_check::stack_check),
+        )
         .layer(GovernorLayer::new(Arc::clone(&api_governor_conf)));
 
     // ── Protected routes: general limit (100/min per IP) + JWT auth ──
@@ -197,6 +201,26 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
         .route(
             "/api/v1/my/applications/{program_id}",
             put(routes::state::update_application),
+        )
+        .route(
+            "/api/v1/payments/verify",
+            post(routes::payment::verify_payment),
+        )
+        .route(
+            "/api/v1/payments/status",
+            get(routes::payment::subscription_status),
+        )
+        .route(
+            "/api/v1/documents",
+            get(routes::documents::list_documents).post(routes::documents::upload_document),
+        )
+        .route(
+            "/api/v1/documents/{id}/download",
+            get(routes::documents::download_document),
+        )
+        .route(
+            "/api/v1/documents/{id}",
+            axum::routing::delete(routes::documents::delete_document),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

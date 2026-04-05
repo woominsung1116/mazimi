@@ -23,6 +23,9 @@ reqwest = { workspace = true }
 jsonwebtoken = "9"
 tower_governor = "0.8"
 urlencoding = "2"
+base64 = "0.22"
 
 [dev-dependencies]
 tokio = { workspace = true }
+uuid = { workspace = true }
+jsonwebtoken = "9"
