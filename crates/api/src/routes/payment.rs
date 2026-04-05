@@ -28,7 +28,6 @@ pub struct VerifyPaymentRequest {
     pub product_type: String,
 }
 
-
 // ── Row types for sqlx ────────────────────────────────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
@@ -65,12 +64,7 @@ pub async fn verify_payment(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
 
-    let bad_request = |msg: &str| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": msg })),
-        )
-    };
+    let bad_request = |msg: &str| (StatusCode::BAD_REQUEST, Json(json!({ "error": msg })));
     let db_err = |e: sqlx::Error| {
         tracing::error!(error = %e, "DB error in verify_payment");
         (
@@ -130,16 +124,20 @@ pub async fn verify_payment(
     .bind(user_id)
     .bind(&payload.product_type)
     .bind(&payload.payment_id)
-    .bind(plan.price_krw)       // use DB price, never client amount
+    .bind(plan.price_krw) // use DB price, never client amount
     .bind(expires_at)
     .fetch_one(&pool)
     .await
     .map_err(|e| match e {
         // payment_id already exists — idempotent 409
-        sqlx::Error::Database(ref db) if db.constraint() == Some("user_subscriptions_payment_id_key") => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "This payment has already been recorded" })),
-        ),
+        sqlx::Error::Database(ref db)
+            if db.constraint() == Some("user_subscriptions_payment_id_key") =>
+        {
+            (
+                StatusCode::CONFLICT,
+                Json(json!({ "error": "This payment has already been recorded" })),
+            )
+        }
         other => {
             tracing::error!(error = %other, "Failed to insert subscription");
             (

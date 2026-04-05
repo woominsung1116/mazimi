@@ -57,17 +57,20 @@ pub async fn list_documents(
     auth_user: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let rows = sqlx::query_as::<_, (
-        uuid::Uuid,
-        String,
-        String,
-        i64,
-        String,
-        String,
-        Option<chrono::DateTime<chrono::Utc>>,
-        Option<chrono::DateTime<chrono::Utc>>,
-        chrono::DateTime<chrono::Utc>,
-    )>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            uuid::Uuid,
+            String,
+            String,
+            i64,
+            String,
+            String,
+            Option<chrono::DateTime<chrono::Utc>>,
+            Option<chrono::DateTime<chrono::Utc>>,
+            chrono::DateTime<chrono::Utc>,
+        ),
+    >(
         r#"
         SELECT id, document_type, file_name, file_size_bytes, mime_type, iv_hex,
                issued_at, expires_at, created_at
@@ -140,15 +143,11 @@ pub async fn upload_document(
         .mime_type
         .unwrap_or_else(|| "application/octet-stream".to_string());
 
-    let issued_at: Option<chrono::DateTime<chrono::Utc>> = body
-        .issued_at
-        .as_deref()
-        .and_then(|s| s.parse().ok());
+    let issued_at: Option<chrono::DateTime<chrono::Utc>> =
+        body.issued_at.as_deref().and_then(|s| s.parse().ok());
 
-    let expires_at: Option<chrono::DateTime<chrono::Utc>> = body
-        .expires_at
-        .as_deref()
-        .and_then(|s| s.parse().ok());
+    let expires_at: Option<chrono::DateTime<chrono::Utc>> =
+        body.expires_at.as_deref().and_then(|s| s.parse().ok());
 
     let row = sqlx::query_as::<_, (uuid::Uuid, chrono::DateTime<chrono::Utc>)>(
         r#"

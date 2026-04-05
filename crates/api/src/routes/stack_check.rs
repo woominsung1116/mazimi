@@ -102,10 +102,7 @@ pub async fn stack_check(
     }
 
     // ── Fetch only the fields we need (parameterized query) ──────────────────
-    let rows = sqlx::query_as::<
-        _,
-        (Uuid, String, String, Option<String>, Option<String>),
-    >(
+    let rows = sqlx::query_as::<_, (Uuid, String, String, Option<String>, Option<String>)>(
         "SELECT id, title, program_type, provider_name, source_id \
          FROM programs \
          WHERE id = ANY($1)",
@@ -137,10 +134,7 @@ pub async fn stack_check(
             );
         }
         // Only include IDs that exist in the DB, in the original request order
-        unique_ids
-            .iter()
-            .filter_map(|id| map.remove(id))
-            .collect()
+        unique_ids.iter().filter_map(|id| map.remove(id)).collect()
     };
 
     if programs.len() < 2 {
@@ -239,9 +233,7 @@ fn classify_pair(a: &ProgramRow, b: &ProgramRow) -> (String, String) {
         let provider = a.provider_name.as_deref().unwrap_or("동일 기관");
         return (
             "conflict".to_string(),
-            format!(
-                "동일 기관({provider})의 같은 유형 혜택은 중복 수령이 제한될 수 있습니다."
-            ),
+            format!("동일 기관({provider})의 같은 유형 혜택은 중복 수령이 제한될 수 있습니다."),
         );
     }
 

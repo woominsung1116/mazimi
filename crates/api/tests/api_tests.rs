@@ -280,7 +280,10 @@ async fn auth_refresh_returns_new_tokens() {
     assert_eq!(resp.status(), 200, "refresh should succeed");
 
     let body: Value = resp.json().await.expect("invalid json");
-    assert!(body["token"].is_string(), "response must have 'token': {body}");
+    assert!(
+        body["token"].is_string(),
+        "response must have 'token': {body}"
+    );
     assert!(
         body["refresh_token"].is_string(),
         "response must have 'refresh_token': {body}"
@@ -327,7 +330,10 @@ async fn auth_me_returns_user_info() {
         user_id.to_string(),
         "returned id must match"
     );
-    assert!(body["role"].is_string(), "response must have 'role': {body}");
+    assert!(
+        body["role"].is_string(),
+        "response must have 'role': {body}"
+    );
 }
 
 #[tokio::test]
@@ -359,7 +365,11 @@ async fn get_profile_returns_own_profile() {
         .await
         .expect("request failed");
 
-    assert_eq!(resp.status(), 200, "GET /profile should succeed: body omitted");
+    assert_eq!(
+        resp.status(),
+        200,
+        "GET /profile should succeed: body omitted"
+    );
 
     let body: Value = resp.json().await.expect("invalid json");
     assert_eq!(
@@ -398,7 +408,9 @@ async fn bookmark_toggle_works() {
         .await
         .expect("programs request failed");
     let programs_body: Value = programs_resp.json().await.expect("invalid json");
-    let items = programs_body["items"].as_array().expect("items must be array");
+    let items = programs_body["items"]
+        .as_array()
+        .expect("items must be array");
 
     if items.is_empty() {
         // No programs to bookmark; skip
@@ -459,7 +471,9 @@ async fn upsert_state_works() {
         .await
         .expect("programs request failed");
     let programs_body: Value = programs_resp.json().await.expect("invalid json");
-    let items = programs_body["items"].as_array().expect("items must be array");
+    let items = programs_body["items"]
+        .as_array()
+        .expect("items must be array");
 
     if items.is_empty() {
         return;
@@ -624,7 +638,9 @@ async fn upsert_alert_preferences_returns_subscriptions() {
         .await
         .expect("programs request failed");
     let programs_body: Value = programs_resp.json().await.expect("invalid json");
-    let items = programs_body["items"].as_array().expect("items must be array");
+    let items = programs_body["items"]
+        .as_array()
+        .expect("items must be array");
 
     // Filter to active programs
     let active = items
@@ -645,7 +661,9 @@ async fn upsert_alert_preferences_returns_subscriptions() {
         return;
     }
 
-    let program_id = active.unwrap()["id"].as_str().expect("program must have id");
+    let program_id = active.unwrap()["id"]
+        .as_str()
+        .expect("program must have id");
 
     let resp = client
         .post(format!("{base}/api/v1/alerts/preferences"))
@@ -731,7 +749,9 @@ async fn update_application_works() {
         .await
         .expect("programs request failed");
     let programs_body: Value = programs_resp.json().await.expect("invalid json");
-    let items = programs_body["items"].as_array().expect("items must be array");
+    let items = programs_body["items"]
+        .as_array()
+        .expect("items must be array");
 
     if items.is_empty() {
         return;
@@ -985,7 +1005,11 @@ async fn admin_stats_rejects_regular_user() {
         .await
         .expect("request failed");
 
-    assert_eq!(resp.status(), 403, "regular user must not access admin stats");
+    assert_eq!(
+        resp.status(),
+        403,
+        "regular user must not access admin stats"
+    );
 }
 
 #[tokio::test]
