@@ -1117,3 +1117,393 @@ async fn admin_sync_rejects_unauthenticated() {
 
     assert_eq!(resp.status(), 401);
 }
+
+// ── Stack Check tests ──────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn stack_check_returns_results_for_valid_ids() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    // Get two program IDs from the listing
+    let resp = client
+        .get(format!("{base}/api/v1/programs"))
+        .send()
+        .await
+        .expect("request failed");
+    let body: Value = resp.json().await.expect("json");
+    let items = body["items"].as_array().expect("items");
+    if items.len() < 2 {
+        return; // not enough seed data
+    }
+    let id1 = items[0]["id"].as_str().unwrap();
+    let id2 = items[1]["id"].as_str().unwrap();
+
+    let resp = client
+        .post(format!("{base}/api/v1/stack-check"))
+        .json(&json!({ "program_ids": [id1, id2] }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200);
+    let body: Value = resp.json().await.expect("json");
+    assert!(body["pairs"].is_array());
+    assert!(body["all_stackable"].is_boolean());
+}
+
+#[tokio::test]
+async fn stack_check_rejects_single_id() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/api/v1/stack-check"))
+        .json(&json!({ "program_ids": ["00000000-0000-0000-0000-000000000001"] }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn stack_check_rejects_too_many_ids() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let ids: Vec<String> = (0..21)
+        .map(|i| format!("00000000-0000-0000-0000-{:012}", i))
+        .collect();
+
+    let resp = client
+        .post(format!("{base}/api/v1/stack-check"))
+        .json(&json!({ "program_ids": ids }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+// ── Document Vault tests ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn documents_list_empty_for_new_user() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _refresh) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/documents"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["total"], 0);
+    assert!(body["items"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn documents_upload_download_delete_cycle() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _refresh) = create_test_user(&base).await;
+
+    // Simulate encrypted data: 256 bytes of zeros, base64 encoded
+    let fake_encrypted = vec![0u8; 256];
+    use base64::Engine;
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&fake_encrypted);
+
+    // Upload
+    let upload_resp = client
+        .post(format!("{base}/api/v1/documents"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "document_type": "income_cert",
+            "file_name": "test_doc.pdf",
+            "file_size_bytes": 256,
+            "encrypted_data_base64": data_b64,
+            "iv_hex": "00112233445566778899aabbccddeeff",
+        }))
+        .send()
+        .await
+        .expect("upload failed");
+
+    assert_eq!(upload_resp.status(), 200);
+    let upload_body: Value = upload_resp.json().await.expect("json");
+    let doc_id = upload_body["id"].as_str().expect("must have id");
+
+    // Download
+    let dl_resp = client
+        .get(format!("{base}/api/v1/documents/{doc_id}/download"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("download failed");
+
+    assert_eq!(dl_resp.status(), 200);
+    let dl_body: Value = dl_resp.json().await.expect("json");
+    assert_eq!(dl_body["encrypted_data_base64"], data_b64);
+    assert_eq!(dl_body["iv_hex"], "00112233445566778899aabbccddeeff");
+
+    // Delete
+    let del_resp = client
+        .delete(format!("{base}/api/v1/documents/{doc_id}"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("delete failed");
+
+    assert_eq!(del_resp.status(), 200);
+
+    // Verify deleted
+    let dl2_resp = client
+        .get(format!("{base}/api/v1/documents/{doc_id}/download"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("download after delete failed");
+
+    assert_eq!(dl2_resp.status(), 404);
+}
+
+#[tokio::test]
+async fn documents_upload_rejects_size_mismatch() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _refresh) = create_test_user(&base).await;
+
+    let fake_encrypted = vec![0u8; 256];
+    use base64::Engine;
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&fake_encrypted);
+
+    // Declare wrong size (100 vs actual 256)
+    let resp = client
+        .post(format!("{base}/api/v1/documents"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "document_type": "income_cert",
+            "file_name": "test.pdf",
+            "file_size_bytes": 100,
+            "encrypted_data_base64": data_b64,
+            "iv_hex": "00112233445566778899aabbccddeeff",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+    let body: Value = resp.json().await.expect("json");
+    assert!(body["error"].as_str().unwrap().contains("does not match"));
+}
+
+#[tokio::test]
+async fn documents_upload_rejects_invalid_doc_type() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _refresh) = create_test_user(&base).await;
+
+    use base64::Engine;
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&[0u8; 16]);
+
+    let resp = client
+        .post(format!("{base}/api/v1/documents"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "document_type": "invalid_type",
+            "file_name": "test.pdf",
+            "file_size_bytes": 16,
+            "encrypted_data_base64": data_b64,
+            "iv_hex": "00112233445566778899aabbccddeeff",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn documents_upload_rejects_bad_iv() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _refresh) = create_test_user(&base).await;
+
+    use base64::Engine;
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&[0u8; 16]);
+
+    let resp = client
+        .post(format!("{base}/api/v1/documents"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "document_type": "income_cert",
+            "file_name": "test.pdf",
+            "file_size_bytes": 16,
+            "encrypted_data_base64": data_b64,
+            "iv_hex": "short",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn documents_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{base}/api/v1/documents"))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}
+
+#[tokio::test]
+async fn documents_download_rejects_other_user() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid1, token1, _) = create_test_user(&base).await;
+    let (_uid2, token2, _) = create_test_user(&base).await;
+
+    // User1 uploads
+    use base64::Engine;
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&[0u8; 32]);
+    let upload_resp = client
+        .post(format!("{base}/api/v1/documents"))
+        .bearer_auth(&token1)
+        .json(&json!({
+            "document_type": "id_card",
+            "file_name": "my_id.pdf",
+            "file_size_bytes": 32,
+            "encrypted_data_base64": data_b64,
+            "iv_hex": "aabbccddeeff00112233445566778899",
+        }))
+        .send()
+        .await
+        .expect("upload failed");
+    let doc_id = upload_resp.json::<Value>().await.unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // User2 tries to download — must fail
+    let resp = client
+        .get(format!("{base}/api/v1/documents/{doc_id}/download"))
+        .bearer_auth(&token2)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 404);
+}
+
+// ── Payment tests ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn payment_verify_rejects_empty_payment_id() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/payments/verify"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "payment_id": "",
+            "amount": 4900,
+            "product_type": "premium_monthly",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn payment_verify_rejects_wrong_amount() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/payments/verify"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "payment_id": "test_pay_999",
+            "amount": 1,
+            "product_type": "premium_monthly",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn payment_verify_rejects_unknown_product() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .post(format!("{base}/api/v1/payments/verify"))
+        .bearer_auth(&token)
+        .json(&json!({
+            "payment_id": "test_pay_000",
+            "amount": 4900,
+            "product_type": "nonexistent_plan",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn payment_status_returns_inactive_for_new_user() {
+    let base = start_test_server().await;
+    let client = Client::new();
+    let (_uid, token, _) = create_test_user(&base).await;
+
+    let resp = client
+        .get(format!("{base}/api/v1/payments/status"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 200);
+    let body: Value = resp.json().await.expect("json");
+    assert_eq!(body["active"], false);
+}
+
+#[tokio::test]
+async fn payment_rejects_unauthenticated() {
+    let base = start_test_server().await;
+    let client = Client::new();
+
+    let resp = client
+        .post(format!("{base}/api/v1/payments/verify"))
+        .json(&json!({
+            "payment_id": "test",
+            "amount": 4900,
+            "product_type": "premium_monthly",
+        }))
+        .send()
+        .await
+        .expect("request failed");
+
+    assert_eq!(resp.status(), 401);
+}

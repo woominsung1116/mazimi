@@ -24,6 +24,7 @@ jsonwebtoken = "9"
 tower_governor = "0.8"
 urlencoding = "2"
 base64 = "0.22"
+async-trait = "0.1"
 
 [dev-dependencies]
 tokio = { workspace = true }

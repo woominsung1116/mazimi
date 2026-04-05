@@ -10,10 +10,11 @@ use tracing_subscriber::EnvFilter;
 use mazimi_core::AppConfig;
 
 use crate::notifications::NotificationDispatcher;
-use crate::sources::dreamspon::DreamsponSource;
 use crate::sources::financial::FssFinancialSource;
 use crate::sources::gov_benefits::GovBenefitsSource;
 use crate::sources::local_scraper::LocalScraperSource;
+use crate::sources::local_welfare::LocalWelfareSource;
+use crate::sources::national_welfare::NationalWelfareSource;
 use crate::sources::scholarship::ScholarshipSource;
 use crate::sources::youth_center::YouthCenterSource;
 
@@ -33,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Worker connected to DB");
 
     // 알림 채널 초기화 (env 없는 채널은 warn 후 skip)
-    let notifier = std::sync::Arc::new(NotificationDispatcher::from_env());
+    let notifier = std::sync::Arc::new(NotificationDispatcher::from_env(pool.clone()));
 
     let sched = JobScheduler::new().await?;
 
@@ -137,17 +138,32 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
 
-                    // 드림스폰 장학금 (기업 장학금 포함, 인증 불필요)
-                    match DreamsponSource::from_env() {
+                    // 한국사회보장정보원 중앙부처 복지서비스 (NATIONAL_WELFARE_API_KEY 없으면 skip)
+                    match NationalWelfareSource::from_env() {
                         Some(src) => {
                             if let Err(e) = pipeline::run_ingestion(&pool, &src).await {
-                                tracing::error!(source = "dreamspon", error = %e, "ingestion failed");
+                                tracing::error!(source = "national_welfare", error = %e, "ingestion failed");
                             }
                         }
                         None => {
                             tracing::debug!(
-                                source = "dreamspon",
-                                "DREAMSPON_ENABLED=false — skipping 드림스폰 sync"
+                                source = "national_welfare",
+                                "NATIONAL_WELFARE_API_KEY not set — skipping 중앙부처 복지서비스 sync"
+                            );
+                        }
+                    }
+
+                    // 한국사회보장정보원 지자체 복지서비스 (LOCAL_WELFARE_API_KEY 없으면 skip)
+                    match LocalWelfareSource::from_env() {
+                        Some(src) => {
+                            if let Err(e) = pipeline::run_ingestion(&pool, &src).await {
+                                tracing::error!(source = "local_welfare", error = %e, "ingestion failed");
+                            }
+                        }
+                        None => {
+                            tracing::debug!(
+                                source = "local_welfare",
+                                "LOCAL_WELFARE_API_KEY not set — skipping 지자체 복지서비스 sync"
                             );
                         }
                     }

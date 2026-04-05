@@ -2,6 +2,8 @@ pub mod dreamspon;
 pub mod financial;
 pub mod gov_benefits;
 pub mod local_scraper;
+pub mod local_welfare;
+pub mod national_welfare;
 pub mod scholarship;
 pub mod youth_center;
 

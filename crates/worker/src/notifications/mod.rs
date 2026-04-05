@@ -8,11 +8,11 @@
 //! - env 키가 없는 채널은 warn 후 skip (panic 없음)
 //! - 채널별 발송 실패는 warn 후 나머지 채널 계속 시도
 //! - 수신 정보(phone/expo_token)가 없는 유저는 debug 로그만 남김
+//! - Expo 티켓은 DB(expo_push_tickets)에 저장하여 워커 재시작 후에도 영수증 조회 가능
 
 use anyhow::Result;
+use sqlx::PgPool;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub mod expo_push;
@@ -46,24 +46,31 @@ pub struct NotificationPayload {
     pub template_vars: HashMap<String, String>,
 }
 
+/// pending 티켓 조회용 내부 구조체.
+#[derive(sqlx::FromRow)]
+struct PendingTicketRow {
+    ticket_id: String,
+    expo_token: String,
+}
+
 /// 카카오 알림톡 + Expo Push 두 채널에 순차 발송하는 디스패처.
 ///
-/// `from_env()`로 생성하면 가용 채널만 활성화하며,
+/// `from_env(pool)`로 생성하면 가용 채널만 활성화하며,
 /// 키가 없는 채널은 서버 시작 시 한 번만 warn 로그를 남긴다.
 ///
-/// Expo 전송 시 받은 티켓 ID는 `pending_tickets`에 누적되며,
+/// Expo 전송 시 받은 티켓 ID는 DB(`expo_push_tickets`)에 저장되며,
 /// `check_pending_receipts()`로 Expo 영수증 API를 통해 전달 결과를 확인한다.
+/// DB 저장 방식이므로 워커 재시작 후에도 티켓이 유실되지 않는다.
 pub struct NotificationDispatcher {
     kakao: Option<kakao::KakaoClient>,
     expo: Option<expo_push::ExpoPushClient>,
-    /// Expo 전송 후 영수증 조회 대기 중인 티켓 ID 목록.
-    pending_tickets: Arc<Mutex<Vec<String>>>,
+    pool: PgPool,
 }
 
 impl NotificationDispatcher {
     /// 환경변수를 읽어 가용한 채널을 초기화한다.
     /// 개별 채널 초기화 실패는 panic 없이 해당 채널만 비활성화한다.
-    pub fn from_env() -> Self {
+    pub fn from_env(pool: PgPool) -> Self {
         let kakao = match kakao::KakaoClient::from_env() {
             Ok(c) => {
                 tracing::info!("kakao alimtalk notifier initialized");
@@ -86,11 +93,7 @@ impl NotificationDispatcher {
             }
         };
 
-        Self {
-            kakao,
-            expo,
-            pending_tickets: Arc::new(Mutex::new(Vec::new())),
-        }
+        Self { kakao, expo, pool }
     }
 
     /// 가용한 모든 채널에 발송을 시도한다.
@@ -98,7 +101,7 @@ impl NotificationDispatcher {
     /// - 채널별 실패 → warn 로그 후 계속
     /// - 수신 정보 없음 → debug 로그만
     /// - 항상 `Ok(())` 반환 (알림 실패가 워커 전체를 멈추지 않음)
-    /// - Expo 전송 성공 시 티켓 ID를 `pending_tickets`에 추가한다.
+    /// - Expo 전송 성공 시 티켓 ID를 DB에 INSERT한다.
     pub async fn send(&self, payload: &NotificationPayload) -> Result<()> {
         let mut attempted = 0u32;
 
@@ -135,9 +138,26 @@ impl NotificationDispatcher {
                         ticket_id = %ticket.id,
                         "expo push sent"
                     );
-                    // 영수증 확인을 위해 티켓 ID 저장
                     if !ticket.id.is_empty() {
-                        self.pending_tickets.lock().await.push(ticket.id);
+                        if let Err(e) = sqlx::query(
+                            r#"
+                            INSERT INTO expo_push_tickets (ticket_id, user_id, expo_token)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT (ticket_id) DO NOTHING
+                            "#,
+                        )
+                        .bind(&ticket.id)
+                        .bind(payload.user_id)
+                        .bind(token.as_str())
+                        .execute(&self.pool)
+                        .await
+                        {
+                            tracing::warn!(
+                                ticket_id = %ticket.id,
+                                error = %e,
+                                "failed to persist expo ticket to DB"
+                            );
+                        }
                     }
                 }
                 Ok(ticket) => tracing::warn!(
@@ -168,43 +188,141 @@ impl NotificationDispatcher {
         Ok(())
     }
 
-    /// 누적된 Expo 티켓 ID를 모두 꺼내 Expo 영수증 API로 전달 상태를 확인한다.
+    /// DB에서 pending 상태 티켓을 조회하여 Expo 영수증 API로 전달 상태를 확인한다.
     ///
-    /// 영수증에서 오류가 확인된 티켓 ID를 warn 로그로 남긴다.
-    /// `DeviceNotRegistered` 오류 토큰 정리 같은 후속 처리는 향후 여기에 추가한다.
+    /// - 성공(ok): status → 'ok', checked_at 기록
+    /// - 오류: status → 'error' 또는 'device_not_registered', error_detail 기록
+    /// - `DeviceNotRegistered`: push_tokens 테이블에서 해당 토큰 삭제
+    /// - API 호출 실패: 행을 그대로 두어 다음 폴링 주기에 재시도
     pub async fn check_pending_receipts(&self) {
-        let ids: Vec<String> = {
-            let mut lock = self.pending_tickets.lock().await;
-            std::mem::take(&mut *lock)
-        };
-
-        if ids.is_empty() {
-            tracing::debug!("expo receipt check: no pending tickets");
-            return;
-        }
-
         let Some(expo) = &self.expo else {
             tracing::debug!("expo receipt check: expo client not active, skipping");
             return;
         };
 
+        // pending 티켓 조회
+        let rows: Vec<PendingTicketRow> = match sqlx::query_as(
+            "SELECT ticket_id, expo_token FROM expo_push_tickets WHERE status = 'pending'",
+        )
+        .fetch_all(&self.pool)
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(error = %e, "expo receipt check: failed to fetch pending tickets");
+                return;
+            }
+        };
+
+        if rows.is_empty() {
+            tracing::debug!("expo receipt check: no pending tickets");
+            return;
+        }
+
+        // ticket_id → expo_token 맵 구성
+        let token_map: HashMap<String, String> = rows
+            .into_iter()
+            .map(|r| (r.ticket_id, r.expo_token))
+            .collect();
+
+        let ids: Vec<String> = token_map.keys().cloned().collect();
         tracing::info!(count = ids.len(), "expo receipt check: checking tickets");
 
-        match expo.check_receipts(&ids).await {
-            Ok((ok_count, error_ids)) => {
-                tracing::info!(
-                    ok_count,
-                    error_count = error_ids.len(),
-                    "expo receipt check complete"
+        let results = match expo.check_receipts(&ids).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "expo receipt check failed; leaving tickets pending for retry"
                 );
-                for id in &error_ids {
-                    tracing::warn!(ticket_id = %id, "expo receipt reported error for ticket");
+                return;
+            }
+        };
+
+        let mut ok_count = 0usize;
+        let mut error_count = 0usize;
+        let mut dnr_count = 0usize;
+
+        for result in &results {
+            if result.status == "ok" {
+                ok_count += 1;
+                if let Err(e) = sqlx::query(
+                    "UPDATE expo_push_tickets SET status = 'ok', checked_at = NOW() WHERE ticket_id = $1",
+                )
+                .bind(&result.ticket_id)
+                .execute(&self.pool)
+                .await
+                {
+                    tracing::warn!(
+                        ticket_id = %result.ticket_id,
+                        error = %e,
+                        "failed to update ticket status to ok"
+                    );
+                }
+            } else if result.is_device_not_registered() {
+                dnr_count += 1;
+                let expo_token = token_map
+                    .get(&result.ticket_id)
+                    .cloned()
+                    .unwrap_or_default();
+                let error_detail = result.error_detail_str();
+
+                if let Err(e) = sqlx::query(
+                    "UPDATE expo_push_tickets SET status = 'device_not_registered', checked_at = NOW(), error_detail = $2 WHERE ticket_id = $1",
+                )
+                .bind(&result.ticket_id)
+                .bind(&error_detail)
+                .execute(&self.pool)
+                .await
+                {
+                    tracing::warn!(
+                        ticket_id = %result.ticket_id,
+                        error = %e,
+                        "failed to update ticket status to device_not_registered"
+                    );
+                }
+
+                // 유효하지 않은 토큰 삭제
+                if !expo_token.is_empty() {
+                    if let Err(e) = sqlx::query("DELETE FROM push_tokens WHERE token = $1")
+                        .bind(&expo_token)
+                        .execute(&self.pool)
+                        .await
+                    {
+                        tracing::warn!(
+                            token = %expo_token,
+                            error = %e,
+                            "failed to delete stale push token"
+                        );
+                    }
+                }
+            } else {
+                error_count += 1;
+                let error_detail = result.error_detail_str();
+
+                if let Err(e) = sqlx::query(
+                    "UPDATE expo_push_tickets SET status = 'error', checked_at = NOW(), error_detail = $2 WHERE ticket_id = $1",
+                )
+                .bind(&result.ticket_id)
+                .bind(&error_detail)
+                .execute(&self.pool)
+                .await
+                {
+                    tracing::warn!(
+                        ticket_id = %result.ticket_id,
+                        error = %e,
+                        "failed to update ticket status to error"
+                    );
                 }
             }
-            Err(e) => {
-                tracing::warn!(error = %e, "expo receipt check failed; tickets lost");
-            }
         }
+
+        tracing::info!(
+            ok_count,
+            error_count,
+            device_not_registered_count = dnr_count,
+            "expo receipt check complete"
+        );
     }
 
     /// 활성화된 채널이 하나라도 있으면 true.

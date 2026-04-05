@@ -133,21 +133,61 @@ pub async fn upload_document(
         return Err(err_bad("file_name must be 1-255 characters"));
     }
 
-    // Decode base64 encrypted data
+    // Validate MIME type if provided
+    const VALID_MIMES: &[&str] = &[
+        "application/octet-stream",
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/heic",
+        "image/webp",
+    ];
+    if let Some(ref m) = body.mime_type {
+        if !VALID_MIMES.contains(&m.as_str()) {
+            return Err(err_bad("Unsupported mime_type"));
+        }
+    }
+
+    // Decode base64 encrypted data and validate actual size
     use base64::Engine;
     let encrypted_bytes = base64::engine::general_purpose::STANDARD
         .decode(&body.encrypted_data_base64)
         .map_err(|_| err_bad("Invalid base64 in encrypted_data_base64"))?;
 
+    let actual_len = encrypted_bytes.len() as i64;
+
+    // Reject if actual decoded size exceeds 10 MB
+    if actual_len > MAX_FILE_SIZE {
+        return Err(err_bad("Decoded payload exceeds 10MB limit"));
+    }
+
+    // Reject if declared file_size_bytes doesn't match actual decoded length
+    if body.file_size_bytes != actual_len {
+        return Err(err_bad(&format!(
+            "file_size_bytes ({}) does not match actual decoded length ({})",
+            body.file_size_bytes, actual_len
+        )));
+    }
+
     let mime = body
         .mime_type
         .unwrap_or_else(|| "application/octet-stream".to_string());
 
-    let issued_at: Option<chrono::DateTime<chrono::Utc>> =
-        body.issued_at.as_deref().and_then(|s| s.parse().ok());
+    let issued_at: Option<chrono::DateTime<chrono::Utc>> = match body.issued_at.as_deref() {
+        Some(s) => Some(
+            s.parse::<chrono::DateTime<chrono::Utc>>()
+                .map_err(|_| err_bad("issued_at must be a valid RFC3339 datetime"))?,
+        ),
+        None => None,
+    };
 
-    let expires_at: Option<chrono::DateTime<chrono::Utc>> =
-        body.expires_at.as_deref().and_then(|s| s.parse().ok());
+    let expires_at: Option<chrono::DateTime<chrono::Utc>> = match body.expires_at.as_deref() {
+        Some(s) => Some(
+            s.parse::<chrono::DateTime<chrono::Utc>>()
+                .map_err(|_| err_bad("expires_at must be a valid RFC3339 datetime"))?,
+        ),
+        None => None,
+    };
 
     let row = sqlx::query_as::<_, (uuid::Uuid, chrono::DateTime<chrono::Utc>)>(
         r#"

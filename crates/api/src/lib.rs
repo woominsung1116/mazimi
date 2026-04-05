@@ -14,19 +14,24 @@ use tower_governor::{
 use tower_http::cors::CorsLayer;
 
 pub mod auth;
+pub mod payment_provider;
 mod routes;
+
+use payment_provider::PaymentProvider;
 
 // ── Shared application state ──
 //
 // `FromRef` lets Axum extract sub-states automatically, so existing handlers
 // that declare `State<PgPool>` continue to work without modification.
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: String,
     /// "local" | "staging" | "production"
     pub app_env: String,
+    /// Payment gateway provider. Fail-closed: absent credentials → always fails.
+    pub payment_provider: Arc<dyn PaymentProvider>,
 }
 
 impl axum::extract::FromRef<AppState> for PgPool {
@@ -59,6 +64,7 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
         pool,
         jwt_secret,
         app_env,
+        payment_provider: Arc::from(payment_provider::build_payment_provider()),
     };
 
     // ── Rate limiter configs ──

@@ -5,15 +5,17 @@
 //!   - `user_id` always comes from the JWT (AuthUser extractor) — never from request body.
 //!   - All SQL uses parameterized binding; no string interpolation.
 //!   - `payment_id` is stored with a UNIQUE constraint to prevent replay attacks.
+//!   - PG receipt is verified against PortOne before any subscription is created.
+//!     If credentials are absent the provider is fail-closed and all verifications fail.
 
 use axum::{extract::State, http::StatusCode, Json};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
+use crate::AppState;
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -48,21 +50,26 @@ struct Subscription {
 
 /// POST /api/v1/payments/verify
 ///
-/// Verifies a payment by checking the client-supplied amount against the
-/// server-authoritative price in `subscription_plans`.  On success, writes
-/// a new row to `user_subscriptions` and returns the expiry date.
+/// Verifies a payment by:
+///   1. Fetching the authoritative plan price from the DB.
+///   2. Calling the PortOne API to confirm the payment actually occurred.
+///   3. Checking receipt.status == "paid" and receipt.amount == plan price.
+///   4. Only then inserting the subscription row.
 ///
 /// SECURITY:
 ///   - `user_id` is extracted from the JWT — the client cannot forge it.
 ///   - `price_krw` is read from the DB; client amount must match exactly.
+///   - PG receipt is verified with PortOne before any DB write.
+///   - Fail-closed: if PG credentials are absent, verification always fails.
 ///   - `payment_id` has a UNIQUE DB constraint — re-submitting the same ID
 ///     returns 409 Conflict rather than creating a duplicate subscription.
 pub async fn verify_payment(
     auth_user: AuthUser,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(payload): Json<VerifyPaymentRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
+    let pool = &state.pool;
 
     let bad_request = |msg: &str| (StatusCode::BAD_REQUEST, Json(json!({ "error": msg })));
     let db_err = |e: sqlx::Error| {
@@ -86,7 +93,7 @@ pub async fn verify_payment(
         "SELECT price_krw, duration_days, active FROM subscription_plans WHERE id = $1",
     )
     .bind(&payload.product_type)
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await
     .map_err(db_err)?
     .ok_or_else(|| bad_request("Unknown product_type"))?;
@@ -95,19 +102,59 @@ pub async fn verify_payment(
         return Err(bad_request("This plan is no longer available"));
     }
 
-    // SECURITY: Reject if client amount does not match DB price.
+    // SECURITY: Verify the payment with PortOne before trusting it.
+    // Fail-closed: if provider is unconfigured this always returns Err.
+    let receipt = state
+        .payment_provider
+        .verify_payment(&payload.payment_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                user_id = %user_id,
+                payment_id = %payload.payment_id,
+                error = %e,
+                "PG verification failed"
+            );
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "Payment could not be verified with the payment gateway" })),
+            )
+        })?;
+
+    // SECURITY: Receipt must show "paid" status.
+    if receipt.status != "paid" {
+        tracing::warn!(
+            user_id = %user_id,
+            payment_id = %payload.payment_id,
+            pg_status = %receipt.status,
+            "PG receipt status is not 'paid'"
+        );
+        return Err(bad_request("Payment has not been completed"));
+    }
+
+    // SECURITY: Receipt amount must match DB plan price — prevents partial-payment attacks.
+    if receipt.amount != plan.price_krw {
+        tracing::warn!(
+            user_id = %user_id,
+            payment_id = %payload.payment_id,
+            receipt_amount = receipt.amount,
+            db_price = plan.price_krw,
+            product_type = %payload.product_type,
+            "PG receipt amount does not match plan price — possible partial-payment attack"
+        );
+        return Err(bad_request("Payment amount does not match plan price"));
+    }
+
+    // SECURITY: Also reject if client-supplied amount mismatches DB price (belt-and-suspenders).
     if payload.amount != plan.price_krw {
         tracing::warn!(
             user_id = %user_id,
             client_amount = payload.amount,
             db_price = plan.price_krw,
             product_type = %payload.product_type,
-            "Payment amount mismatch — possible price manipulation attempt"
+            "Client amount mismatch — possible price manipulation attempt"
         );
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Payment amount does not match plan price" })),
-        ));
+        return Err(bad_request("Payment amount does not match plan price"));
     }
 
     let expires_at = Utc::now() + chrono::Duration::days(plan.duration_days as i64);
@@ -126,7 +173,7 @@ pub async fn verify_payment(
     .bind(&payload.payment_id)
     .bind(plan.price_krw) // use DB price, never client amount
     .bind(expires_at)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| match e {
         // payment_id already exists — idempotent 409
@@ -169,9 +216,10 @@ pub async fn verify_payment(
 /// Looks for the most recent active subscription that has not yet expired.
 pub async fn subscription_status(
     auth_user: AuthUser,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
+    let pool = &state.pool;
 
     let db_err = |e: sqlx::Error| {
         tracing::error!(error = %e, "DB error in subscription_status");
@@ -195,7 +243,7 @@ pub async fn subscription_status(
         "#,
     )
     .bind(user_id)
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await
     .map_err(db_err)?;
 

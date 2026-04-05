@@ -288,6 +288,8 @@ fn normalize(
         // inside payload["source_portal"]. We dispatch on that inner field.
         "local_scraper" => normalize_local_scraper(payload),
         "fss_financial" => crate::sources::financial::normalize_financial(payload),
+        "national_welfare" => crate::sources::national_welfare::normalize_national_welfare(payload),
+        "local_welfare" => crate::sources::local_welfare::normalize_local_welfare(payload),
         _ => NormalizedProgram {
             program_type: "benefit".into(),
             title: payload["title"].as_str().unwrap_or("Unknown").to_string(),

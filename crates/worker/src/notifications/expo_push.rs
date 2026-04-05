@@ -122,6 +122,41 @@ struct ReceiptEntry {
     details: Option<serde_json::Value>,
 }
 
+/// 영수증 조회 결과 단건.
+#[derive(Debug)]
+pub struct ReceiptResult {
+    /// 조회한 티켓 ID
+    pub ticket_id: String,
+    /// "ok" | "error"
+    pub status: String,
+    /// 실패 시 에러 메시지
+    pub error_message: Option<String>,
+    /// 실패 원인 코드 등 (e.g. `{"error": "DeviceNotRegistered"}`)
+    pub details: Option<serde_json::Value>,
+}
+
+impl ReceiptResult {
+    /// `DeviceNotRegistered` 오류인지 여부.
+    pub fn is_device_not_registered(&self) -> bool {
+        self.details
+            .as_ref()
+            .and_then(|d| d.get("error"))
+            .and_then(|e| e.as_str())
+            .map(|s| s == "DeviceNotRegistered")
+            .unwrap_or(false)
+    }
+
+    /// 영수증 에러 상세를 단일 문자열로 반환한다 (DB 저장용).
+    pub fn error_detail_str(&self) -> Option<String> {
+        match (&self.error_message, &self.details) {
+            (None, None) => None,
+            (Some(msg), None) => Some(msg.clone()),
+            (None, Some(d)) => Some(d.to_string()),
+            (Some(msg), Some(d)) => Some(format!("{msg} — {d}")),
+        }
+    }
+}
+
 // ── 클라이언트 ────────────────────────────────────────────────────────────────
 
 /// Expo Push Notifications API 클라이언트.
@@ -218,13 +253,11 @@ impl ExpoPushClient {
 
     /// 티켓 ID 목록으로 영수증을 조회한다.
     ///
-    /// `DeviceNotRegistered` 오류가 있는 토큰은 DB에서 삭제해야 한다.
-    /// 호출자가 삭제 로직을 처리할 수 있도록 해당 토큰 목록을 함께 반환한다.
-    ///
-    /// 반환: `(ok_count, error_ticket_ids)`
-    pub async fn check_receipts(&self, ticket_ids: &[String]) -> Result<(usize, Vec<String>)> {
+    /// 반환: `Vec<ReceiptResult>` — 각 티켓의 조회 결과.
+    /// `DeviceNotRegistered` 여부는 `ReceiptResult::is_device_not_registered()`로 확인한다.
+    pub async fn check_receipts(&self, ticket_ids: &[String]) -> Result<Vec<ReceiptResult>> {
         if ticket_ids.is_empty() {
-            return Ok((0, vec![]));
+            return Ok(vec![]);
         }
 
         let req = ReceiptRequest {
@@ -253,24 +286,30 @@ impl ExpoPushClient {
         let parsed: ReceiptResponse =
             serde_json::from_str(&raw).context("expo receipts parse failed")?;
 
-        let mut ok_count = 0usize;
-        let mut error_ids = Vec::new();
+        let mut results = Vec::with_capacity(parsed.data.len());
 
-        for (id, entry) in &parsed.data {
-            if entry.status == "ok" {
-                ok_count += 1;
-            } else {
+        for (id, entry) in parsed.data {
+            if entry.status != "ok" {
                 tracing::warn!(
                     receipt_id = %id,
                     message    = %entry.message,
                     details    = ?entry.details,
                     "expo receipt error"
                 );
-                error_ids.push(id.clone());
             }
+            results.push(ReceiptResult {
+                ticket_id: id,
+                status: entry.status,
+                error_message: if entry.message.is_empty() {
+                    None
+                } else {
+                    Some(entry.message)
+                },
+                details: entry.details,
+            });
         }
 
-        Ok((ok_count, error_ids))
+        Ok(results)
     }
 }
 
