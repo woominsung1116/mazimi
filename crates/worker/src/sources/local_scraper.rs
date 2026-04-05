@@ -52,28 +52,46 @@ pub struct ScraperSource {
     pub link_selector: &'static str,
 }
 
-/// All portals to scrape.
+/// Active portals (부산, 대구 only for now).
 ///
-/// TODO: Each `item_selector` / sub-selector below is a PLACEHOLDER derived from
-/// common Korean government CMS layouts (eGovFrame, JEUS). Verify them in browser
-/// DevTools before using in production:
+/// ## Verification status
 ///
-///   - 부산청년센터: https://www.busanyouth.or.kr/
-///   - 대구청년센터: https://youth.daegu.go.kr/
-///   - 인천청년포털: https://www.ichyouth.or.kr/
-///   - 광주청년센터: https://gjyouth.kr/
-///   - 대전청년센터: https://djyouth.or.kr/
-///   - 울산청년센터: https://ulyouth.or.kr/
-///   - 경기청년포털: https://youth.gg.go.kr/
-///   - 충남청년: https://www.cnyouth.or.kr/
-///   - 전남청년: https://jnyouth.or.kr/
-///   - 경북청년: https://gbwelfare.or.kr/
+/// Both portals are hosted on the Korean government network and cannot be
+/// reached from non-Korean IP addresses. All CSS selectors below are
+/// best-effort guesses based on eGovFrame / standard Korean CMS patterns.
+/// They MUST be re-verified from a Korean server before going to production:
+///
+///   1. SSH into a Korean VPS (or use the CI runner in KR region).
+///   2. `curl -s <url> | python3 -c "import sys,re; ..."` to dump classes.
+///   3. Update selectors here and re-run `cargo check --package mazimi-worker`.
+///
+/// ### 부산
+/// - Domain `busanyouth.or.kr` is **parked** (닷홈 placeholder page as of 2026-04).
+/// - Primary candidate: `https://www.busanyouth.or.kr/` (DNS resolves but
+///   returns hosting placeholder — site may be temporarily down or migrated).
+/// - Fallback to check: `https://www.busan.go.kr/cheongnyon` (official city
+///   portal for 청년 policy; returns JS error page from non-KR IP so content
+///   is unknown — needs in-country verification).
+/// - Selectors below are eGovFrame defaults; update after verifying live HTML.
+///
+/// ### 대구
+/// - Domain `youth.daegu.go.kr` does **not resolve** from outside Korea
+///   (DNS NXDOMAIN). This is almost certainly the correct domain but requires
+///   Korean-IP access to confirm.
+/// - Selectors below are eGovFrame defaults; update after verifying live HTML.
 const SOURCES: &[ScraperSource] = &[
     ScraperSource {
         name: "부산청년센터",
-        url: "https://www.busanyouth.or.kr/board/list?boardId=program",
+        // NOTE: busanyouth.or.kr returned a 닷홈 hosting placeholder as of
+        // 2026-04 — domain may be down or migrated. Needs re-check from KR IP.
+        // If the domain stays parked, switch to the official city portal path:
+        //   https://www.busan.go.kr/cheongnyon (requires Korean-IP to fetch)
+        url: "https://www.busanyouth.or.kr/board/list",
         region: "busan",
-        // TODO: verify — eGovFrame boards typically use .board_list li or table tr
+        // UNVERIFIED — eGovFrame board pattern; verify from Korean IP.
+        // Common alternatives if this selector fails:
+        //   ".bbs_list tbody tr"  (table layout)
+        //   ".board_wrap .list_item"  (card layout)
         item_selector: ".board_list li",
         title_selector: ".title a",
         desc_selector: ".summary",
@@ -82,46 +100,18 @@ const SOURCES: &[ScraperSource] = &[
     },
     ScraperSource {
         name: "대구청년센터",
+        // NOTE: youth.daegu.go.kr DNS does not resolve from outside Korea as of
+        // 2026-04. Domain is assumed correct — verify from Korean IP.
         url: "https://youth.daegu.go.kr/program/list",
         region: "daegu",
-        // TODO: verify — Daegu portal uses a card-grid layout
+        // UNVERIFIED — guessed from eGovFrame card-grid CMS pattern.
+        // Common alternatives if this selector fails:
+        //   ".board_list li"  (list layout)
+        //   ".bbs_list tbody tr"  (table layout)
         item_selector: ".program-list .item",
         title_selector: ".item-title",
         desc_selector: ".item-desc",
         deadline_selector: ".item-period",
-        link_selector: "a",
-    },
-    ScraperSource {
-        name: "인천청년포털",
-        url: "https://www.ichyouth.or.kr/board/list?menuNo=200051",
-        region: "incheon",
-        // TODO: verify
-        item_selector: ".bbs_list tbody tr",
-        title_selector: "td.subject a",
-        desc_selector: "",
-        deadline_selector: "td.date",
-        link_selector: "td.subject a",
-    },
-    ScraperSource {
-        name: "광주청년센터",
-        url: "https://gjyouth.kr/youth/program",
-        region: "gwangju",
-        // TODO: verify
-        item_selector: ".program_wrap .program_item",
-        title_selector: ".program_title",
-        desc_selector: ".program_content",
-        deadline_selector: ".program_date",
-        link_selector: "a",
-    },
-    ScraperSource {
-        name: "대전청년포털",
-        url: "https://djyouth.or.kr/program",
-        region: "daejeon",
-        // TODO: verify
-        item_selector: ".list-group .list-group-item",
-        title_selector: ".title",
-        desc_selector: ".desc",
-        deadline_selector: ".period",
         link_selector: "a",
     },
 ];
