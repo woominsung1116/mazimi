@@ -82,7 +82,17 @@ pub async fn verify_payment(
 
     // Basic input validation
     if payload.payment_id.trim().is_empty() || payload.payment_id.len() > 256 {
-        return Err(bad_request("payment_id must not be empty"));
+        return Err(bad_request("payment_id must be 1-256 characters"));
+    }
+    // SECURITY: Prevent URL path injection — PortOne imp_uid is alphanumeric + underscore
+    if !payload
+        .payment_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(bad_request(
+            "payment_id must contain only alphanumeric characters and underscores",
+        ));
     }
     if payload.amount <= 0 {
         return Err(bad_request("amount must be positive"));
