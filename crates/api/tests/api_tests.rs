@@ -1308,7 +1308,7 @@ async fn documents_upload_rejects_invalid_doc_type() {
     let (_uid, token, _refresh) = create_test_user(&base).await;
 
     use base64::Engine;
-    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&[0u8; 16]);
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode([0u8; 16]);
 
     let resp = client
         .post(format!("{base}/api/v1/documents"))
@@ -1334,7 +1334,7 @@ async fn documents_upload_rejects_bad_iv() {
     let (_uid, token, _refresh) = create_test_user(&base).await;
 
     use base64::Engine;
-    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&[0u8; 16]);
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode([0u8; 16]);
 
     let resp = client
         .post(format!("{base}/api/v1/documents"))
@@ -1376,7 +1376,7 @@ async fn documents_download_rejects_other_user() {
 
     // User1 uploads
     use base64::Engine;
-    let data_b64 = base64::engine::general_purpose::STANDARD.encode(&[0u8; 32]);
+    let data_b64 = base64::engine::general_purpose::STANDARD.encode([0u8; 32]);
     let upload_resp = client
         .post(format!("{base}/api/v1/documents"))
         .bearer_auth(&token1)
