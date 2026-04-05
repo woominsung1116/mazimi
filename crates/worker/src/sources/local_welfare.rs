@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use super::{content_hash, DataSource, RawRecord};
 
 const BASE_URL: &str =
-    "http://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfarelist";
+    "https://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfarelist";
 const PAGE_SIZE: u32 = 100;
 const MAX_PAGES: u32 = 200;
 

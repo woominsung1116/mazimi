@@ -81,7 +81,7 @@ pub async fn verify_payment(
     };
 
     // Basic input validation
-    if payload.payment_id.trim().is_empty() {
+    if payload.payment_id.trim().is_empty() || payload.payment_id.len() > 256 {
         return Err(bad_request("payment_id must not be empty"));
     }
     if payload.amount <= 0 {

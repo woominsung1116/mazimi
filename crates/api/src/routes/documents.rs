@@ -41,10 +41,11 @@ fn err_bad(msg: &str) -> (StatusCode, Json<Value>) {
     (StatusCode::BAD_REQUEST, Json(json!({ "error": msg })))
 }
 
-fn err_internal(msg: String) -> (StatusCode, Json<Value>) {
+fn err_internal(e: impl std::fmt::Display) -> (StatusCode, Json<Value>) {
+    tracing::error!(error = %e, "internal error in documents handler");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(json!({ "error": msg })),
+        Json(json!({ "error": "Internal server error" })),
     )
 }
 
@@ -52,7 +53,8 @@ fn err_internal(msg: String) -> (StatusCode, Json<Value>) {
 
 /// GET /api/v1/documents
 ///
-/// List all documents for the authenticated user (metadata only, no file data).
+/// List documents for the authenticated user (metadata only, no file data).
+/// Capped at 200 rows to prevent unbounded queries.
 pub async fn list_documents(
     auth_user: AuthUser,
     State(state): State<AppState>,
@@ -77,6 +79,7 @@ pub async fn list_documents(
         FROM user_documents
         WHERE user_id = $1
         ORDER BY created_at DESC
+        LIMIT 200
         "#,
     )
     .bind(auth_user.id)

@@ -202,7 +202,7 @@ impl NotificationDispatcher {
 
         // pending 티켓 조회
         let rows: Vec<PendingTicketRow> = match sqlx::query_as(
-            "SELECT ticket_id, expo_token FROM expo_push_tickets WHERE status = 'pending'",
+            "SELECT ticket_id, expo_token FROM expo_push_tickets WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1000",
         )
         .fetch_all(&self.pool)
         .await
