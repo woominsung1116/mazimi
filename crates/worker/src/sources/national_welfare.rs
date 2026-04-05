@@ -1,8 +1,10 @@
-//! 한국사회보장정보원 중앙부처 복지서비스 API client
+//! 한국사회보장정보원 중앙부처 복지서비스 V001 API client
 //!
-//! API: http://apis.data.go.kr/B554287/NationalWelfareInformations/NationalWelfareList
+//! API: http://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfarelistV001
 //! Env: NATIONAL_WELFARE_API_KEY
+//! Required params: serviceKey, callTp=L, pageNo, numOfRows, srchKeyCode=001
 //!
+//! 2025-04-24 공공데이터포털 변경 공지 기준 V001 엔드포인트 사용.
 //! Response is XML with `<wantedList>` root.
 //! Pagination: pageNo (1-based), numOfRows, totalCount in response header.
 
@@ -16,7 +18,7 @@ use tracing::{info, warn};
 use super::{content_hash, DataSource, RawRecord};
 
 const BASE_URL: &str =
-    "http://apis.data.go.kr/B554287/NationalWelfareInformations/NationalWelfareList";
+    "http://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfarelistV001";
 const PAGE_SIZE: u32 = 100;
 const MAX_PAGES: u32 = 200;
 
@@ -50,8 +52,10 @@ impl NationalWelfareSource {
             .get(BASE_URL)
             .query(&[
                 ("serviceKey", self.api_key.as_str()),
+                ("callTp", "L"),
                 ("pageNo", &page.to_string()),
                 ("numOfRows", &PAGE_SIZE.to_string()),
+                ("srchKeyCode", "001"),
             ])
             .send()
             .await
