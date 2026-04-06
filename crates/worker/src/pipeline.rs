@@ -345,7 +345,8 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
 
     let program_type = if combined.contains("장학") || combined.contains("학자금") {
         "scholarship"
-    } else if combined.contains("주거") || combined.contains("임대") || combined.contains("전세") {
+    } else if combined.contains("주거") || combined.contains("임대") || combined.contains("전세")
+    {
         "housing"
     } else if combined.contains("일자리")
         || combined.contains("취업")

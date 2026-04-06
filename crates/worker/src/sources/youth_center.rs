@@ -245,14 +245,24 @@ mod tests {
     async fn live_fetch_first_page() {
         let src = YouthCenterSource::from_env().expect("YOUTH_CENTER_API_KEY required");
         let resp = src.fetch_page(1).await.expect("fetch_page failed");
-        assert_eq!(resp.result_code, 200, "API returned error: {:?}", resp.result_message);
+        assert_eq!(
+            resp.result_code, 200,
+            "API returned error: {:?}",
+            resp.result_message
+        );
         let result = resp.result.expect("result is None");
         let total = result.pagging.as_ref().map(|p| p.tot_count).unwrap_or(0);
         assert!(total > 0, "totCount should be > 0, got {total}");
-        assert!(!result.youth_policy_list.is_empty(), "youthPolicyList is empty");
+        assert!(
+            !result.youth_policy_list.is_empty(),
+            "youthPolicyList is empty"
+        );
         let first = &result.youth_policy_list[0];
         assert!(first.plcy_no.is_some(), "plcyNo missing");
         assert!(first.plcy_nm.is_some(), "plcyNm missing");
-        println!("OK: total={total}, first={}", first.plcy_nm.as_deref().unwrap_or("?"));
+        println!(
+            "OK: total={total}, first={}",
+            first.plcy_nm.as_deref().unwrap_or("?")
+        );
     }
 }
