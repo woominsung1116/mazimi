@@ -590,26 +590,6 @@ fn compute_program_status(
     }
 }
 
-/// Parse "만 19세 ~ 34세" or "19~34세" → (Some(19), Some(34))
-fn parse_age_range(s: Option<&str>) -> (Option<i32>, Option<i32>) {
-    let s = match s {
-        Some(v) if !v.is_empty() => v,
-        _ => return (None, None),
-    };
-    let digits: Vec<i32> = s
-        .split(|c: char| !c.is_ascii_digit())
-        .filter(|t| !t.is_empty())
-        .filter_map(|t| t.parse().ok())
-        // Ignore years like 2024 that are implausible as ages
-        .filter(|&n| n <= 100)
-        .collect();
-    match digits.as_slice() {
-        [a] => (Some(*a), Some(*a)),
-        [a, b, ..] => (Some(*a), Some(*b)),
-        _ => (None, None),
-    }
-}
-
 /// Parse "YYYYMMDD" → DateTime<Utc>
 fn parse_yyyymmdd(s: Option<&str>) -> Option<chrono::DateTime<Utc>> {
     let s = s?;
