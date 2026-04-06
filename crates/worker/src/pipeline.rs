@@ -306,41 +306,57 @@ fn normalize(
 }
 
 fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
-    let title = p["polyBizSjnm"].as_str().unwrap_or("Unknown").to_string();
+    let title = p["plcyNm"].as_str().unwrap_or("Unknown").to_string();
 
-    // Prefer sporCn (지원 내용) over polyItcnCn for the summary since it is
-    // more concise; fall back to polyItcnCn if sporCn is absent.
-    let summary = p["sporCn"]
+    // plcySprtCn (지원 내용) → plcyExplnCn (정책 설명) 순 fallback
+    let summary = p["plcySprtCn"]
         .as_str()
-        .or_else(|| p["polyItcnCn"].as_str())
+        .or_else(|| p["plcyExplnCn"].as_str())
         .map(|s| s.to_string());
 
-    let provider_name = p["mngtMson"].as_str().map(|s| s.to_string());
-    let official_url = p["rqutUrla"].as_str().map(|s| s.to_string());
-
-    let (min_age, max_age) = parse_age_range(p["ageInfo"].as_str());
-    let start = parse_yyyymmdd(p["aplyYmd"].as_str());
-    let end = parse_yyyymmdd(p["endYmd"].as_str());
-
-    let regions = p["rgnNm"]
+    let provider_name = p["sprvsnInstCdNm"].as_str().map(|s| s.to_string());
+    let official_url = p["aplyUrlAddr"]
         .as_str()
-        .map(|r| {
-            r.split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
+        .or_else(|| p["refUrlAddr1"].as_str())
+        .map(|s| s.to_string());
 
-    // polyRlmCd 분야 코드 매핑
-    // 023 = 교육(장학금), 024 = 주거·금융, 025 = 취업·창업, 026 = 복지·문화, 027 = 참여·권리
-    let program_type = match p["polyRlmCd"].as_str() {
-        Some("023") => "scholarship",
-        Some("024") => "housing",
-        Some("025") => "employment",
-        Some("026") => "benefit",
-        Some("027") => "benefit",
-        _ => "benefit",
+    let min_age = p["sprtTrgtMinAge"]
+        .as_str()
+        .and_then(|s| s.parse::<i32>().ok());
+    let max_age = p["sprtTrgtMaxAge"]
+        .as_str()
+        .and_then(|s| s.parse::<i32>().ok());
+
+    // aplyYmd: "YYYYMMDD ~ YYYYMMDD" 형식
+    let (start, end) = if let Some(aply) = p["aplyYmd"].as_str() {
+        let parts: Vec<&str> = aply.split('~').map(|s| s.trim()).collect();
+        (
+            parts.first().and_then(|s| parse_yyyymmdd(Some(s))),
+            parts.get(1).and_then(|s| parse_yyyymmdd(Some(s))),
+        )
+    } else {
+        (None, None)
+    };
+
+    // lclsfNm (대분류) 기반 타입 매핑
+    let lclsf = p["lclsfNm"].as_str().unwrap_or("");
+    let keyword = p["plcyKywdNm"].as_str().unwrap_or("");
+    let combined = format!("{} {}", lclsf, keyword);
+
+    let program_type = if combined.contains("장학") || combined.contains("학자금") {
+        "scholarship"
+    } else if combined.contains("주거") || combined.contains("임대") || combined.contains("전세") {
+        "housing"
+    } else if combined.contains("일자리")
+        || combined.contains("취업")
+        || combined.contains("창업")
+        || combined.contains("고용")
+    {
+        "employment"
+    } else if combined.contains("교육") {
+        "scholarship"
+    } else {
+        "benefit"
     }
     .to_string();
 
@@ -354,7 +370,7 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
         application_end_at: end,
         min_age,
         max_age,
-        regions,
+        regions: vec![],
     }
 }
 
