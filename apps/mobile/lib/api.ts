@@ -73,6 +73,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 // Types — aligned to the Rust models in crates/core/src/models.rs
 // ---------------------------------------------------------------------------
 
+/** One step in a program's application guide (programs.application_steps JSONB) */
+export interface ApplicationStep {
+  step: number;
+  title: string;
+  description: string;
+  url: string | null;
+}
+
 /** Matches the `Program` struct returned by GET /api/v1/programs/:id */
 export interface ApiProgram {
   id: string;
@@ -100,12 +108,86 @@ export interface ApiProgram {
   last_synced_at: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Step-by-step application guide. Present because the detail endpoint
+   * flattens the `Program` row (#[serde(flatten)]) — may be absent on some
+   * list payloads, so always guard before use.
+   */
+  application_steps?: ApplicationStep[] | null;
 }
 
 /** GET /api/v1/programs response envelope */
 export interface ProgramListResponse {
   total: number;
   items: ApiProgram[];
+}
+
+// ---------------------------------------------------------------------------
+// Application URL resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Generic portal homepages that are NOT direct application pages. Deep-linking
+ * a user here just dumps them on a landing page where they must search again,
+ * so we treat these as a last resort behind any more specific URL.
+ *
+ * `finlife.fss.or.kr/main/main.do` is hardcoded for every FSS financial
+ * product in the worker (financial.rs) because the FSS API returns no
+ * per-product URL.
+ */
+const GENERIC_APPLY_URLS = ["finlife.fss.or.kr/main/main.do"];
+
+function isGenericApplyUrl(url: string): boolean {
+  // Anchor on the "//" scheme separator so "not-finlife.fss.or.kr" can't match
+  // the "finlife.fss.or.kr" entry as a substring.
+  return GENERIC_APPLY_URLS.some((generic) => url.includes(`//${generic}`));
+}
+
+/**
+ * Only http/https URLs are safe to hand to Linking.openURL. Program URLs come
+ * from external gov APIs and the DB, so reject other schemes (javascript:,
+ * file:, intent:, etc.) before deep-linking.
+ */
+function isSafeWebUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
+/** Titles that mark an application_steps entry as the actual "go apply" step. */
+const APPLY_STEP_HINTS = ["신청", "접속", "로그인", "지원", "발급"];
+
+/**
+ * Resolve the best "직행" (direct-jump) application URL for a program.
+ *
+ * Priority:
+ *   1. `official_url` when it's a real apply page (not a generic portal)
+ *   2. the most specific URL from `application_steps` — a 신청/접속/로그인 step
+ *   3. any non-generic step URL
+ *   4. `official_url` even if generic (better than nothing)
+ *
+ * Returns `null` when no usable URL exists.
+ */
+export function resolveApplyUrl(program: {
+  official_url?: string | null;
+  application_steps?: ApplicationStep[] | null;
+}): string | null {
+  const official = program.official_url?.trim() || null;
+  const safeOfficial = official && isSafeWebUrl(official) ? official : null;
+  if (safeOfficial && !isGenericApplyUrl(safeOfficial)) return safeOfficial;
+
+  const stepUrls = (program.application_steps ?? [])
+    .filter((s): s is ApplicationStep & { url: string } => !!s.url?.trim())
+    .map((s) => ({ ...s, url: s.url.trim() }))
+    .filter((s) => isSafeWebUrl(s.url));
+
+  const hinted = stepUrls.find((s) =>
+    APPLY_STEP_HINTS.some((hint) => s.title.includes(hint))
+  );
+  if (hinted) return hinted.url;
+
+  const nonGeneric = stepUrls.find((s) => !isGenericApplyUrl(s.url));
+  if (nonGeneric) return nonGeneric.url;
+
+  return safeOfficial;
 }
 
 /** Single item inside RecommendationResult.items */

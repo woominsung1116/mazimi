@@ -21,7 +21,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Linking,
   Platform,
   Pressable,
 } from "react-native";
@@ -33,10 +32,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   api,
   formatBenefit,
+  resolveApplyUrl,
   type ApiProgram,
   type ApplicationStatus,
   type ProfileInput,
 } from "@/lib/api";
+import { openApplyUrl } from "@/lib/openExternalUrl";
 import {
   colors,
   typography,
@@ -1226,8 +1227,13 @@ export default function ProgramDetailScreen() {
     }
   }
 
+  const applyUrl = program ? resolveApplyUrl(program) : null;
+
   function handleViewDetail() {
-    if (program?.official_url) Linking.openURL(program.official_url);
+    if (!applyUrl) return;
+    openApplyUrl(applyUrl, {
+      onError: (msg) => Alert.alert("열기 실패", msg),
+    });
   }
 
   function handleApply() {
@@ -1422,10 +1428,10 @@ export default function ProgramDetailScreen() {
         {/* Row 2: 자세히 보기 + 바로 신청하기 */}
         <View style={styles.bottomRow}>
           <TouchableOpacity
-            style={[styles.detailBtn, !program.official_url && styles.btnDisabled]}
+            style={[styles.detailBtn, !applyUrl && styles.btnDisabled]}
             onPress={handleViewDetail}
             activeOpacity={0.8}
-            disabled={!program.official_url}
+            disabled={!applyUrl}
             accessibilityRole="link"
             accessibilityLabel="자세히 보기"
           >

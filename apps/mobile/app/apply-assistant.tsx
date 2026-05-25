@@ -8,7 +8,7 @@
  *   Step 1: 자격 확인   — eligibility checklist + application probability %
  *   Step 2: 서류 확인   — required documents checklist with issuance tips
  *   Step 3: 정보 확인   — personal info preview + per-field editing
- *   Step 4: 신청 실행   — WebView with JS auto-fill injection
+ *   Step 4: 신청 실행   — 외부 브라우저로 신청 사이트 직행
  *   Step 5: 완료        — celebration + status update to "applying"
  *
  * Navigation: router.push('/apply-assistant?programId=xxx')
@@ -31,13 +31,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { api, type ApiProgram, type ApplicationStatus } from "@/lib/api";
+import {
+  api,
+  resolveApplyUrl,
+  type ApiProgram,
+  type ApplicationStatus,
+} from "@/lib/api";
+import { openApplyUrl } from "@/lib/openExternalUrl";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import { useAuthStore } from "@/store/auth";
 import { useVaultDocuments, type StoredDocument, type DocumentType } from "@/lib/vault";
@@ -313,53 +318,6 @@ const DEFAULT_DOCS: DocumentItem[] = [
     issueUrl: "https://www.nhis.or.kr",
   },
 ];
-
-// ---------------------------------------------------------------------------
-// WebView JS injection (reused from auto-fill.tsx)
-// ---------------------------------------------------------------------------
-
-function buildFillScript(profile: MergedProfile): string {
-  const data = {
-    name: profile.name,
-    birth: profile.birthYear,
-    phone: profile.contact,
-    address: profile.region,
-  };
-  return `
-(function() {
-  var data = ${JSON.stringify(data)};
-  var fields = {
-    name: ['#name','#userName','#user_name','input[name="name"]','input[name="userName"]','input[name="user_name"]'],
-    birth: ['#birth','#birthDay','#birth_day','input[name="birth"]','input[name="birthDay"]','input[name="birth_day"]'],
-    phone: ['#phone','#tel','#mobile','input[name="phone"]','input[name="tel"]','input[name="mobile"]'],
-    addr: ['#addr','#address','#addr1','input[name="addr"]','input[name="address"]','input[name="addr1"]'],
-  };
-  var filled = [], missed = [];
-  function fillField(key, selectors, value) {
-    if (!value) { missed.push(key); return; }
-    for (var i = 0; i < selectors.length; i++) {
-      var el = document.querySelector(selectors[i]);
-      if (el) {
-        el.value = value;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        filled.push(key);
-        return;
-      }
-    }
-    missed.push(key);
-  }
-  fillField('name', fields.name, data.name);
-  fillField('birth', fields.birth, data.birth);
-  fillField('phone', fields.phone, data.phone);
-  fillField('addr', fields.addr, data.address);
-  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
-    JSON.stringify({ type: 'FILL_RESULT', filled: filled, missed: missed })
-  );
-})();
-true;
-`;
-}
 
 // ---------------------------------------------------------------------------
 // Toast hook
@@ -761,131 +719,95 @@ function Step3({ profile, onProfileChange }: Step3Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — 신청 실행 (WebView)
+// Step 4 — 신청 실행 (외부 브라우저 직행)
 // ---------------------------------------------------------------------------
 
 interface Step4Props {
-  url: string | undefined;
-  profile: MergedProfile;
-  insetTop: number;
+  url: string | null;
+  programTitle: string;
   insetBottom: number;
   onFillDone: () => void;
   showToast: (msg: string) => void;
 }
 
-function Step4({ url, profile, insetTop, insetBottom, onFillDone, showToast }: Step4Props) {
-  const webViewRef = useRef<WebView>(null);
-  const [webLoading, setWebLoading] = useState(true);
-  const [filled, setFilled] = useState(false);
+function Step4({ url, programTitle, insetBottom, onFillDone, showToast }: Step4Props) {
+  const [opened, setOpened] = useState(false);
 
-  const handleAutoFill = useCallback(() => {
-    if (!webViewRef.current) return;
-    webViewRef.current.injectJavaScript(buildFillScript(profile));
-    showToast("자동 입력을 시도했어요. 확인해주세요.");
-    setFilled(true);
-  }, [profile, showToast]);
-
-  const handleMessage = useCallback(
-    (event: WebViewMessageEvent) => {
-      try {
-        const data = JSON.parse(event.nativeEvent.data);
-        if (data.type === "FILL_RESULT" && data.missed?.length > 0) {
-          showToast("일부 항목은 직접 입력이 필요해요");
-        }
-      } catch {
-        // ignore
-      }
-    },
-    [showToast]
-  );
+  const handleOpenSite = useCallback(() => {
+    if (!url) return;
+    openApplyUrl(url, {
+      onSuccess: () => setOpened(true),
+      onError: showToast,
+    });
+  }, [url, showToast]);
 
   if (!url) {
     return (
       <View style={step4Styles.noUrl}>
         <Ionicons name="link-outline" size={40} color={colors.onSurfaceVariant} />
-        <Text style={step4Styles.noUrlTitle}>신청 URL이 없어요</Text>
+        <Text style={step4Styles.noUrlTitle}>신청 링크가 없어요</Text>
         <Text style={step4Styles.noUrlDesc}>
-          이 프로그램의 공식 신청 링크가 등록되지 않았습니다.{"\n"}
-          담당 기관에 직접 문의하세요.
+          이 프로그램의 온라인 신청 링크가 등록되지 않았습니다.{"\n"}
+          담당 기관에 직접 문의하거나 방문 신청이 필요할 수 있어요.
         </Text>
       </View>
     );
   }
 
   return (
-    <View style={step4Styles.root}>
-      {/* Status bar spacer */}
-      <View style={{ height: insetTop, backgroundColor: colors.primary }} />
-
-      {/* WebView */}
-      <WebView
-        ref={webViewRef}
-        source={{ uri: url }}
-        style={step4Styles.webView}
-        onLoadStart={() => setWebLoading(true)}
-        onLoadEnd={() => setWebLoading(false)}
-        onMessage={handleMessage}
-        javaScriptEnabled
-        domStorageEnabled
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        originWhitelist={["*"]}
-        userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-      />
-
-      {/* Loading strip */}
-      {webLoading && (
-        <View style={step4Styles.loadingStrip}>
-          <View style={step4Styles.loadingBar} />
+    <ScrollView
+      contentContainerStyle={[
+        step4Styles.root,
+        { paddingBottom: insetBottom > 0 ? insetBottom + spacing[4] : spacing[6] },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={step4Styles.hero}>
+        <View style={step4Styles.heroIcon}>
+          <Ionicons name="open-outline" size={30} color={colors.onPrimary} />
         </View>
-      )}
+        <Text style={step4Styles.heroTitle}>신청 사이트로 이동해요</Text>
+        <Text style={step4Styles.heroDesc}>
+          {programTitle ? `「${programTitle}」 ` : ""}공식 신청 페이지를 외부 브라우저로 엽니다.
+          본인인증(카카오·PASS·네이버 등)과 최종 제출은 보안을 위해 직접 진행해 주세요.
+        </Text>
+      </View>
 
-      {/* Floating toolbar */}
-      <View style={[step4Styles.toolbar, { paddingBottom: insetBottom > 0 ? insetBottom : spacing[3] }]}>
-        <TouchableOpacity
-          style={step4Styles.fillBtn}
-          onPress={handleAutoFill}
-          activeOpacity={0.85}
-          disabled={webLoading}
-          accessibilityRole="button"
-          accessibilityLabel="자동 입력"
+      <View style={step4Styles.noticeCard}>
+        <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+        <Text style={step4Styles.noticeText}>
+          간편인증은 앱 안의 화면에서는 끊길 수 있어 외부 브라우저에서 열어야 안전하게 인증됩니다.
+          앞 단계에서 확인한 내 정보를 보면서 입력하세요.
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={step4Styles.openBtn}
+        onPress={handleOpenSite}
+        activeOpacity={0.85}
+        accessibilityRole="link"
+        accessibilityLabel="신청 사이트 열기"
+      >
+        <LinearGradient
+          colors={[colors.primary, colors.primaryContainer]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={step4Styles.openBtnGradient}
         >
-          <LinearGradient
-            colors={
-              webLoading
-                ? [colors.surfaceContainerHigh, colors.surfaceContainerHigh]
-                : [colors.primary, colors.primaryContainer]
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={step4Styles.fillBtnGradient}
-          >
-            <Ionicons
-              name="flash"
-              size={16}
-              color={webLoading ? colors.onSurfaceVariant : colors.onPrimary}
-            />
-            <Text
-              style={[
-                step4Styles.fillBtnText,
-                webLoading && step4Styles.fillBtnTextDisabled,
-              ]}
-            >
-              자동 입력
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          <Ionicons name="open-outline" size={18} color={colors.onPrimary} />
+          <Text style={step4Styles.openBtnText}>신청 사이트 열기</Text>
+        </LinearGradient>
+      </TouchableOpacity>
 
-        {filled && (
-          <View style={step4Styles.filledHint}>
+      {opened && (
+        <>
+          <View style={step4Styles.openedHint}>
             <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
-            <Text style={step4Styles.filledHintText}>
-              자동 입력 완료! 내용을 확인하고 제출 버튼을 눌러주세요
+            <Text style={step4Styles.openedHintText}>
+              신청 사이트를 열었어요. 신청을 마쳤다면 아래에서 완료를 눌러주세요.
             </Text>
           </View>
-        )}
 
-        {filled && (
           <TouchableOpacity
             style={step4Styles.doneBtn}
             onPress={onFillDone}
@@ -893,59 +815,71 @@ function Step4({ url, profile, insetTop, insetBottom, onFillDone, showToast }: S
             accessibilityRole="button"
             accessibilityLabel="신청 완료로 이동"
           >
-            <Text style={step4Styles.doneBtnText}>신청 완료</Text>
+            <Text style={step4Styles.doneBtnText}>신청을 완료했어요</Text>
             <Ionicons name="arrow-forward" size={16} color={colors.onPrimary} />
           </TouchableOpacity>
-        )}
-      </View>
-    </View>
+        </>
+      )}
+    </ScrollView>
   );
 }
 
 const step4Styles = StyleSheet.create({
   root: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: colors.surfaceContainerLowest,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[6],
+    gap: spacing[4],
   },
-  webView: {
-    flex: 1,
+  hero: {
+    alignItems: "center",
+    gap: spacing[3],
   },
-  loadingStrip: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    backgroundColor: colors.primaryFixed,
-    overflow: "hidden",
-  },
-  loadingBar: {
-    height: 3,
-    width: "60%",
-    backgroundColor: colors.primary,
+  heroIcon: {
+    width: 64,
+    height: 64,
     borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.primaryButton,
   },
-  toolbar: {
-    backgroundColor: colors.surfaceContainerLowest,
-    paddingHorizontal: spacing[4],
-    paddingTop: spacing[3],
+  heroTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.extrabold,
+    color: colors.onSurface,
+    textAlign: "center",
+  },
+  heroDesc: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.regular,
+    color: colors.onSurfaceVariant,
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  noticeCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing[2],
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.secondaryFixedDim,
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-      android: { elevation: 10, shadowColor: colors.secondaryFixedDim },
-    }),
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[3],
   },
-  fillBtn: {
+  noticeText: {
+    flex: 1,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.onSurfaceVariant,
+    lineHeight: 18,
+  },
+  openBtn: {
     borderRadius: borderRadius.lg,
     overflow: "hidden",
     minHeight: layout.buttonHeightMd,
   },
-  fillBtnGradient: {
+  openBtnGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -953,15 +887,12 @@ const step4Styles = StyleSheet.create({
     paddingVertical: spacing[3.5],
     minHeight: layout.buttonHeightMd,
   },
-  fillBtnText: {
+  openBtnText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.extrabold,
     color: colors.onPrimary,
   },
-  fillBtnTextDisabled: {
-    color: colors.onSurfaceVariant,
-  },
-  filledHint: {
+  openedHint: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing[2],
@@ -970,7 +901,7 @@ const step4Styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
   },
-  filledHintText: {
+  openedHintText: {
     flex: 1,
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
@@ -1696,11 +1627,11 @@ export default function ApplyAssistantScreen() {
   const bottomPad = insets.bottom > 0 ? insets.bottom : spacing[4];
   const headerTopPad = insets.top > 0 ? insets.top : spacing[8];
 
-  // Step 4 fills the full screen with the WebView — different layout
+  // Step 4 uses a compact header + external-browser launch panel
   if (isStep4) {
     return (
       <View style={styles.root}>
-        {/* Compact header for WebView step */}
+        {/* Compact header for the launch step */}
         <View style={[styles.webViewHeader, { paddingTop: headerTopPad }]}>
           <TouchableOpacity
             style={styles.headerBackBtn}
@@ -1718,9 +1649,8 @@ export default function ApplyAssistantScreen() {
         </View>
 
         <Step4
-          url={program?.official_url ?? undefined}
-          profile={profile}
-          insetTop={0}
+          url={program ? resolveApplyUrl(program) : null}
+          programTitle={program?.title ?? ""}
           insetBottom={insets.bottom}
           onFillDone={handleFillDone}
           showToast={showToast}
@@ -1942,7 +1872,7 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.80)",
   },
 
-  // WebView step header (flat, not gradient)
+  // Step 4 launch header (flat, not gradient)
   webViewHeader: {
     backgroundColor: colors.surfaceContainerLowest,
     paddingHorizontal: spacing[4],
