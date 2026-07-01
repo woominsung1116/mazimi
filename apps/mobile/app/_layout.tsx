@@ -197,10 +197,6 @@ export default function RootLayout() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="generated-form"
-            options={{ title: "신청서 생성" }}
-          />
-          <Stack.Screen
             name="privacy-policy"
             options={{ headerShown: false }}
           />

@@ -18,7 +18,6 @@ import {
   ScrollView,
   Pressable,
   StatusBar,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -44,6 +43,7 @@ import {
   type ApiProgram,
 } from "@/lib/api";
 import OfflineBanner from "@/components/OfflineBanner";
+import { SummaryRowSkeleton, RecommendationListSkeleton } from "@/components/Skeleton";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import { useAuthStore } from "@/store/auth";
 
@@ -476,9 +476,7 @@ export default function HomeScreen() {
           <Text style={styles.heroTitle}>이번 달 내가{"\n"}받을 수 있는 지원</Text>
 
           {isLoading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
+            <SummaryRowSkeleton />
           ) : (
             <View style={styles.summaryRow}>
               {summaryCards.map((card) => (
@@ -504,9 +502,7 @@ export default function HomeScreen() {
             </View>
 
             {isLoading ? (
-              <View style={styles.loadingCard}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
+              <RecommendationListSkeleton count={2} />
             ) : (
               <View style={styles.recommendList}>
                 {recommendationCards.map((card) => (
@@ -704,21 +700,6 @@ const styles = StyleSheet.create({
     lineHeight: typography.fontSize["3xl"] * 1.2,
     letterSpacing: typography.letterSpacing.tight,
     marginBottom: spacing[1],
-  },
-
-  // Loading states
-  loadingRow: {
-    height: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingCard: {
-    height: 120,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: borderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.card,
   },
 
   // Summary cards row

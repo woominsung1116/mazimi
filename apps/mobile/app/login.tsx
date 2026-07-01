@@ -98,7 +98,12 @@ export default function LoginScreen() {
   // Listen for deep link (Safari redirect back to app)
   useEffect(() => {
     const subscription = Linking.addEventListener("url", ({ url }) => {
-      if (url.startsWith("mazimi://login")) {
+      if (url.includes("/login?token=") || url.startsWith("mazimi://login")) {
+        handleTokensFromUrl(url);
+      }
+    });
+    Linking.getInitialURL().then((url) => {
+      if (url && (url.includes("/login?token=") || url.startsWith("mazimi://login"))) {
         handleTokensFromUrl(url);
       }
     });

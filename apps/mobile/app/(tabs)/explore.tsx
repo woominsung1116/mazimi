@@ -18,7 +18,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -41,6 +40,13 @@ import {
   type ApiProgram,
 } from "@/lib/api";
 import OfflineBanner from "@/components/OfflineBanner";
+import { ProgramListSkeleton } from "@/components/Skeleton";
+import FilterSheet, {
+  AGE_RANGE_OPTIONS,
+  DEFAULT_FILTER_VALUES,
+  type ExploreFilterValues,
+} from "@/components/FilterSheet";
+import { useOnboardingStore } from "@/store/onboarding";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,7 +54,6 @@ import OfflineBanner from "@/components/OfflineBanner";
 
 type Category = "장학금" | "청년정책" | "복지/생활";
 type TabOption = "전체" | Category;
-type FilterChipKey = "지역" | "대학생/취준생" | "연령" | "소득" | "분류";
 
 interface ExploreCard {
   id: string;
@@ -57,6 +62,10 @@ interface ExploreCard {
   title: string;
   location: string;
   amount: string;
+  /** Raw region codes (e.g. "busan") for filter matching — empty = 전국(no restriction) */
+  regionCodes: string[];
+  minAge: number | null;
+  maxAge: number | null;
 }
 
 // No mock fallback — always use real API data
@@ -90,16 +99,23 @@ function apiProgramToCard(p: ApiProgram): ExploreCard {
     title: p.title,
     location: regionLabels,
     amount: formatBenefit(p),
+    regionCodes: p.regions ?? [],
+    minAge: p.min_age ?? null,
+    maxAge: p.max_age ?? null,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Segmented control tabs & filter chips
+// Segmented control tabs & filter sheet options
 // ---------------------------------------------------------------------------
 
 const TABS: TabOption[] = ["전체", "장학금", "청년정책", "복지/생활"];
-const FILTER_CHIPS: FilterChipKey[] = ["지역", "대학생/취준생", "연령", "소득", "분류"];
-const DEFAULT_ACTIVE_CHIP: FilterChipKey = "대학생/취준생";
+
+const CATEGORY_FILTER_OPTIONS = TABS.map((t) => ({ label: t, value: t }));
+
+const REGION_FILTER_OPTIONS = Object.entries(REGION_LABEL).map(
+  ([value, label]) => ({ value, label })
+);
 
 // ---------------------------------------------------------------------------
 // Badge color helpers
@@ -156,12 +172,13 @@ function SearchBar({ value, onChangeText }: SearchBarProps) {
 }
 
 interface FilterChipProps {
-  label: FilterChipKey;
+  label: string;
   isActive: boolean;
   onPress: () => void;
+  icon?: keyof typeof Ionicons.glyphMap;
 }
 
-function FilterChip({ label, isActive, onPress }: FilterChipProps) {
+function FilterChip({ label, isActive, onPress, icon }: FilterChipProps) {
   return (
     <TouchableOpacity
       style={[styles.chip, isActive ? styles.chipActive : styles.chipInactive]}
@@ -170,7 +187,7 @@ function FilterChip({ label, isActive, onPress }: FilterChipProps) {
       accessibilityRole="button"
       accessibilityState={{ selected: isActive }}
       accessibilityLabel={
-        isActive ? `${label} 필터 선택됨, 제거하려면 탭` : `${label} 필터`
+        isActive ? `${label} 필터 적용됨, 탭하여 변경` : `${label} 필터, 탭하여 설정`
       }
       hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
     >
@@ -183,7 +200,7 @@ function FilterChip({ label, isActive, onPress }: FilterChipProps) {
         {label}
       </Text>
       <Ionicons
-        name={isActive ? "close" : "chevron-down"}
+        name={icon ?? "chevron-down"}
         size={14}
         color={isActive ? colors.onPrimary : colors.onSurfaceVariant}
       />
@@ -305,9 +322,8 @@ export default function ExploreScreen() {
   const router = useRouter();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeChip, setActiveChip] =
-    useState<FilterChipKey>(DEFAULT_ACTIVE_CHIP);
-  const [activeTab, setActiveTab] = useState<TabOption>("전체");
+  const [filters, setFilters] = useState<ExploreFilterValues>(DEFAULT_FILTER_VALUES);
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["programs"],
@@ -323,12 +339,31 @@ export default function ExploreScreen() {
     return [];
   }, [data]);
 
-  // Client-side filtering on top of the fetched list
+  const activeAgeRange = AGE_RANGE_OPTIONS[filters.ageRangeIndex];
+
+  // Client-side filtering on top of the fetched list. Region/category use
+  // fields returned directly on the program; age overlaps [minAge, maxAge]
+  // (null bound = no restriction on that side). Income bracket is NOT
+  // applied here — see FilterSheet.tsx header comment for why.
   const filteredPrograms = useMemo<ExploreCard[]>(() => {
     let list = allCards;
 
-    if (activeTab !== "전체") {
-      list = list.filter((p) => p.category === activeTab);
+    if (filters.category !== "전체") {
+      list = list.filter((p) => p.category === filters.category);
+    }
+
+    if (filters.region !== null) {
+      list = list.filter(
+        (p) => p.regionCodes.length === 0 || p.regionCodes.includes(filters.region!)
+      );
+    }
+
+    if (activeAgeRange.min !== null || activeAgeRange.max !== null) {
+      list = list.filter((p) => {
+        const okMin = activeAgeRange.max === null || p.minAge === null || p.minAge <= activeAgeRange.max;
+        const okMax = activeAgeRange.min === null || p.maxAge === null || p.maxAge >= activeAgeRange.min;
+        return okMin && okMax;
+      });
     }
 
     const q = searchQuery.trim().toLowerCase();
@@ -342,11 +377,7 @@ export default function ExploreScreen() {
     }
 
     return list;
-  }, [allCards, searchQuery, activeTab]);
-
-  const handleChipPress = useCallback((chip: FilterChipKey) => {
-    setActiveChip((prev) => (prev === chip ? "지역" : chip));
-  }, []);
+  }, [allCards, searchQuery, filters, activeAgeRange]);
 
   const handleCardPress = useCallback(
     (id: string) => {
@@ -364,6 +395,23 @@ export default function ExploreScreen() {
 
   const keyExtractor = useCallback((item: ExploreCard) => item.id, []);
 
+  const openFilterSheet = useCallback(() => setFilterSheetVisible(true), []);
+
+  const handleApplyFilters = useCallback((values: ExploreFilterValues) => {
+    setFilters(values);
+    // 소득구간은 프로그램 목록을 걸러내지 않는 대신, 전역 프로필에 반영해
+    // 홈 탭 추천 등 다른 화면에서 실제로 쓰이게 한다.
+    if (values.incomeBracket !== null) {
+      useOnboardingStore.getState().setIncomeBracket(values.incomeBracket);
+    }
+  }, []);
+
+  const regionChipLabel =
+    filters.region !== null ? REGION_LABEL[filters.region] ?? filters.region : "지역";
+  const ageChipLabel = activeAgeRange.label !== "전체" ? activeAgeRange.label : "연령";
+  const incomeChipLabel =
+    filters.incomeBracket !== null ? `소득 ${filters.incomeBracket}구간` : "소득구간";
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -371,9 +419,13 @@ export default function ExploreScreen() {
       {isError && <OfflineBanner />}
 
       {isLoading ? (
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>프로그램 목록을 불러오는 중...</Text>
+        <View
+          style={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + layout.tabBarHeight + spacing[4] },
+          ]}
+        >
+          <ProgramListSkeleton count={5} />
         </View>
       ) : (
         <FlatList
@@ -396,20 +448,35 @@ export default function ExploreScreen() {
                 style={styles.chipsScroll}
                 contentContainerStyle={styles.chipsContent}
               >
-                {FILTER_CHIPS.map((chip) => (
-                  <FilterChip
-                    key={chip}
-                    label={chip}
-                    isActive={chip === activeChip}
-                    onPress={() => handleChipPress(chip)}
-                  />
-                ))}
+                <FilterChip
+                  label="필터"
+                  isActive={false}
+                  onPress={openFilterSheet}
+                  icon="options-outline"
+                />
+                <FilterChip
+                  label={regionChipLabel}
+                  isActive={filters.region !== null}
+                  onPress={openFilterSheet}
+                />
+                <FilterChip
+                  label={ageChipLabel}
+                  isActive={activeAgeRange.label !== "전체"}
+                  onPress={openFilterSheet}
+                />
+                <FilterChip
+                  label={incomeChipLabel}
+                  isActive={filters.incomeBracket !== null}
+                  onPress={openFilterSheet}
+                />
               </ScrollView>
 
               <SegmentedControl
                 tabs={TABS}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
+                activeTab={filters.category as TabOption}
+                onTabChange={(tab) =>
+                  setFilters((prev) => ({ ...prev, category: tab }))
+                }
               />
 
               <Text style={styles.resultsCount}>
@@ -423,6 +490,15 @@ export default function ExploreScreen() {
           keyboardDismissMode="on-drag"
         />
       )}
+
+      <FilterSheet
+        visible={filterSheetVisible}
+        onClose={() => setFilterSheetVisible(false)}
+        regionOptions={REGION_FILTER_OPTIONS}
+        categoryOptions={CATEGORY_FILTER_OPTIONS}
+        initialValues={filters}
+        onApply={handleApplyFilters}
+      />
     </View>
   );
 }
@@ -435,18 +511,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-
-  // Loading center
-  loadingCenter: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing[4],
-  },
-  loadingText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.onSurfaceVariant,
   },
 
   // FlatList content

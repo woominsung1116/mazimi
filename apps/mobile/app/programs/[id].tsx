@@ -38,6 +38,9 @@ import {
   type ProfileInput,
 } from "@/lib/api";
 import { openApplyUrl } from "@/lib/openExternalUrl";
+import { trackEvent } from "@/lib/analytics";
+import { ApplicationGuideCard } from "@/components/ApplicationGuideCard";
+import { ProgramDetailSkeleton } from "@/components/Skeleton";
 import {
   colors,
   typography,
@@ -1045,8 +1048,8 @@ function DocumentRow({ item, checked, onToggle }: DocumentRowProps) {
 
 function LoadingScreen() {
   return (
-    <View style={styles.center}>
-      <ActivityIndicator size="large" color={colors.primary} />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ProgramDetailSkeleton />
     </View>
   );
 }
@@ -1131,6 +1134,13 @@ export default function ProgramDetailScreen() {
     retry: 1,
   });
 
+  // Funnel instrumentation: 정책 상세 진입 (fires once per successful load)
+  useEffect(() => {
+    if (program?.id) {
+      trackEvent("program_viewed", { program_id: program.id });
+    }
+  }, [program?.id]);
+
   // Build ProfileInput from onboarding store for the match-score request
   const profileInput: ProfileInput | null = useMemo(() => {
     const birthYear = getBirthYear(age);
@@ -1198,6 +1208,12 @@ export default function ProgramDetailScreen() {
   if (isLoading) return <LoadingScreen />;
   if (error || !program) return <ErrorScreen onBack={() => router.back()} />;
 
+  const hasGuideContent = !!(
+    program.application_method?.trim() ||
+    program.submission_documents?.trim() ||
+    program.screening_method?.trim()
+  );
+
   const typeConfig = getProgramTypeConfig(program.program_type);
   const applicationPeriod = formatApplicationPeriod(
     program.application_start_at,
@@ -1232,6 +1248,7 @@ export default function ProgramDetailScreen() {
   function handleViewDetail() {
     if (!applyUrl) return;
     openApplyUrl(applyUrl, {
+      onSuccess: () => trackEvent("apply_link_opened", { program_id: program!.id }),
       onError: (msg) => Alert.alert("열기 실패", msg),
     });
   }
@@ -1372,6 +1389,22 @@ export default function ProgramDetailScreen() {
         <View style={styles.sectionPad}>
           <AiSummaryCard program={program} />
         </View>
+
+        {hasGuideContent && (
+          <>
+            {/* Gray strip */}
+            <View style={styles.sectionStrip} />
+
+            {/* ── 신청 가이드 (신청방법 / 제출서류 / 심사방법) ── */}
+            <View style={styles.sectionPad}>
+              <ApplicationGuideCard
+                applicationMethod={program.application_method}
+                submissionDocuments={program.submission_documents}
+                screeningMethod={program.screening_method}
+              />
+            </View>
+          </>
+        )}
 
         {/* Gray strip */}
         <View style={styles.sectionStrip} />

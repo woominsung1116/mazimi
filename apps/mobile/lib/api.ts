@@ -114,6 +114,17 @@ export interface ApiProgram {
    * list payloads, so always guard before use.
    */
   application_steps?: ApplicationStep[] | null;
+  /**
+   * Free-text 신청방법 (how to apply). ~53% of 온통청년 policies carry this.
+   * Often contains a "→"-delimited step chain (e.g. "시험응시 → 접수 →
+   * 서류확인 → 선정 → 지급") — render as a stepper when present, otherwise
+   * as plain text. Null when the source program has no such field.
+   */
+  application_method: string | null;
+  /** Free-text 제출서류 (submission documents) — render as an itemized list. */
+  submission_documents: string | null;
+  /** Free-text 심사방법 (screening method) — render as a text section. */
+  screening_method: string | null;
 }
 
 /** GET /api/v1/programs response envelope */

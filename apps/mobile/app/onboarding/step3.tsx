@@ -19,7 +19,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import { api } from "@/lib/api";
-import { colors, typography, borderRadius, layout } from "@/constants/theme";
+import { colors, typography, borderRadius, layout, spacing } from "@/constants/theme";
+import IncomeBracketGuide from "@/components/IncomeBracketGuide";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -38,14 +39,24 @@ const EMPLOYMENT_OPTIONS: EmploymentOption[] = [
   { value: "기타", label: "기타 (아르바이트, 프리랜서 등)" },
 ];
 
+const INCOME_BRACKETS = Array.from({ length: 10 }, (_, i) => i + 1);
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function OnboardingStep3() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { nickname, region, age, enrollmentStatus, employmentStatus, setEmploymentStatus } =
-    useOnboardingStore();
+  const {
+    nickname,
+    region,
+    age,
+    enrollmentStatus,
+    employmentStatus,
+    setEmploymentStatus,
+    incomeBracket,
+    setIncomeBracket,
+  } = useOnboardingStore();
 
   const canProceed = employmentStatus !== "";
 
@@ -58,12 +69,13 @@ export default function OnboardingStep3() {
         region_code: region || "busan",
         enrollment_status: enrollmentStatus || undefined,
         employment_status: employmentStatus || undefined,
+        income_bracket: incomeBracket ?? undefined,
       });
     } catch {
       // Non-blocking — profile can be saved later from profile tab
     }
     router.push("/calculator");
-  }, [canProceed, router, age, region, enrollmentStatus, employmentStatus]);
+  }, [canProceed, router, age, region, enrollmentStatus, employmentStatus, incomeBracket]);
 
   const handleBack = useCallback(() => {
     router.back();
@@ -164,6 +176,58 @@ export default function OnboardingStep3() {
                 </Pressable>
               );
             })}
+          </View>
+        </View>
+
+        {/* Income bracket — optional, skippable */}
+        <View style={styles.section}>
+          <View style={styles.incomeSectionHeader}>
+            <Text style={styles.sectionLabel}>소득 구간 (선택)</Text>
+            {incomeBracket !== null && (
+              <Pressable
+                onPress={() => setIncomeBracket(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="소득 구간 선택 해제"
+              >
+                <Text style={styles.incomeSkipText}>건너뛰기</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.incomeBracketGrid}>
+            {INCOME_BRACKETS.map((bracket) => {
+              const isSelected = incomeBracket === bracket;
+              return (
+                <Pressable
+                  key={bracket}
+                  onPress={() => setIncomeBracket(bracket)}
+                  style={[
+                    styles.incomeBracketChip,
+                    isSelected && styles.incomeBracketChipActive,
+                  ]}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${bracket}구간 선택`}
+                  accessibilityState={{ checked: isSelected }}
+                >
+                  <Text
+                    style={[
+                      styles.incomeBracketChipText,
+                      isSelected && styles.incomeBracketChipTextActive,
+                    ]}
+                  >
+                    {bracket}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.incomeBracketHelp}>
+            1구간(최저) ~ 10구간(최고) · 모르면 아래 가이드를 이용하세요
+          </Text>
+
+          <View style={{ marginTop: spacing[3] }}>
+            <IncomeBracketGuide onApply={(bracket) => setIncomeBracket(bracket)} />
           </View>
         </View>
       </ScrollView>
@@ -395,6 +459,59 @@ const styles = StyleSheet.create({
   },
   radioLabelSelected: {
     color: colors.primary,
+  },
+
+  // Income bracket (optional)
+  incomeSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  incomeSkipText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+    marginLeft: 4,
+  },
+  incomeBracketGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  incomeBracketChip: {
+    width: 52,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#b6c7eb",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  incomeBracketChipActive: {
+    backgroundColor: colors.primary,
+  },
+  incomeBracketChipText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.onSurfaceVariant,
+  },
+  incomeBracketChipTextActive: {
+    color: colors.onPrimary,
+  },
+  incomeBracketHelp: {
+    fontSize: typography.fontSize.xs,
+    color: colors.outline,
+    marginTop: 10,
+    marginLeft: 4,
   },
 
   // CTA

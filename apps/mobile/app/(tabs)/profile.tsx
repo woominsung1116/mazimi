@@ -9,7 +9,7 @@
  * is disabled in offline mode.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ import { useQuery } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, type UserProfile, type AlertListResponse } from "@/lib/api";
 import OfflineBanner from "@/components/OfflineBanner";
+import IncomeBracketGuide from "@/components/IncomeBracketGuide";
+import { useOnboardingStore } from "@/store/onboarding";
 import {
   colors,
   typography,
@@ -261,6 +263,61 @@ export default function ProfileScreen() {
   const employment = employmentLabel(profile.employment_status);
   const initial = avatarInitial(profile);
 
+  // 소득 구간 — seed the local (onboarding) store from the server profile once
+  // it loads, so the guide's "현재 값" reflects whatever was saved previously.
+  const incomeBracket = useOnboardingStore((s) => s.incomeBracket);
+  const setIncomeBracketStore = useOnboardingStore((s) => s.setIncomeBracket);
+
+  useEffect(() => {
+    if (incomeBracket === null && profile.income_bracket != null) {
+      setIncomeBracketStore(profile.income_bracket);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.income_bracket]);
+
+  const handleApplyIncomeBracket = useCallback(
+    async (bracket: number) => {
+      setIncomeBracketStore(bracket);
+      // Best-effort persist to the server — needs the required ProfileInput
+      // fields, which we only have once the profile has actually loaded.
+      //
+      // IMPORTANT: POST /api/v1/profile is a full-row upsert (every column is
+      // overwritten, not merged — see crates/api/src/routes/profile.rs), so
+      // we must forward every already-known field here. Sending only the
+      // income bracket would silently null out anything else the user has
+      // set (major_group, housing_type, household_size, disability flags, …).
+      if (profile.region_code && profile.birth_year) {
+        try {
+          await api.saveProfile({
+            birth_year: profile.birth_year,
+            region_code: profile.region_code,
+            city_code: profile.city_code ?? undefined,
+            school_name: profile.school_name ?? undefined,
+            school_year: profile.school_year ?? undefined,
+            enrollment_status: profile.enrollment_status ?? undefined,
+            employment_status: profile.employment_status ?? undefined,
+            major_group: profile.major_group ?? undefined,
+            income_bracket: bracket,
+            kosaf_support_bracket: profile.kosaf_support_bracket ?? undefined,
+            housing_type: profile.housing_type ?? undefined,
+            household_size: profile.household_size ?? undefined,
+            has_disability: profile.has_disability ?? undefined,
+            is_multicultural_family: profile.is_multicultural_family ?? undefined,
+            is_low_income_household: profile.is_low_income_household ?? undefined,
+            veteran_family: profile.veteran_family ?? undefined,
+            preferred_categories: profile.preferred_categories ?? undefined,
+            school_type: profile.school_type ?? undefined,
+            age_band: profile.age_band ?? undefined,
+          });
+          profileQuery.refetch();
+        } catch {
+          // Non-blocking — local store already reflects the new bracket.
+        }
+      }
+    },
+    [profile, profileQuery, setIncomeBracketStore]
+  );
+
   function updateCategory(
     key: keyof Pick<LocalAlertPrefs, "deadline" | "new_program" | "profile_update">,
     val: boolean
@@ -363,6 +420,26 @@ export default function ProfileScreen() {
         >
           <Text style={styles.editProfileBtnText}>프로필 편집</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* 소득 구간 section */}
+      <View style={styles.section}>
+        <SectionLabel>소득 구간</SectionLabel>
+        <View style={styles.card}>
+          <ProfileRow
+            label="소득 구간"
+            value={incomeBracket !== null ? `${incomeBracket}구간` : "미입력"}
+            isLast
+          />
+        </View>
+        <IncomeBracketGuide
+          triggerLabel={
+            incomeBracket !== null
+              ? "소득구간 다시 확인하기"
+              : "내 소득구간 모르겠어요"
+          }
+          onApply={(bracket) => handleApplyIncomeBracket(bracket)}
+        />
       </View>
 
       {/* 내 서류 보관함 navigation card */}

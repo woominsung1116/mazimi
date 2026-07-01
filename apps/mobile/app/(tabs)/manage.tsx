@@ -12,7 +12,6 @@
 import React, { useCallback, useState } from "react";
 import {
   Alert as RNAlert,
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -41,6 +40,7 @@ import {
   type DashboardData,
 } from "@/lib/api";
 import OfflineBanner from "@/components/OfflineBanner";
+import { MatchScoreCardSkeleton, ScholarshipListSkeleton } from "@/components/Skeleton";
 import { useAuthStore } from "@/store/auth";
 
 // ---------------------------------------------------------------------------
@@ -572,9 +572,7 @@ export default function ManageScreen() {
         </Text>
 
         {isLoading ? (
-          <View style={styles.loadingCard}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <MatchScoreCardSkeleton />
         ) : (
           <MatchScoreCard score={overallScore} />
         )}
@@ -588,9 +586,7 @@ export default function ManageScreen() {
           badge={`${scholarshipCount}건 발견`}
         />
         {isLoading ? (
-          <View style={styles.loadingCard}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <ScholarshipListSkeleton count={2} />
         ) : (
           scholarships.map((item) => (
             <ScholarshipCard key={item.id} item={item} />
@@ -664,15 +660,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: layout.pagePadding,
     paddingTop: spacing[8],
-  },
-
-  loadingCard: {
-    height: 120,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: borderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.card,
   },
 
   progressLabel: {

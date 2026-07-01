@@ -100,6 +100,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   restoreSession: async () => {
     set({ isLoading: true });
     try {
+      const devToken = process.env.EXPO_PUBLIC_DEV_TOKEN;
+      const devRefresh = process.env.EXPO_PUBLIC_DEV_REFRESH_TOKEN;
+      if (devToken) {
+        await SecureStore.setItemAsync(SECURE_STORE_TOKEN_KEY, devToken);
+        if (devRefresh) {
+          await SecureStore.setItemAsync(SECURE_STORE_REFRESH_KEY, devRefresh);
+        }
+      }
       const storedToken = await SecureStore.getItemAsync(SECURE_STORE_TOKEN_KEY);
       const storedRefresh = await SecureStore.getItemAsync(
         SECURE_STORE_REFRESH_KEY

@@ -43,6 +43,8 @@ import {
   type ApplicationStatus,
 } from "@/lib/api";
 import { openApplyUrl } from "@/lib/openExternalUrl";
+import { trackEvent } from "@/lib/analytics";
+import { ApplicationGuideCard } from "@/components/ApplicationGuideCard";
 import { useOnboardingStore, getBirthYear } from "@/store/onboarding";
 import { useAuthStore } from "@/store/auth";
 import { useVaultDocuments, type StoredDocument, type DocumentType } from "@/lib/vault";
@@ -481,6 +483,13 @@ function Step1({ program, onNext, onNextForced }: Step1Props) {
           </View>
         ))}
       </View>
+
+      {/* 신청 가이드 (신청방법 / 제출서류 / 심사방법) — 필드가 있을 때만 렌더 */}
+      <ApplicationGuideCard
+        applicationMethod={program.application_method}
+        submissionDocuments={program.submission_documents}
+        screeningMethod={program.screening_method}
+      />
     </ScrollView>
   );
 }
@@ -724,22 +733,26 @@ function Step3({ profile, onProfileChange }: Step3Props) {
 
 interface Step4Props {
   url: string | null;
+  programId: string | undefined;
   programTitle: string;
   insetBottom: number;
   onFillDone: () => void;
   showToast: (msg: string) => void;
 }
 
-function Step4({ url, programTitle, insetBottom, onFillDone, showToast }: Step4Props) {
+function Step4({ url, programId, programTitle, insetBottom, onFillDone, showToast }: Step4Props) {
   const [opened, setOpened] = useState(false);
 
   const handleOpenSite = useCallback(() => {
     if (!url) return;
     openApplyUrl(url, {
-      onSuccess: () => setOpened(true),
+      onSuccess: () => {
+        setOpened(true);
+        trackEvent("apply_link_opened", { program_id: programId });
+      },
       onError: showToast,
     });
-  }, [url, showToast]);
+  }, [url, programId, showToast]);
 
   if (!url) {
     return (
@@ -1555,6 +1568,22 @@ export default function ApplyAssistantScreen() {
     },
   });
 
+  // Funnel instrumentation: 신청 도우미 진입 (fires once per screen visit)
+  useEffect(() => {
+    if (programId) {
+      trackEvent("apply_assistant_started", { program_id: programId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programId]);
+
+  // Funnel instrumentation: 서류 확인 단계 도달
+  useEffect(() => {
+    if (step === 2 && programId) {
+      trackEvent("documents_step_reached", { program_id: programId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   if (!user) {
     const headerTopPad = insets.top > 0 ? insets.top : spacing[5];
     return (
@@ -1650,6 +1679,7 @@ export default function ApplyAssistantScreen() {
 
         <Step4
           url={program ? resolveApplyUrl(program) : null}
+          programId={programId}
           programTitle={program?.title ?? ""}
           insetBottom={insets.bottom}
           onFillDone={handleFillDone}
