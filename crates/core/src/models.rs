@@ -139,6 +139,12 @@ pub struct Program {
     pub benefit_category: Option<String>,
     // ── Application guide ──
     pub application_steps: Option<serde_json::Value>,
+    /// 신청 방법 안내 텍스트 (원문, 온통청년 plcyAplyMthdCn 등)
+    pub application_method: Option<String>,
+    /// 제출 서류 안내 텍스트 (원문, 온통청년 sbmsnDcmntCn 등)
+    pub submission_documents: Option<String>,
+    /// 심사 방법 안내 텍스트 (원문, 온통청년 srngMthdCn 등)
+    pub screening_method: Option<String>,
 }
 
 // ── Bookmarks ──
@@ -180,6 +186,12 @@ pub struct RecommendationItem {
     pub reasons: Vec<String>,
     pub missing_checks: Vec<String>,
     pub official_url: Option<String>,
+    /// 신청 방법 안내 텍스트 (신청 가이드 카드용)
+    pub application_method: Option<String>,
+    /// 제출 서류 안내 텍스트 (신청 가이드 카드용)
+    pub submission_documents: Option<String>,
+    /// 심사 방법 안내 텍스트 (신청 가이드 카드용)
+    pub screening_method: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -281,6 +293,9 @@ mod tests {
             reasons: vec!["부산 거주 청년 대상이에요.".to_string()],
             missing_checks: vec![],
             official_url: Some("https://example.com".to_string()),
+            application_method: None,
+            submission_documents: None,
+            screening_method: None,
         };
         assert!(item.match_score <= 100, "score must not exceed 100");
         assert_eq!(item.program_type, "scholarship");
@@ -299,6 +314,9 @@ mod tests {
             reasons: vec!["현재 연령 조건에 맞아요.".to_string()],
             missing_checks: vec!["소득 기준 확인 필요".to_string()],
             official_url: None,
+            application_method: None,
+            submission_documents: None,
+            screening_method: None,
         };
         let json = serde_json::to_string(&item).expect("serialize");
         let decoded: RecommendationItem = serde_json::from_str(&json).expect("deserialize");
@@ -323,6 +341,9 @@ mod tests {
             reasons: vec![],
             missing_checks: vec![],
             official_url: None,
+            application_method: None,
+            submission_documents: None,
+            screening_method: None,
         };
         let item2 = RecommendationItem {
             program_id: Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap(),
@@ -335,6 +356,9 @@ mod tests {
             reasons: vec![],
             missing_checks: vec![],
             official_url: None,
+            application_method: None,
+            submission_documents: None,
+            screening_method: None,
         };
         let result = RecommendationResult {
             total_available: 2,

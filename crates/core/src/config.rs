@@ -13,7 +13,7 @@ impl AppConfig {
     pub fn from_env() -> anyhow::Result<Self> {
         dotenvy::dotenv().ok();
 
-        let app_env = std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string());
+        let app_env = std::env::var("APP_ENV").unwrap_or_else(|_| "production".to_string());
         let jwt_secret = std::env::var("JWT_SECRET")?;
 
         // Reject weak JWT secrets in non-local environments.

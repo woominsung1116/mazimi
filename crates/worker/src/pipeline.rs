@@ -3,6 +3,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -82,10 +83,26 @@ async fn process_source<S: DataSource>(
     let records = source.fetch_all().await?;
     let total = records.len();
 
+    // Cross-source duplicate detection cache (national_welfare ↔ youth_center
+    // only — see `find_youth_center_duplicate` doc comment for why
+    // local_welfare is intentionally excluded). Loaded once per run, not once
+    // per record: it's a handful of KB against ~1-2k youth_center rows.
+    let youth_center_cache: Vec<YouthCenterCacheEntry> = if source_name == "national_welfare" {
+        match load_youth_center_cache(pool).await {
+            Ok(cache) => cache,
+            Err(e) => {
+                warn!(source = source_name, error = %e, "failed to load youth_center dedup cache, continuing without dedup");
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
     let mut changed = 0usize;
 
     for record in &records {
-        match process_record(pool, source_name, run_id, record).await {
+        match process_record(pool, source_name, run_id, record, &youth_center_cache).await {
             Ok(was_changed) => {
                 if was_changed {
                     changed += 1;
@@ -124,6 +141,7 @@ async fn process_record(
     source_name: &str,
     run_id: Uuid,
     record: &RawRecord,
+    youth_center_cache: &[YouthCenterCacheEntry],
 ) -> Result<bool> {
     // 2. Compare content hash against last snapshot
     let existing_hash: Option<String> = sqlx::query_scalar(
@@ -173,6 +191,54 @@ async fn process_record(
     // 3. Normalize the raw payload
     let norm = normalize(source_name, &record.source_id, &record.payload);
 
+    // 3b. Cross-source duplicate check (national_welfare ↔ youth_center only).
+    // If this welfare record is a high-confidence duplicate of an existing
+    // youth_center program, prefer 복지로's own deep link over youth_center's
+    // (often weaker) URL, skip creating a second program row for the same
+    // policy, and record the outcome distinctly for operator visibility.
+    if !youth_center_cache.is_empty() {
+        if let Some(dup) = find_youth_center_duplicate(&norm.title, youth_center_cache) {
+            let should_update_url = norm.official_url.is_some()
+                && dup
+                    .official_url
+                    .as_deref()
+                    .map(|u| !u.contains("bokjiro.go.kr"))
+                    .unwrap_or(true);
+
+            if should_update_url {
+                sqlx::query(
+                    "UPDATE programs SET official_url = $1, updated_at = now() WHERE id = $2",
+                )
+                .bind(&norm.official_url)
+                .bind(dup.id)
+                .execute(pool)
+                .await?;
+                info!(
+                    source = source_name,
+                    source_id = %record.source_id,
+                    program_id = %dup.id,
+                    "duplicate of youth_center program — preferred bokjiro deep link"
+                );
+            }
+
+            sqlx::query(
+                "INSERT INTO ingestion_items \
+                     (id, run_id, source_id, program_id, status, created_at) \
+                 VALUES ($1, $2, $3, $4, 'duplicate_of_youth_center', now()) \
+                 ON CONFLICT (run_id, source_id) DO UPDATE \
+                     SET status = 'duplicate_of_youth_center', program_id = EXCLUDED.program_id",
+            )
+            .bind(Uuid::new_v4())
+            .bind(run_id)
+            .bind(&record.source_id)
+            .bind(dup.id)
+            .execute(pool)
+            .await?;
+
+            return Ok(true);
+        }
+    }
+
     // 4. Compute program_status from application dates
     let program_status = compute_program_status(norm.application_start_at, norm.application_end_at);
 
@@ -189,6 +255,7 @@ async fn process_record(
              min_age, max_age, regions, \
              raw_payload, normalized_payload, \
              search_tsv, \
+             application_method, submission_documents, screening_method, \
              is_active, last_synced_at, created_at, updated_at \
          ) VALUES ( \
              $1,  $2,  $3,  $4, \
@@ -201,24 +268,28 @@ async fn process_record(
                  coalesce($6, '') || ' ' || \
                  coalesce($7, '') \
              ), \
+             $17, $18, $19, \
              true, now(), now(), now() \
          ) \
          ON CONFLICT (source_type, source_id) DO UPDATE SET \
-             title                = EXCLUDED.title, \
-             summary              = EXCLUDED.summary, \
-             provider_name        = EXCLUDED.provider_name, \
-             official_url         = EXCLUDED.official_url, \
-             program_status       = EXCLUDED.program_status, \
-             application_start_at = EXCLUDED.application_start_at, \
-             application_end_at   = EXCLUDED.application_end_at, \
-             min_age              = EXCLUDED.min_age, \
-             max_age              = EXCLUDED.max_age, \
-             regions              = EXCLUDED.regions, \
-             raw_payload          = EXCLUDED.raw_payload, \
-             normalized_payload   = EXCLUDED.normalized_payload, \
-             search_tsv           = EXCLUDED.search_tsv, \
-             last_synced_at       = now(), \
-             updated_at           = now() \
+             title                 = EXCLUDED.title, \
+             summary               = EXCLUDED.summary, \
+             provider_name         = EXCLUDED.provider_name, \
+             official_url          = EXCLUDED.official_url, \
+             program_status        = EXCLUDED.program_status, \
+             application_start_at  = EXCLUDED.application_start_at, \
+             application_end_at    = EXCLUDED.application_end_at, \
+             min_age               = EXCLUDED.min_age, \
+             max_age               = EXCLUDED.max_age, \
+             regions               = EXCLUDED.regions, \
+             raw_payload           = EXCLUDED.raw_payload, \
+             normalized_payload    = EXCLUDED.normalized_payload, \
+             search_tsv            = EXCLUDED.search_tsv, \
+             application_method    = EXCLUDED.application_method, \
+             submission_documents  = EXCLUDED.submission_documents, \
+             screening_method      = EXCLUDED.screening_method, \
+             last_synced_at        = now(), \
+             updated_at            = now() \
          RETURNING id",
     )
     .bind(Uuid::new_v4()) // $1  id
@@ -237,6 +308,9 @@ async fn process_record(
     .bind(&norm.regions) // $14 regions  (Vec<String> → text[])
     .bind(&record.payload) // $15 raw_payload
     .bind(serde_json::to_value(&norm).ok()) // $16 normalized_payload
+    .bind(&norm.application_method) // $17 application_method
+    .bind(&norm.submission_documents) // $18 submission_documents
+    .bind(&norm.screening_method) // $19 screening_method
     .fetch_one(pool)
     .await?;
 
@@ -272,6 +346,12 @@ pub struct NormalizedProgram {
     pub min_age: Option<i32>,
     pub max_age: Option<i32>,
     pub regions: Vec<String>,
+    /// 신청 방법 안내 텍스트 (신청 가이드 카드용)
+    pub application_method: Option<String>,
+    /// 제출 서류 안내 텍스트 (신청 가이드 카드용)
+    pub submission_documents: Option<String>,
+    /// 심사 방법 안내 텍스트 (신청 가이드 카드용)
+    pub screening_method: Option<String>,
 }
 
 fn normalize(
@@ -301,6 +381,9 @@ fn normalize(
             min_age: None,
             max_age: None,
             regions: vec![],
+            application_method: None,
+            submission_documents: None,
+            screening_method: None,
         },
     }
 }
@@ -315,10 +398,25 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
         .map(|s| s.to_string());
 
     let provider_name = p["sprvsnInstCdNm"].as_str().map(|s| s.to_string());
-    let official_url = p["aplyUrlAddr"]
-        .as_str()
-        .or_else(|| p["refUrlAddr1"].as_str())
-        .map(|s| s.to_string());
+
+    // URL selection: prefer the most "specific" (non-homepage) candidate.
+    // aplyUrlAddr is populated on only ~19% of records and is often just the
+    // provider's bare homepage; refUrlAddr1/2 frequently point to the actual
+    // detail/application page instead. When none of those are specific, fall
+    // back to 온통청년's own detail page (built from plcyNo), which renders a
+    // real detail/apply page for ~100% of records. See select_official_url
+    // for the full priority rules.
+    let official_url = select_official_url(
+        p["aplyUrlAddr"].as_str(),
+        p["refUrlAddr1"].as_str(),
+        p["refUrlAddr2"].as_str(),
+        p["plcyNo"].as_str(),
+    );
+
+    // 신청 가이드 텍스트 필드 (모바일 가이드 카드용 원문 캡처)
+    let application_method = p["plcyAplyMthdCn"].as_str().map(|s| s.to_string());
+    let submission_documents = p["sbmsnDcmntCn"].as_str().map(|s| s.to_string());
+    let screening_method = p["srngMthdCn"].as_str().map(|s| s.to_string());
 
     let min_age = p["sprtTrgtMinAge"]
         .as_str()
@@ -372,6 +470,97 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
         min_age,
         max_age,
         regions: vec![],
+        application_method,
+        submission_documents,
+        screening_method,
+    }
+}
+
+/// Pick the most "specific" URL from the 온통청년 candidate fields
+/// (aplyUrlAddr, refUrlAddr1, refUrlAddr2), falling back to the platform's
+/// own detail page (keyed by plcyNo) before giving up entirely.
+///
+/// "특정" (specific) means the URL is http/https AND has a path beyond the
+/// bare domain (e.g. `/notice/view.do`) or a query string (e.g. `?id=42`).
+/// A bare homepage like `https://example.go.kr` or `https://example.go.kr/`
+/// is NOT specific.
+///
+/// Priority order:
+///   1. specific aplyUrlAddr
+///   2. specific refUrlAddr1
+///   3. specific refUrlAddr2
+///   4. (no specific candidate) 온통청년 detail page built from plcyNo —
+///      `https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/{plcyNo}`.
+///      Verified via curl to return 200 for records with a plcyNo, and always
+///      renders a real detail/apply page (never a bare homepage).
+///   5. (no plcyNo either) non-empty aplyUrlAddr
+///   6. (no plcyNo, no aplyUrlAddr) refUrlAddr1
+///
+/// Any URL candidate that isn't http/https (e.g. plain text like "전화문의")
+/// is discarded entirely.
+fn select_official_url(
+    aply_url: Option<&str>,
+    ref_url1: Option<&str>,
+    ref_url2: Option<&str>,
+    plcy_no: Option<&str>,
+) -> Option<String> {
+    fn clean(s: Option<&str>) -> Option<&str> {
+        s.map(|s| s.trim())
+            .filter(|s| !s.is_empty() && is_http_url(s))
+    }
+
+    let aply = clean(aply_url);
+    let ref1 = clean(ref_url1);
+    let ref2 = clean(ref_url2);
+
+    if let Some(u) = aply.filter(|u| is_specific_url(u)) {
+        return Some(u.to_string());
+    }
+    if let Some(u) = ref1.filter(|u| is_specific_url(u)) {
+        return Some(u.to_string());
+    }
+    if let Some(u) = ref2.filter(|u| is_specific_url(u)) {
+        return Some(u.to_string());
+    }
+
+    // No specific candidate among aply/ref1/ref2 — fall back to 온통청년's
+    // own detail page, which is guaranteed to be a real detail/apply page
+    // (not a bare homepage) for any valid plcyNo.
+    if let Some(no) = plcy_no.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        return Some(youth_center_detail_url(no));
+    }
+
+    // No plcyNo either — fall back to whatever non-empty http(s) URL exists,
+    // preferring aplyUrlAddr over refUrlAddr1.
+    // (refUrlAddr2 is intentionally excluded from this bare fallback.)
+    aply.or(ref1).map(|u| u.to_string())
+}
+
+/// Build the 온통청년 platform's own detail page URL for a given plcyNo.
+/// This always renders a real detail page with an apply button, unlike the
+/// provider-supplied aplyUrlAddr/refUrlAddr fields which are frequently a
+/// bare homepage or empty.
+fn youth_center_detail_url(plcy_no: &str) -> String {
+    format!("https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/{plcy_no}")
+}
+
+/// Returns true if `s` starts with an http/https scheme.
+fn is_http_url(s: &str) -> bool {
+    s.starts_with("http://") || s.starts_with("https://")
+}
+
+/// Returns true if the URL has a path beyond the bare domain or a query
+/// string. Caller must already ensure `url` is http/https.
+fn is_specific_url(url: &str) -> bool {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    match rest.find('/') {
+        // No slash after the domain at all — only specific if there's a
+        // query string glued directly onto the domain (rare, but handle it).
+        None => rest.contains('?'),
+        Some(idx) => {
+            let after_domain = &rest[idx..]; // starts with '/'
+            !after_domain.trim_start_matches('/').is_empty()
+        }
     }
 }
 
@@ -395,6 +584,9 @@ fn normalize_gov_benefits(p: &serde_json::Value) -> NormalizedProgram {
         min_age: None,
         max_age: None,
         regions: vec![],
+        application_method: None,
+        submission_documents: None,
+        screening_method: None,
     }
 }
 
@@ -425,6 +617,9 @@ fn normalize_scholarship(p: &serde_json::Value) -> NormalizedProgram {
         min_age: None,
         max_age: None,
         regions: vec![],
+        application_method: None,
+        submission_documents: None,
+        screening_method: None,
     }
 }
 
@@ -477,6 +672,9 @@ fn normalize_local_scraper(p: &serde_json::Value) -> NormalizedProgram {
         min_age: None,
         max_age: None,
         regions,
+        application_method: None,
+        submission_documents: None,
+        screening_method: None,
     }
 }
 
@@ -616,4 +814,440 @@ fn parse_yyyy_mm_dd(s: Option<&str>) -> Option<chrono::DateTime<Utc>> {
     chrono::NaiveDate::from_ymd_opt(year, month, day)
         .and_then(|d| d.and_hms_opt(0, 0, 0))
         .map(|dt| dt.and_utc())
+}
+
+// ── Cross-source duplicate detection (national_welfare ↔ youth_center) ──────
+//
+// Both 온통청년(youth_center) and 한국사회보장정보원 중앙부처 복지서비스
+// (national_welfare) list overlapping "청년" programs — e.g. 청년내일저축계좌,
+// 국민취업지원제도, 청년월세 지원사업. When the same policy exists in both,
+// 복지로's own deep link (servDtlLink, already flowing into
+// `official_url` via `normalize_national_welfare`) is a stronger URL than
+// youth_center's frequently bare/homepage aplyUrlAddr/refUrlAddr fields, and
+// showing the user two cards for one policy hurts recommendation quality.
+//
+// Measured 2026-07 (164 청년-tagged national_welfare records × ~1,900
+// youth_center records, Dice-coefficient over character bigrams of
+// normalized titles): a clean gap separates real duplicates from distinct
+// programs — 10/164 (6.1%) score exactly 1.0 (all manually confirmed as the
+// same policy, e.g. "청년내일저축계좌" ↔ "청년내일저축계좌",
+// "청년월세 지원사업" ↔ "2026년 청년월세 지원사업"), and the very next
+// closest pair scores only 0.889 and is a genuinely different program
+// ("평생교육이용권 지원" ↔ "평생교육이용권 지원사업" is fine at 0.889, but
+// e.g. 국토교통부's nationwide "대중교통비 환급 지원(모두의카드)" only scores
+// 0.857 against Incheon-only "인천형 대중교통비 환급 지원(인천 i-패스)" — same
+// theme, different program, correctly rejected). THRESHOLD sits in that gap.
+//
+// local_welfare is intentionally EXCLUDED from this check. The same
+// measurement against local_welfare's 1,202 청년-tagged records showed the
+// opposite pattern: dozens of *generically named* city/county programs
+// (공공근로사업, 결혼축하금 지원사업, 청년 이사비 지원사업, 청년 자격증 응시료
+// 지원사업 …) are independently registered by many different jurisdictions
+// and all collapse onto the same single youth_center row under title-only
+// matching — e.g. 9+ distinct cities' own "공공근로사업" all best-match the
+// one generic youth_center "공공근로사업" record. Region cross-checking isn't
+// available to disambiguate because `normalize_youth_center` always sets
+// `regions: vec![]` (see pipeline.rs normalize_youth_center). Auto-updating
+// official_url in that scenario risks attaching one city's bokjiro link to a
+// completely different city's program — a correctness bug worse than the
+// duplicate cards it would "fix". Do not enable this path for local_welfare
+// without first adding a region-aware corroboration signal (e.g. capturing
+// region on youth_center programs, or cross-checking bizChrDeptNm against
+// youth_center's sprvsnInstCdNm/operInstCdNm).
+const YOUTH_CENTER_DUP_THRESHOLD: f64 = 0.97;
+
+struct YouthCenterCacheEntry {
+    id: Uuid,
+    title: String,
+    official_url: Option<String>,
+}
+
+/// Load all currently-active youth_center programs (id, title, official_url)
+/// for in-memory duplicate matching. Cheap at current scale (~1-2k rows);
+/// run once per national_welfare ingestion run, not once per record.
+async fn load_youth_center_cache(pool: &PgPool) -> Result<Vec<YouthCenterCacheEntry>> {
+    let rows: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, title, official_url FROM programs \
+         WHERE source_type = 'youth_center' AND is_active = true",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(id, title, official_url)| YouthCenterCacheEntry {
+            id,
+            title,
+            official_url,
+        })
+        .collect())
+}
+
+/// Find the best-matching youth_center cache entry for `title`, if its
+/// similarity clears `YOUTH_CENTER_DUP_THRESHOLD`.
+fn find_youth_center_duplicate<'a>(
+    title: &str,
+    cache: &'a [YouthCenterCacheEntry],
+) -> Option<&'a YouthCenterCacheEntry> {
+    let norm_title = normalize_title_for_dedup(title);
+    if norm_title.chars().count() < 2 {
+        return None;
+    }
+
+    let mut best_ratio = 0.0f64;
+    let mut best: Option<&YouthCenterCacheEntry> = None;
+    for entry in cache {
+        let ratio = dice_bigram_similarity(&norm_title, &normalize_title_for_dedup(&entry.title));
+        if ratio > best_ratio {
+            best_ratio = ratio;
+            best = Some(entry);
+        }
+    }
+
+    if best_ratio >= YOUTH_CENTER_DUP_THRESHOLD {
+        best
+    } else {
+        None
+    }
+}
+
+/// Normalize a program title for duplicate detection: strip parenthetical
+/// notes, bare 4-digit years (optionally followed by "년"), stray
+/// digits/punctuation, and all whitespace. Mirrors the offline measurement
+/// script used to calibrate `YOUTH_CENTER_DUP_THRESHOLD`.
+fn normalize_title_for_dedup(title: &str) -> String {
+    let no_parens = strip_parenthetical(title);
+    let chars: Vec<char> = no_parens.chars().collect();
+    let mut out = String::with_capacity(chars.len());
+    let mut i = 0;
+    while i < chars.len() {
+        // Skip a run of 4 digits (a year mention), optionally followed by '년'.
+        if i + 4 <= chars.len() && chars[i..i + 4].iter().all(|c| c.is_ascii_digit()) {
+            i += 4;
+            if i < chars.len() && chars[i] == '년' {
+                i += 1;
+            }
+            continue;
+        }
+        let c = chars[i];
+        if c.is_whitespace() || c.is_ascii_digit() || matches!(c, '.' | '-' | '/' | ':' | '~' | ',')
+        {
+            i += 1;
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
+/// Strip `(...)` parenthetical notes (non-nested-aware but tolerant of stray
+/// unmatched parens, since these are free-text government titles).
+fn strip_parenthetical(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut depth = 0i32;
+    for c in s.chars() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                if depth > 0 {
+                    depth -= 1;
+                }
+            }
+            _ if depth == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Sørensen-Dice coefficient over character bigrams (multiset intersection).
+/// Unicode-safe: operates on `char`, not bytes, so multi-byte Korean
+/// characters are never split mid-codepoint.
+fn dice_bigram_similarity(a: &str, b: &str) -> f64 {
+    fn bigrams(s: &str) -> Vec<(char, char)> {
+        let chars: Vec<char> = s.chars().collect();
+        if chars.len() < 2 {
+            return Vec::new();
+        }
+        chars.windows(2).map(|w| (w[0], w[1])).collect()
+    }
+
+    let ba = bigrams(a);
+    let bb = bigrams(b);
+    if ba.is_empty() || bb.is_empty() {
+        return 0.0;
+    }
+
+    let mut counts: HashMap<(char, char), i32> = HashMap::new();
+    for bg in &ba {
+        *counts.entry(*bg).or_insert(0) += 1;
+    }
+    let mut intersection = 0i32;
+    for bg in &bb {
+        if let Some(c) = counts.get_mut(bg) {
+            if *c > 0 {
+                *c -= 1;
+                intersection += 1;
+            }
+        }
+    }
+
+    2.0 * intersection as f64 / (ba.len() + bb.len()) as f64
+}
+
+#[cfg(test)]
+mod dedup_tests {
+    use super::*;
+
+    fn entry(id: Uuid, title: &str, official_url: Option<&str>) -> YouthCenterCacheEntry {
+        YouthCenterCacheEntry {
+            id,
+            title: title.to_string(),
+            official_url: official_url.map(String::from),
+        }
+    }
+
+    // ── normalize_title_for_dedup ────────────────────────────────────────
+
+    #[test]
+    fn strips_year_prefix_and_parens_and_whitespace() {
+        assert_eq!(
+            normalize_title_for_dedup("2026년 청년월세 지원사업"),
+            normalize_title_for_dedup("청년월세 지원사업")
+        );
+        assert_eq!(
+            normalize_title_for_dedup("(동구) 2026년 동구 청년 컬처페이 지원사업 (접수마감)"),
+            "동구청년컬처페이지원사업"
+        );
+    }
+
+    // ── dice_bigram_similarity ────────────────────────────────────────────
+
+    #[test]
+    fn identical_strings_score_one() {
+        assert_eq!(
+            dice_bigram_similarity("청년내일저축계좌", "청년내일저축계좌"),
+            1.0
+        );
+    }
+
+    #[test]
+    fn completely_different_strings_score_zero() {
+        assert_eq!(dice_bigram_similarity("가나다라", "마바사아"), 0.0);
+    }
+
+    #[test]
+    fn real_duplicate_pair_clears_threshold() {
+        // 국민취업지원제도: identical in both sources after normalization.
+        let a = normalize_title_for_dedup("국민취업지원제도");
+        let b = normalize_title_for_dedup("국민취업지원제도");
+        assert!(dice_bigram_similarity(&a, &b) >= YOUTH_CENTER_DUP_THRESHOLD);
+    }
+
+    #[test]
+    fn distinct_regional_variant_does_not_clear_threshold() {
+        // Measured false-positive guard: 국토교통부의 전국 단위 "대중교통비 환급
+        // 지원(모두의카드)" vs 인천시 전용 "인천형 대중교통비 환급 지원(인천
+        // i-패스)" — same theme, different program. Must stay below threshold.
+        let a = normalize_title_for_dedup("대중교통비 환급 지원(모두의카드)");
+        let b = normalize_title_for_dedup("인천형 대중교통비 환급 지원(인천 i-패스)");
+        assert!(dice_bigram_similarity(&a, &b) < YOUTH_CENTER_DUP_THRESHOLD);
+    }
+
+    // ── find_youth_center_duplicate ──────────────────────────────────────
+
+    #[test]
+    fn finds_high_confidence_duplicate() {
+        let id = Uuid::new_v4();
+        let cache = vec![
+            entry(id, "청년내일저축계좌", Some("https://example.go.kr")),
+            entry(
+                Uuid::new_v4(),
+                "청년 부동산 중개보수 및 이사비 지원사업",
+                None,
+            ),
+        ];
+        let dup = find_youth_center_duplicate("청년내일저축계좌", &cache);
+        assert!(dup.is_some());
+        assert_eq!(dup.unwrap().id, id);
+    }
+
+    #[test]
+    fn does_not_match_below_threshold() {
+        let cache = vec![entry(
+            Uuid::new_v4(),
+            "인천형 대중교통비 환급 지원(인천 i-패스)",
+            None,
+        )];
+        let dup = find_youth_center_duplicate("대중교통비 환급 지원(모두의카드)", &cache);
+        assert!(dup.is_none());
+    }
+
+    #[test]
+    fn empty_cache_never_matches() {
+        assert!(find_youth_center_duplicate("청년내일저축계좌", &[]).is_none());
+    }
+}
+
+#[cfg(test)]
+mod official_url_tests {
+    use super::*;
+
+    // ── is_specific_url ──────────────────────────────────────────────────
+
+    #[test]
+    fn bare_homepage_is_not_specific() {
+        assert!(!is_specific_url("https://example.go.kr"));
+        assert!(!is_specific_url("https://example.go.kr/"));
+    }
+
+    #[test]
+    fn path_makes_it_specific() {
+        assert!(is_specific_url("https://example.go.kr/notice/view.do"));
+        assert!(is_specific_url("http://example.go.kr/apply/123"));
+    }
+
+    #[test]
+    fn query_string_makes_it_specific() {
+        assert!(is_specific_url("https://example.go.kr/board/detail?no=7"));
+        // Query glued directly onto the bare domain (no slash at all).
+        assert!(is_specific_url("https://example.go.kr?no=7"));
+    }
+
+    // ── select_official_url ──────────────────────────────────────────────
+
+    #[test]
+    fn prefers_specific_aply_url_over_everything() {
+        let result = select_official_url(
+            Some("https://apply.example.go.kr/apply/123"),
+            Some("https://example.go.kr/notice/view.do?id=42"),
+            Some("https://example.go.kr/board/detail?no=7"),
+            Some("12345"),
+        );
+        assert_eq!(
+            result,
+            Some("https://apply.example.go.kr/apply/123".to_string())
+        );
+    }
+
+    #[test]
+    fn falls_back_to_specific_ref_url1_when_aply_is_bare_homepage() {
+        let result = select_official_url(
+            Some("https://example.go.kr"),
+            Some("https://example.go.kr/notice/view.do?id=42"),
+            None,
+            Some("12345"),
+        );
+        assert_eq!(
+            result,
+            Some("https://example.go.kr/notice/view.do?id=42".to_string())
+        );
+    }
+
+    #[test]
+    fn falls_back_to_specific_ref_url2_when_aply_and_ref1_are_bare() {
+        let result = select_official_url(
+            Some("https://example.go.kr"),
+            Some("https://example.go.kr/"),
+            Some("https://example.go.kr/board/detail?no=7"),
+            Some("12345"),
+        );
+        assert_eq!(
+            result,
+            Some("https://example.go.kr/board/detail?no=7".to_string())
+        );
+    }
+
+    #[test]
+    fn falls_back_to_youth_center_detail_page_when_nothing_is_specific() {
+        // aply/ref1 are bare homepages and ref2 is absent, but plcyNo is
+        // present — the 온통청년 detail page template must win over the bare
+        // homepage fallback (this is the ~37% case that used to dead-end on
+        // a bare homepage before the plcyNo fallback was added).
+        let result = select_official_url(
+            Some("https://example.go.kr"),
+            Some("https://example.go.kr/"),
+            None,
+            Some("12345"),
+        );
+        assert_eq!(
+            result,
+            Some(
+                "https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/12345"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn youth_center_detail_page_wins_over_bare_fallback_even_with_no_ref_urls() {
+        // No ref URLs at all, only a bare aply homepage + plcyNo. The detail
+        // page template still takes priority over falling back to the bare
+        // aply URL.
+        let result = select_official_url(Some("https://example.go.kr/"), None, None, Some("999"));
+        assert_eq!(
+            result,
+            Some(
+                "https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/999"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn falls_back_to_bare_aply_url_when_nothing_specific_and_no_plcy_no() {
+        let result = select_official_url(
+            Some("https://example.go.kr"),
+            Some("https://example.go.kr/"),
+            None,
+            None,
+        );
+        assert_eq!(result, Some("https://example.go.kr".to_string()));
+    }
+
+    #[test]
+    fn falls_back_to_ref_url1_when_aply_is_empty_and_no_plcy_no() {
+        let result = select_official_url(Some(""), Some("https://example.go.kr"), None, None);
+        assert_eq!(result, Some("https://example.go.kr".to_string()));
+    }
+
+    #[test]
+    fn blank_plcy_no_is_treated_as_absent() {
+        // Whitespace-only plcyNo must not produce a bogus detail URL; it
+        // should fall through to the bare-URL fallback tier.
+        let result = select_official_url(Some("https://example.go.kr"), None, None, Some("   "));
+        assert_eq!(result, Some("https://example.go.kr".to_string()));
+    }
+
+    #[test]
+    fn returns_none_when_everything_is_empty_or_missing() {
+        assert_eq!(select_official_url(None, None, None, None), None);
+        assert_eq!(
+            select_official_url(Some(""), Some(""), Some(""), Some("")),
+            None
+        );
+    }
+
+    #[test]
+    fn rejects_non_http_schemes_and_plain_text() {
+        // Non-http scheme and plain Korean text (e.g. "전화문의") must be
+        // discarded entirely, even though they're non-empty. With no plcyNo
+        // either, the result is None.
+        let result =
+            select_official_url(Some("ftp://example.com/file"), Some("전화문의"), None, None);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn bare_fallback_ignores_ref_url2() {
+        // When only ref_url2 is a non-empty candidate (bare or otherwise),
+        // aply/ref1 are absent, and there's no plcyNo, the spec says the
+        // bare fallback should NOT reach into ref_url2 — but a *specific*
+        // ref_url2 still wins earlier in the priority chain. This test
+        // covers the case where ref_url2 is itself just a bare homepage: no
+        // candidate should be returned.
+        let result = select_official_url(None, None, Some("https://example.go.kr"), None);
+        assert_eq!(result, None);
+    }
 }

@@ -554,6 +554,9 @@ mod tests {
             company_logo_url: None,
             benefit_category: None,
             application_steps: None,
+            application_method: None,
+            submission_documents: None,
+            screening_method: None,
         }
     }
 

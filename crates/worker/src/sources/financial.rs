@@ -351,6 +351,18 @@ pub fn normalize_financial(payload: &Value) -> NormalizedProgram {
     let application_start_at = parse_fss_date(payload["dcls_strt_day"].as_str());
     let application_end_at = parse_fss_date(payload["dcls_end_day"].as_str());
 
+    // 청년 연령 파싱: join_member(가입 대상)가 1순위, 거기서 못 뽑으면
+    // etc_note(기타 유의사항)를 보조로 시도한다. 둘 다 못 뽑으면 None 유지
+    // (과파싱 금지 — 추측성 나이 채우기 안 함).
+    let join_member_text = payload["join_member"].as_str().unwrap_or("");
+    let (mut min_age, mut max_age) = parse_age_range_from_text(join_member_text);
+    if min_age.is_none() && max_age.is_none() {
+        let etc_note_text = payload["etc_note"].as_str().unwrap_or("");
+        let (min2, max2) = parse_age_range_from_text(etc_note_text);
+        min_age = min2;
+        max_age = max2;
+    }
+
     NormalizedProgram {
         program_type: "financial_product".to_string(),
         title,
@@ -359,10 +371,137 @@ pub fn normalize_financial(payload: &Value) -> NormalizedProgram {
         official_url,
         application_start_at,
         application_end_at,
-        min_age: None,
-        max_age: None,
+        min_age,
+        max_age,
         regions: vec![],
+        application_method: None,
+        submission_documents: None,
+        screening_method: None,
     }
+}
+
+// ── Age-range text parsing ─────────────────────────────────────────────────
+//
+// finlife 가입대상(join_member)/기타유의사항(etc_note) 필드는 자유 텍스트라
+// "만 19~34세", "만19세~34세", "19세이상 34세이하", "만 34세 이하" 같은
+// 변형이 섞여 나온다. `crates/worker/src/sources/youth_center.rs`와
+// `pipeline.rs`는 온통청년 API가 이미 구조화된 숫자 필드(sprtTrgtMinAge/
+// sprtTrgtMaxAge)로 내려주기 때문에 텍스트 파싱 로직이 없다 (Search Before
+// Building 확인 완료 — 재사용할 기존 정규식/파서가 없어 새로 작성).
+
+/// 두 숫자를 잇는 나이 범위 구분자 문자 (물결표/하이픈/대시 변형 포함).
+const AGE_RANGE_SEPARATORS: [char; 5] = ['~', '-', '∼', '–', '—'];
+
+/// 자유 텍스트에서 한국어 나이 표현을 파싱해 (min_age, max_age)를 뽑아낸다.
+///
+/// 인식하는 표현 (공백 유무 무관):
+///   - "만 19~34세", "19-34세"        → (Some(19), Some(34))
+///   - "만19세~34세"                  → (Some(19), Some(34))
+///   - "19세이상 34세이하"            → (Some(19), Some(34))
+///   - "만 34세 이하"                 → (None, Some(34))
+///   - "만 19세 이상"                 → (Some(19), None)
+///   - "19세부터 34세까지"            → (Some(19), Some(34))
+///
+/// 앵커링 규칙: 숫자는 (공백 제거 후) 바로 뒤에 한국어 나이 단위 "세"가
+/// 붙어 있을 때만 나이 후보로 인정한다. 단, "<숫자><구분자><숫자>세"
+/// 범위 표현에서는 앞쪽 숫자는 "세"가 없어도 뒤쪽 숫자가 "세"로 앵커링되면
+/// 함께 인정한다. 이 규칙 덕분에 같은 문자열에 섞여 있는 무관한 숫자
+/// (대출한도, 예치금액, 개월수, 전화번호 등)를 나이로 오인하지 않는다.
+/// 확신할 수 있는 표현을 찾지 못하면 항상 (None, None)을 반환한다 —
+/// 추측성 파싱 금지.
+pub(crate) fn parse_age_range_from_text(text: &str) -> (Option<i32>, Option<i32>) {
+    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+
+    // 최소 전제조건: 위에서 인식하는 모든 표현은 "세"를 포함한다.
+    // 없으면 파싱을 시도할 필요조차 없다 (예: "1인당 최대 3천만원 이하").
+    if !compact.contains('세') {
+        return (None, None);
+    }
+
+    let chars: Vec<char> = compact.chars().collect();
+    let len = chars.len();
+
+    // 나이 후보 숫자 런: (시작, 끝(제외), 값). 사람 나이로 말이 안 되는
+    // 값(연도 "2024" 등)은 애초에 후보 목록에서 제외한다.
+    let mut numbers: Vec<(usize, usize, i32)> = Vec::new();
+    let mut i = 0;
+    while i < len {
+        if chars[i].is_ascii_digit() {
+            let start = i;
+            let mut j = i;
+            while j < len && chars[j].is_ascii_digit() {
+                j += 1;
+            }
+            let value: String = chars[start..j].iter().collect();
+            if let Ok(v) = value.parse::<i32>() {
+                if (0..=120).contains(&v) {
+                    numbers.push((start, j, v));
+                }
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+
+    if numbers.is_empty() {
+        return (None, None);
+    }
+
+    let is_anchored = |end: usize| -> bool { chars.get(end) == Some(&'세') };
+
+    let starts_with_at = |pos: usize, needle: &str| -> bool {
+        let needle_chars: Vec<char> = needle.chars().collect();
+        if pos + needle_chars.len() > len {
+            return false;
+        }
+        chars[pos..pos + needle_chars.len()] == needle_chars[..]
+    };
+
+    let mut min_age: Option<i32> = None;
+    let mut max_age: Option<i32> = None;
+    let mut consumed = vec![false; numbers.len()];
+
+    for idx in 0..numbers.len() {
+        if consumed[idx] {
+            continue;
+        }
+        let (_, end, val) = numbers[idx];
+        let anchored = is_anchored(end);
+        // "세"가 바로 붙어 있으면 그 다음 글자부터, 아니면 숫자 바로 다음
+        // 글자부터 구분자/표지를 찾는다. "만19세~34세"처럼 범위 앞쪽
+        // 숫자에도 "세"가 중복으로 붙는 변형을 지원하려면, 앵커링됐다고
+        // 해서 무조건 이상/이하 표지로 확정 짓지 않고 실패 시 구분자
+        // 확인으로 계속 진행해야 한다.
+        let cursor = if anchored { end + 1 } else { end };
+
+        if anchored {
+            if starts_with_at(cursor, "이상") || starts_with_at(cursor, "부터") {
+                min_age = Some(val);
+                continue;
+            } else if starts_with_at(cursor, "이하") || starts_with_at(cursor, "까지") {
+                max_age = Some(val);
+                continue;
+            }
+        }
+
+        // "<숫자><구분자><숫자>세" 범위 표현 확인 (앞쪽 숫자가 "세"로
+        // 앵커링됐든 안 됐든 동일하게 검사).
+        if let Some(sep) = chars.get(cursor) {
+            if AGE_RANGE_SEPARATORS.contains(sep) {
+                let next_start = cursor + 1;
+                if let Some(&(n_start, n_end, n_val)) = numbers.get(idx + 1) {
+                    if n_start == next_start && is_anchored(n_end) {
+                        min_age = Some(val);
+                        max_age = Some(n_val);
+                        consumed[idx + 1] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    (min_age, max_age)
 }
 
 /// Parse FSS date strings. Accepts "YYYYMMDD" (8 digits) or "YYYY.MM.DD".
@@ -394,5 +533,131 @@ fn parse_fss_date(s: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
             .and_then(|nd| nd.and_hms_opt(0, 0, 0))
             .map(|dt| dt.and_utc()),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod age_range_tests {
+    use super::*;
+
+    // ── 정상 케이스 ──────────────────────────────────────────────────────
+
+    #[test]
+    fn tilde_range_with_man_prefix() {
+        assert_eq!(
+            parse_age_range_from_text("만 19~34세"),
+            (Some(19), Some(34))
+        );
+    }
+
+    #[test]
+    fn ideal_and_iha_range_with_spacing() {
+        assert_eq!(
+            parse_age_range_from_text("19세이상 34세이하"),
+            (Some(19), Some(34))
+        );
+    }
+
+    #[test]
+    fn max_only_with_man_prefix() {
+        assert_eq!(parse_age_range_from_text("만 34세 이하"), (None, Some(34)));
+    }
+
+    #[test]
+    fn min_only() {
+        assert_eq!(parse_age_range_from_text("만 19세 이상"), (Some(19), None));
+    }
+
+    // ── 변형 케이스 ──────────────────────────────────────────────────────
+
+    #[test]
+    fn se_suffix_on_both_sides_of_tilde() {
+        assert_eq!(
+            parse_age_range_from_text("만19세~34세"),
+            (Some(19), Some(34))
+        );
+    }
+
+    #[test]
+    fn hyphen_separator_no_spaces() {
+        assert_eq!(parse_age_range_from_text("19-34세"), (Some(19), Some(34)));
+    }
+
+    #[test]
+    fn no_spaces_iha_ideal_combined() {
+        assert_eq!(
+            parse_age_range_from_text("만19세이상34세이하실명의개인"),
+            (Some(19), Some(34))
+        );
+    }
+
+    #[test]
+    fn buteo_kkaji_range() {
+        assert_eq!(
+            parse_age_range_from_text("19세부터 34세까지"),
+            (Some(19), Some(34))
+        );
+    }
+
+    #[test]
+    fn embedded_in_longer_eligibility_sentence() {
+        assert_eq!(
+            parse_age_range_from_text("만 19세 이상 34세 이하의 실명 개인 (1인 1계좌)"),
+            (Some(19), Some(34))
+        );
+    }
+
+    // ── 파싱 불가 케이스 (과파싱 금지 확인) ────────────────────────────────
+
+    #[test]
+    fn no_digits_returns_none() {
+        assert_eq!(parse_age_range_from_text("실명의 개인"), (None, None));
+    }
+
+    #[test]
+    fn explicit_no_restriction_returns_none() {
+        assert_eq!(parse_age_range_from_text("제한없음"), (None, None));
+    }
+
+    #[test]
+    fn bare_number_without_qualifier_returns_none() {
+        // "세"로 앵커링은 되지만 이상/이하/부터/까지 표지가 전혀 없으면
+        // 추측하지 않고 None을 유지해야 한다.
+        assert_eq!(parse_age_range_from_text("만 20세 회원"), (None, None));
+    }
+
+    #[test]
+    fn unrelated_amount_with_iha_but_no_se_returns_none() {
+        // "이하"라는 단어가 있어도 나이 단위 "세"가 전혀 없으면 (대출한도
+        // 등 무관한 숫자이므로) 파싱하지 않는다.
+        assert_eq!(
+            parse_age_range_from_text("1인당 최대 3천만원 이하"),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn household_count_without_qualifier_not_misread_as_age() {
+        // "100세대"처럼 "세"로 끝나는 무관한 단어가 있어도 이상/이하 표지가
+        // 없으면 나이로 오인하지 않는다 (앵커링만으로는 값 확정 안 함).
+        assert_eq!(
+            parse_age_range_from_text("선착순 100세대 모집"),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn unrelated_iha_on_non_age_unit_ignored_but_true_age_still_found() {
+        // "12개월 이상"은 나이가 아니라 가입기간이므로 무시하고, 뒤에 나오는
+        // "만 29세 이하"만 정확히 뽑아야 한다.
+        assert_eq!(
+            parse_age_range_from_text("가입기간 12개월 이상, 만 29세 이하 가입 가능"),
+            (None, Some(29))
+        );
+    }
+
+    #[test]
+    fn empty_string_returns_none() {
+        assert_eq!(parse_age_range_from_text(""), (None, None));
     }
 }

@@ -233,6 +233,14 @@ pub struct YouthPolicyItem {
     pub sbiz_cd: Option<String>,
     /// 조회수 (API returns string)
     pub inq_cnt: Option<String>,
+    /// 신청 방법 (신청 절차 안내 텍스트)
+    pub plcy_aply_mthd_cn: Option<String>,
+    /// 제출 서류 안내 텍스트
+    pub sbmsn_dcmnt_cn: Option<String>,
+    /// 심사 방법 안내 텍스트
+    pub srng_mthd_cn: Option<String>,
+    /// 추가 자격 조건 텍스트 (raw_payload에만 보존, 별도 DB 컬럼 없음)
+    pub add_aply_qlfc_cnd_cn: Option<String>,
 }
 
 #[cfg(test)]

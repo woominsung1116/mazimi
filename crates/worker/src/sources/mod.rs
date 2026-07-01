@@ -70,3 +70,64 @@ fn fnv1a(data: &[u8], seed: u64) -> u64 {
     }
     hash
 }
+
+/// Returns true if a comma-separated life-stage array field (e.g.
+/// `"청년,중장년,노년"` or `"노년, 아동, 청소년, 청년"`) contains the exact
+/// token "청년" (youth).
+///
+/// Shared by `national_welfare` (`lifeArray`) and `local_welfare`
+/// (`lifeNmArray`) to keep non-youth welfare records (노인/영유아/장애인 전용
+/// 등) out of the recommendation pool. Token-based equality (not raw
+/// substring) so the check stays correct even if the API's life-stage
+/// vocabulary grows — e.g. "청소년" (teen) must never match "청년" (youth).
+pub fn life_stage_includes_youth(field: Option<&str>) -> bool {
+    field
+        .map(|s| s.split(',').any(|tok| tok.trim() == "청년"))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod life_stage_tests {
+    use super::*;
+
+    #[test]
+    fn none_is_not_youth() {
+        assert!(!life_stage_includes_youth(None));
+    }
+
+    #[test]
+    fn empty_string_is_not_youth() {
+        assert!(!life_stage_includes_youth(Some("")));
+    }
+
+    #[test]
+    fn exact_youth_token_matches() {
+        assert!(life_stage_includes_youth(Some("청년")));
+    }
+
+    #[test]
+    fn youth_among_other_tokens_matches_no_space() {
+        assert!(life_stage_includes_youth(Some("청년,중장년,노년")));
+    }
+
+    #[test]
+    fn youth_among_other_tokens_matches_with_space() {
+        assert!(life_stage_includes_youth(Some("노년, 아동, 청소년, 청년")));
+    }
+
+    #[test]
+    fn teen_only_does_not_match_youth() {
+        // "청소년" (teen) must never be conflated with "청년" (youth).
+        assert!(!life_stage_includes_youth(Some("영유아,아동,청소년")));
+    }
+
+    #[test]
+    fn elderly_and_infant_only_does_not_match() {
+        assert!(!life_stage_includes_youth(Some("영유아,노년")));
+    }
+
+    #[test]
+    fn pregnancy_only_does_not_match() {
+        assert!(!life_stage_includes_youth(Some("임신 · 출산")));
+    }
+}
