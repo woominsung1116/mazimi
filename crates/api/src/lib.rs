@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{header, HeaderValue, Method, Request, StatusCode},
     middleware::{self, Next},
     response::Response,
@@ -14,8 +14,25 @@ use tower_governor::{
 use tower_http::cors::CorsLayer;
 
 pub mod auth;
+pub mod errors;
 pub mod payment_provider;
 mod routes;
+
+// ── Request body size limits ──
+//
+// Axum enforces an implicit 2 MiB body limit by default; we make it explicit
+// here so the intent is documented and reviewable (CLAUDE.md security
+// checklist item #22).
+//
+// - `DEFAULT_BODY_LIMIT_BYTES` covers every ordinary JSON API request
+//   (profile, program admin forms, alerts, etc.) — all comfortably small.
+// - `DOCUMENT_BODY_LIMIT_BYTES` covers the encrypted-document vault upload
+//   route only. Clients base64-encode the AES-256-CBC ciphertext before
+//   sending it, which inflates size by ~4/3. The handler enforces a 10 MiB
+//   plaintext/ciphertext cap (see `routes::documents::MAX_FILE_SIZE`), so the
+//   wire-level limit must cover the base64 blow-up plus JSON framing.
+const DEFAULT_BODY_LIMIT_BYTES: usize = 1024 * 1024; // 1 MiB
+const DOCUMENT_BODY_LIMIT_BYTES: usize = 15 * 1024 * 1024; // 15 MiB
 
 use payment_provider::PaymentProvider;
 
@@ -55,7 +72,11 @@ pub fn build_app(pool: PgPool, jwt_secret: String) -> Router {
     build_app_with_env(
         pool,
         jwt_secret,
-        std::env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()),
+        // Fail closed: if APP_ENV is not set at all, assume "production" so
+        // error sanitization (and any other env-gated hardening) is on by
+        // default. Local development must opt out explicitly by setting
+        // APP_ENV=local (already done in compose.dev.yml / .env.dev / CI).
+        std::env::var("APP_ENV").unwrap_or_else(|_| "production".to_string()),
     )
 }
 
@@ -216,6 +237,17 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
             "/api/v1/payments/status",
             get(routes::payment::subscription_status),
         )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
+        .layer(GovernorLayer::new(Arc::clone(&api_governor_conf)));
+
+    // ── Document vault routes: same auth + rate limit as protected_routes, ──
+    // ── but with a larger body limit for the encrypted document upload.   ──
+    // Kept separate so the raised limit doesn't apply to every protected
+    // route (see `DOCUMENT_BODY_LIMIT_BYTES` for why documents need more).
+    let document_routes = Router::new()
         .route(
             "/api/v1/documents",
             get(routes::documents::list_documents).post(routes::documents::upload_document),
@@ -228,6 +260,7 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
             "/api/v1/documents/{id}",
             axum::routing::delete(routes::documents::delete_document),
         )
+        .layer(DefaultBodyLimit::max(DOCUMENT_BODY_LIMIT_BYTES))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -239,6 +272,7 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
         .merge(admin_routes)
         .merge(public_routes)
         .merge(protected_routes)
+        .merge(document_routes)
         // Apply security headers to every response
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -250,6 +284,10 @@ pub fn build_app_with_env(pool: PgPool, jwt_secret: String, app_env: String) -> 
             error_sanitization_middleware,
         ))
         .layer(build_cors_layer())
+        // Global request body limit. `document_routes` sets its own larger
+        // limit above; since that layer is nested closer to the handler it
+        // takes precedence over this outer default for those routes only.
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT_BYTES))
         .with_state(state)
 }
 
@@ -358,6 +396,11 @@ async fn auth_middleware(
 //   - X-Content-Type-Options: nosniff       — prevents MIME-type sniffing
 //   - X-Frame-Options: DENY                 — blocks clickjacking via iframes
 //   - Strict-Transport-Security             — HSTS for HTTPS deployments
+//   - Content-Security-Policy               — this is a JSON API with no
+//     HTML/JS/CSS of its own, so the policy denies every resource type by
+//     default. This only matters if a response is ever coerced into an
+//     HTML context (e.g. content-type sniffing bugs upstream, or a browser
+//     rendering an error page) — in that case nothing is allowed to load.
 //   - X-Powered-By is removed if present    — hides implementation details
 
 async fn security_headers_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
@@ -373,6 +416,14 @@ async fn security_headers_middleware(req: Request<axum::body::Body>, next: Next)
     headers.insert(
         "strict-transport-security",
         HeaderValue::from_static("max-age=63072000; includeSubDomains"),
+    );
+    // Conservative deny-everything policy — this API never serves HTML,
+    // scripts, styles, or embeddable frames.
+    headers.insert(
+        "content-security-policy",
+        HeaderValue::from_static(
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+        ),
     );
     // Remove x-powered-by if any upstream layer added it
     headers.remove("x-powered-by");

@@ -73,10 +73,7 @@ fn invalid_state_error(state: &str) -> (StatusCode, Json<Value>) {
 }
 
 fn db_error(e: sqlx::Error) -> (StatusCode, Json<Value>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(json!({ "error": format!("DB error: {e}") })),
-    )
+    crate::errors::internal_error(e)
 }
 
 /// Fetch history rows for a (user, program) pair, newest first.

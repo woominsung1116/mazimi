@@ -117,12 +117,7 @@ pub async fn list_admin_programs(
     let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM programs")
         .fetch_one(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     let programs = sqlx::query_as::<_, Program>(
         "SELECT * FROM programs ORDER BY created_at DESC LIMIT $1 OFFSET $2",
@@ -131,12 +126,7 @@ pub async fn list_admin_programs(
     .bind(offset)
     .fetch_all(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "total": total.0,
@@ -221,12 +211,7 @@ pub async fn create_program(
     .bind(is_active)
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(program))
 }
@@ -242,12 +227,7 @@ pub async fn update_program(
         .bind(id)
         .fetch_optional(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     let existing = match existing {
         Some(p) => p,
@@ -342,12 +322,7 @@ pub async fn update_program(
     .bind(id)
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(program))
 }
@@ -362,12 +337,7 @@ pub async fn toggle_publish(
         .bind(id)
         .fetch_optional(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     let program = match program {
         Some(p) => p,
@@ -386,12 +356,7 @@ pub async fn toggle_publish(
         .bind(id)
         .execute(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "id": id,
@@ -407,33 +372,18 @@ pub async fn get_stats(
     let total_programs: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM programs")
         .fetch_one(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     let active_programs: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM programs WHERE is_active = true")
             .fetch_one(&pool)
             .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("DB error: {e}") })),
-                )
-            })?;
+            .map_err(crate::errors::internal_error)?;
 
     let total_users: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "total_programs": total_programs.0,

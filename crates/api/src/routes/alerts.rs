@@ -120,23 +120,13 @@ pub async fn list_alerts(
     .bind(offset)
     .fetch_all(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM alert_deliveries WHERE user_id = $1")
         .bind(user_id)
         .fetch_one(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error: {e}") })),
-            )
-        })?;
+        .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "total": total,
@@ -162,12 +152,7 @@ pub async fn upsert_preferences(
     .bind(payload.program_id)
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     if !program_exists {
         return Err((
@@ -192,12 +177,7 @@ pub async fn upsert_preferences(
     .bind(payload.enabled)
     .execute(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     // 현재 구독 목록 반환 (enabled=true인 것만)
     let subscriptions = sqlx::query_as::<_, AlertSubscriptionRow>(
@@ -215,12 +195,7 @@ pub async fn upsert_preferences(
     .bind(user_id)
     .fetch_all(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "user_id": user_id,
@@ -247,12 +222,7 @@ pub async fn get_notification_preferences(
     .bind(user_id)
     .execute(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     let row = sqlx::query_as::<_, NotifPrefRow>(
         r#"
@@ -273,12 +243,7 @@ pub async fn get_notification_preferences(
     .bind(user_id)
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "user_id": row.user_id,
@@ -350,12 +315,7 @@ pub async fn update_notification_preferences(
     .bind(payload.channels.email)
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "user_id": row.user_id,

@@ -35,13 +35,6 @@ pub async fn register_push_token(
         ));
     }
 
-    let err_internal = |msg: String| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": msg })),
-        )
-    };
-
     sqlx::query(
         r#"
         INSERT INTO push_tokens (user_id, token, platform, created_at, updated_at)
@@ -57,7 +50,7 @@ pub async fn register_push_token(
     .bind(&body.platform)
     .execute(&state.pool)
     .await
-    .map_err(|e| err_internal(format!("DB upsert failed: {e}")))?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({ "success": true })))
 }
@@ -72,18 +65,11 @@ pub async fn unregister_push_token(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
 
-    let err_internal = |msg: String| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": msg })),
-        )
-    };
-
     sqlx::query("DELETE FROM push_tokens WHERE user_id = $1")
         .bind(user_id)
         .execute(&state.pool)
         .await
-        .map_err(|e| err_internal(format!("DB delete failed: {e}")))?;
+        .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({ "success": true })))
 }

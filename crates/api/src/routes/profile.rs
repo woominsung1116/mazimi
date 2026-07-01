@@ -79,12 +79,7 @@ pub async fn save_profile(
     .bind(&input.age_band)
     .execute(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Failed to upsert profile: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     // Fetch back the saved profile
     let profile =
@@ -92,12 +87,7 @@ pub async fn save_profile(
             .bind(user_id)
             .fetch_one(&pool)
             .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("Failed to fetch profile: {e}") })),
-                )
-            })?;
+            .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "user_id": user_id,
@@ -119,12 +109,7 @@ pub async fn get_my_profile(
             .bind(user_id)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("DB error: {e}") })),
-                )
-            })?;
+            .map_err(crate::errors::internal_error)?;
 
     match profile {
         Some(p) => Ok(Json(json!({
@@ -160,12 +145,7 @@ pub async fn get_profile(
             .bind(user_id)
             .fetch_optional(&pool)
             .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("DB error: {e}") })),
-                )
-            })?;
+            .map_err(crate::errors::internal_error)?;
 
     match profile {
         Some(p) => Ok(Json(json!({

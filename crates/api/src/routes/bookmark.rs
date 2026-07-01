@@ -27,12 +27,7 @@ pub async fn toggle_bookmark(
     .bind(program_id)
     .fetch_optional(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     if deleted.is_some() {
         // Was deleted (unbookmarked)
@@ -44,12 +39,7 @@ pub async fn toggle_bookmark(
             .bind(program_id)
             .execute(&pool)
             .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": format!("DB error: {e}") })),
-                )
-            })?;
+            .map_err(crate::errors::internal_error)?;
         Ok(Json(json!({ "bookmarked": true })))
     }
 }

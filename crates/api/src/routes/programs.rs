@@ -71,11 +71,7 @@ pub struct ProgramListResponse {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 fn db_error(e: sqlx::Error) -> (StatusCode, Json<Value>) {
-    tracing::error!("DB error: {e}");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(json!({ "error": format!("DB error: {e}") })),
-    )
+    crate::errors::internal_error(e)
 }
 
 // ── GET /api/v1/programs ─────────────────────────────────────────────────────
@@ -181,7 +177,8 @@ pub async fn list_programs(
          benefit_amount_once, region_scope, school_scope, tags, raw_payload, \
          normalized_payload, min_age, max_age, regions, deadline_at, is_active, \
          last_synced_at, created_at, updated_at, \
-         company_name, company_logo_url, benefit_category, application_steps \
+         company_name, company_logo_url, benefit_category, application_steps, \
+         application_method, submission_documents, screening_method \
          FROM programs {where_clause} \
          ORDER BY {order_clause} \
          LIMIT ${limit_param} OFFSET ${offset_param}"
@@ -254,7 +251,8 @@ pub async fn get_program(
          benefit_amount_once, region_scope, school_scope, tags, raw_payload, \
          normalized_payload, min_age, max_age, regions, deadline_at, is_active, \
          last_synced_at, created_at, updated_at, \
-         company_name, company_logo_url, benefit_category, application_steps \
+         company_name, company_logo_url, benefit_category, application_steps, \
+         application_method, submission_documents, screening_method \
          FROM programs WHERE id = $1",
     )
     .bind(id)

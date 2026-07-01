@@ -14,12 +14,7 @@ pub async fn get_dashboard(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let user_id = auth_user.id;
 
-    let db_err = |e: sqlx::Error| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    };
+    let db_err = crate::errors::internal_error;
 
     // Bookmarked count
     let bookmarked_count: i64 =

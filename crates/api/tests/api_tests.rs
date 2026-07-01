@@ -29,7 +29,18 @@ async fn start_test_server() -> String {
     let addr: SocketAddr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        // GovernorLayer's PeerIpKeyExtractor (used by every route group in
+        // build_app_with_env) requires `ConnectInfo<SocketAddr>` in the
+        // request extensions. Without it every request 500s with
+        // "Unable To Extract Key!" before ever reaching a handler. Mirror
+        // main.rs's production server setup so the test harness actually
+        // exercises the real request path.
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
     });
 
     format!("http://{addr}")

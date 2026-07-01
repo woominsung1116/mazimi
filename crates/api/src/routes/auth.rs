@@ -162,12 +162,6 @@ pub async fn me(
     auth_user: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let err_internal = |msg: String| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": msg })),
-        )
-    };
     let err_not_found = || {
         (
             StatusCode::NOT_FOUND,
@@ -197,7 +191,7 @@ pub async fn me(
     .bind(auth_user.id)
     .fetch_optional(&state.pool)
     .await
-    .map_err(|e| err_internal(format!("DB query failed: {e}")))?
+    .map_err(crate::errors::internal_error)?
     .ok_or_else(err_not_found)?;
 
     Ok(Json(json!({
@@ -245,12 +239,22 @@ pub async fn refresh(
         .bind(user_id)
         .fetch_one(&state.pool)
         .await
-        .map_err(|_| err(StatusCode::INTERNAL_SERVER_ERROR, "Database error"))?;
+        .map_err(crate::errors::internal_error)?;
 
-    let access_token = create_token(user_id, &role, &state.jwt_secret)
-        .map_err(|_| err(StatusCode::INTERNAL_SERVER_ERROR, "Token creation failed"))?;
-    let new_refresh = create_refresh_token(user_id, &role, &state.jwt_secret)
-        .map_err(|_| err(StatusCode::INTERNAL_SERVER_ERROR, "Token creation failed"))?;
+    let access_token = create_token(user_id, &role, &state.jwt_secret).map_err(|e| {
+        tracing::error!(error = %e, "Token creation failed in refresh");
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            crate::errors::GENERIC_ERROR_MESSAGE,
+        )
+    })?;
+    let new_refresh = create_refresh_token(user_id, &role, &state.jwt_secret).map_err(|e| {
+        tracing::error!(error = %e, "Refresh token creation failed in refresh");
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            crate::errors::GENERIC_ERROR_MESSAGE,
+        )
+    })?;
 
     Ok(Json(json!({
         "token": access_token,

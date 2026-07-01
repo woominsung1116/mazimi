@@ -21,12 +21,7 @@ pub async fn get_saved(
     .bind(auth_user.id)
     .fetch_all(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     Ok(Json(json!({
         "total": programs.len(),

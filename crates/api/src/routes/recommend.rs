@@ -44,12 +44,7 @@ pub async fn preview(
     .bind(now)
     .fetch_all(&pool)
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("DB error: {e}") })),
-        )
-    })?;
+    .map_err(crate::errors::internal_error)?;
 
     // Batch-load all eligibility_rules for the fetched programs in one query.
     // Keyed by program_id; a program may have at most one active rule row.
@@ -69,12 +64,7 @@ pub async fn preview(
         .bind(&program_ids)
         .fetch_all(&pool)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": format!("DB error loading rules: {e}") })),
-            )
-        })?
+        .map_err(crate::errors::internal_error)?
         .into_iter()
         .map(|r| (r.program_id, r))
         .collect()
@@ -210,6 +200,9 @@ fn build_item(
         reasons,
         missing_checks,
         official_url: prog.official_url.clone(),
+        application_method: prog.application_method.clone(),
+        submission_documents: prog.submission_documents.clone(),
+        screening_method: prog.screening_method.clone(),
     }
 }
 
