@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import AlertBell from "./AlertBell";
 
 export default function Header() {
+  const pathname = usePathname();
+  const isMiniFarm = pathname.startsWith("/minifarm");
+
+  if (isMiniFarm) {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
       <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">

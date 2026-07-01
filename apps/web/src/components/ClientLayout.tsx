@@ -3,7 +3,12 @@
 import { usePathname } from "next/navigation";
 import BottomNav from "./BottomNav";
 
-const HIDE_NAV_PREFIXES = ["/admin", "/onboarding", "/login"];
+const HIDE_NAV_PREFIXES = [
+  "/admin",
+  "/onboarding",
+  "/login",
+  "/minifarm",
+];
 
 function shouldHideNav(pathname: string) {
   return HIDE_NAV_PREFIXES.some((prefix) => pathname.startsWith(prefix));

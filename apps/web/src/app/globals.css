@@ -41,6 +41,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   font-feature-settings: "kern" 1;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -48,6 +49,20 @@ body {
   color: #111827;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.minifarm-page {
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  word-break: keep-all;
+  font-variant-numeric: tabular-nums;
+}
+
+.minifarm-page h1,
+.minifarm-page h2,
+.minifarm-page h3,
+.minifarm-page p {
+  text-wrap: pretty;
 }
 
 /* ── Focus ─────────────────────────────────────── */

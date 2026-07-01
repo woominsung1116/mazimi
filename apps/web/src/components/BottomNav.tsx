@@ -111,6 +111,8 @@ export default function BottomNav() {
 
   // admin 경로에서는 렌더링하지 않음 (admin 전용 레이아웃 사용)
   if (pathname.startsWith("/admin")) return null;
+  // MiniFarm STO 데모는 랜딩 페이지 전용 내비게이션 사용
+  if (pathname.startsWith("/minifarm")) return null;
   // 온보딩·로그인 페이지에서는 숨김
   if (pathname.startsWith("/onboarding") || pathname === "/login") return null;
 
