@@ -36,10 +36,12 @@ import {
   Switch,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 // expo-image-manipulator may not be available in Expo Go
@@ -63,6 +65,8 @@ import {
   layout,
 } from "@/constants/theme";
 import { useAuthStore } from "@/store/auth";
+import { useConsentStore } from "@/store/consent";
+import { AgreementCheckbox } from "@/components/AgreementCheckbox";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -106,7 +110,7 @@ export interface StoredDocument {
   /** ISO date string of when this entry was added to the vault */
   addedAt: string;
   note: string | null;
-  /** Whether the stored file has been XOR-encrypted with the user's derived key. */
+  /** Whether the stored file has been AES-256-CBC encrypted with the user's derived key. */
   encrypted: boolean;
 }
 
@@ -214,6 +218,39 @@ const DOC_TYPE_CONFIG: Record<DocumentType, DocTypeConfig> = {
     backgroundColor: "#e1e3e4",
     issuerLabel: "발급처 확인 필요",
     issuerUrl: "",
+  },
+};
+
+// ---------------------------------------------------------------------------
+// RRN (주민등록번호) masking guidance — safety guardrail
+//
+// Only document types that commonly carry a resident registration number on
+// the official issuance are covered here. Types not listed (재학증명서,
+// 통장사본 등) don't get the masking guidance/checkbox at all — adding it
+// there would be friction with no legal basis.
+// ---------------------------------------------------------------------------
+
+interface RrnMaskingInfo {
+  /** true = 정부24 등 발급 화면 기본값이 "전체표시"라 유저가 직접 비공개를 선택해야 함 */
+  defaultsToFullDisplay: boolean;
+  guidance: string;
+}
+
+const RRN_MASKING_INFO: Partial<Record<DocumentType, RrnMaskingInfo>> = {
+  resident_register: {
+    defaultsToFullDisplay: true,
+    guidance:
+      "정부24 발급 화면에서 \"주민등록번호 뒷자리 표시\" 옵션을 반드시 '비공개'로 선택하세요. 기본값은 '전체표시'입니다.",
+  },
+  family_relation: {
+    defaultsToFullDisplay: true,
+    guidance:
+      "정부24 발급 화면에서 \"주민등록번호 뒷자리 표시\" 옵션을 반드시 '비공개'로 선택하세요. 기본값은 '전체표시'입니다.",
+  },
+  health_insurance: {
+    defaultsToFullDisplay: false,
+    guidance:
+      "건강보험공단 발급 서류는 기본적으로 주민등록번호 뒷자리가 마스킹되어 나와요. 그래도 발급 화면에서 마스킹 여부를 한 번 더 확인하세요.",
   },
 };
 
@@ -926,6 +963,257 @@ const scanStyles = StyleSheet.create({
 });
 
 // ---------------------------------------------------------------------------
+// Masking guidance card — 주민번호 마스킹 발급 가이드 (C)
+//
+// Shown as soon as the user picks a document type known to carry a resident
+// registration number, so they see the warning *before* they go get the
+// physical/digital document — not just after the fact.
+// ---------------------------------------------------------------------------
+
+function MaskingGuidanceCard({ type }: { type: DocumentType }) {
+  const info = RRN_MASKING_INFO[type];
+  const cfg = DOC_TYPE_CONFIG[type];
+  if (!info) return null;
+
+  return (
+    <View style={maskingStyles.card}>
+      <View style={maskingStyles.headerRow}>
+        <Ionicons
+          name={info.defaultsToFullDisplay ? "alert-circle" : "shield-checkmark"}
+          size={16}
+          color={info.defaultsToFullDisplay ? "#b45309" : cfg.accentColor}
+        />
+        <Text style={maskingStyles.headerText}>
+          {info.defaultsToFullDisplay ? "발급 시 꼭 확인하세요" : "발급 안내"}
+        </Text>
+      </View>
+      <Text style={maskingStyles.guidanceText}>{info.guidance}</Text>
+      {cfg.issuerUrl ? (
+        <TouchableOpacity
+          style={maskingStyles.issuerLink}
+          onPress={() => Linking.openURL(cfg.issuerUrl)}
+          accessibilityRole="link"
+          accessibilityLabel={`${cfg.issuerLabel}에서 발급받기`}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+        >
+          <Text style={maskingStyles.issuerLinkText}>{cfg.issuerLabel}에서 발급받기</Text>
+          <Ionicons name="open-outline" size={13} color={colors.primary} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+const maskingStyles = StyleSheet.create({
+  card: {
+    backgroundColor: "#FFF7E6",
+    borderRadius: borderRadius.lg,
+    padding: spacing[3.5],
+    gap: spacing[1.5],
+    marginTop: spacing[1],
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1.5],
+  },
+  headerText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: "#7c4a03",
+  },
+  guidanceText: {
+    fontSize: typography.fontSize.xs,
+    color: "#7c4a03",
+    lineHeight: 17,
+  },
+  issuerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
+    marginTop: spacing[0.5],
+  },
+  issuerLinkText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+    textDecorationLine: "underline",
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Health insurance sensitive-info consent modal (B)
+//
+// Triggered only when the user tries to attach an actual file while
+// "health_insurance" is the selected type, and only if that consent hasn't
+// already been recorded. Declining this modal must NOT block any other
+// document type — the caller simply keeps the file picker closed.
+// ---------------------------------------------------------------------------
+
+interface HealthInsuranceConsentModalProps {
+  visible: boolean;
+  onCancel: () => void;
+  onAgree: () => void;
+}
+
+function HealthInsuranceConsentModal({
+  visible,
+  onCancel,
+  onAgree,
+}: HealthInsuranceConsentModalProps) {
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    if (!visible) setChecked(false);
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={healthConsentStyles.overlay}>
+        <View style={healthConsentStyles.card}>
+          <View style={healthConsentStyles.iconWrap}>
+            <Ionicons name="medkit-outline" size={22} color={colors.primary} />
+          </View>
+          <Text style={healthConsentStyles.title}>건강보험 서류 처리 동의</Text>
+          <Text style={healthConsentStyles.body}>
+            건강보험 자격득실확인서는 건강 상태를 유추할 수 있는 민감정보로 분류되어
+            다른 서류와 별도의 동의가 필요해요.
+          </Text>
+          <View style={healthConsentStyles.detailBox}>
+            <Text style={healthConsentStyles.detailLine}>• 목적: 건강보험 관련 혜택 매칭 및 서류 보관</Text>
+            <Text style={healthConsentStyles.detailLine}>• 처리: 기기 내 암호화 저장, 서버 전송 없음</Text>
+            <Text style={healthConsentStyles.detailLine}>
+              • 거부 시: 이 서류만 보관할 수 없어요. 등본·소득증명 등 다른 서류 보관 기능은
+              그대로 이용할 수 있어요.
+            </Text>
+          </View>
+
+          <View style={healthConsentStyles.checkboxWrap}>
+            <AgreementCheckbox
+              checked={checked}
+              onToggle={() => setChecked((v) => !v)}
+              label="민감정보(건강보험 서류) 처리에 동의합니다"
+              requirement="required"
+            />
+          </View>
+
+          <View style={healthConsentStyles.actions}>
+            <TouchableOpacity
+              style={healthConsentStyles.cancelBtn}
+              onPress={onCancel}
+              accessibilityRole="button"
+              accessibilityLabel="동의하지 않음"
+            >
+              <Text style={healthConsentStyles.cancelBtnText}>동의하지 않음</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                healthConsentStyles.agreeBtn,
+                !checked && healthConsentStyles.agreeBtnDisabled,
+              ]}
+              onPress={() => {
+                if (checked) onAgree();
+              }}
+              disabled={!checked}
+              accessibilityRole="button"
+              accessibilityLabel="동의하고 계속"
+              accessibilityState={{ disabled: !checked }}
+            >
+              <Text style={healthConsentStyles.agreeBtnText}>동의하고 계속</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const healthConsentStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing[6],
+  },
+  card: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: borderRadius.xl,
+    padding: spacing[6],
+    gap: spacing[3],
+    ...shadows.floating,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primaryFixed,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    ...typography.styles.sectionTitle,
+    fontWeight: typography.fontWeight.extrabold,
+  },
+  body: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  detailBox: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: borderRadius.md,
+    padding: spacing[3],
+    gap: spacing[1],
+  },
+  detailLine: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 17,
+  },
+  checkboxWrap: {
+    marginTop: spacing[1],
+  },
+  actions: {
+    flexDirection: "row",
+    gap: spacing[3],
+    marginTop: spacing[2],
+  },
+  cancelBtn: {
+    flex: 1,
+    height: layout.buttonHeightMd,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelBtnText: {
+    ...typography.styles.buttonLabelSm,
+    color: colors.onSurfaceVariant,
+  },
+  agreeBtn: {
+    flex: 1,
+    height: layout.buttonHeightMd,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.primaryButton,
+  },
+  agreeBtnDisabled: {
+    backgroundColor: colors.secondaryContainer,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  agreeBtnText: {
+    ...typography.styles.buttonLabelSm,
+    color: colors.onPrimary,
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Add document modal
 // ---------------------------------------------------------------------------
 
@@ -944,6 +1232,8 @@ type PickedFile = {
 
 function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
   const { user } = useAuthStore();
+  const hasHealthInsuranceConsent = useConsentStore((s) => s.hasHealthInsuranceConsent());
+  const agreeHealthInsurance = useConsentStore((s) => s.agreeHealthInsurance);
   const [selectedType, setSelectedType] = useState<DocumentType>("resident_register");
   const [issuedDate, setIssuedDate] = useState<string>(() => {
     const d = new Date();
@@ -953,7 +1243,21 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   /** Raw camera URI waiting for scan-preview processing */
   const [scanRawUri, setScanRawUri] = useState<string | null>(null);
+  /** B: 건강보험 민감정보 별도동의 모달 표시 여부 */
+  const [showHealthConsentModal, setShowHealthConsentModal] = useState(false);
+  /** C: "주민등록번호 뒷자리가 가려진 서류입니다" 업로드 직전 확인 체크박스 */
+  const [maskingConfirmed, setMaskingConfirmed] = useState(false);
   const slideAnim = useRef(new Animated.Value(500)).current;
+
+  /** C: this document type carries RRN risk AND a file is actually attached */
+  const requiresMaskingConfirm = !!pickedFile && !!RRN_MASKING_INFO[selectedType];
+
+  // The masking guidance card + confirmation checkbox add variable-height
+  // content to this sheet, so it needs to scroll instead of relying on
+  // intrinsic sizing (which could push the save button off-screen on
+  // smaller devices).
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetMaxHeight = windowHeight * 0.86;
 
   useEffect(() => {
     if (visible) {
@@ -990,6 +1294,7 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
 
   function handleScanConfirm(processedUri: string) {
     setScanRawUri(null);
+    setMaskingConfirmed(false);
     setPickedFile({
       uri: processedUri,
       mimeType: "image/jpeg",
@@ -1018,6 +1323,7 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const ext = asset.uri.split(".").pop() ?? "jpg";
+      setMaskingConfirmed(false);
       setPickedFile({
         uri: asset.uri,
         mimeType: asset.mimeType ?? "image/jpeg",
@@ -1035,6 +1341,7 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const ext = (asset.name ?? "file").split(".").pop() ?? "pdf";
+      setMaskingConfirmed(false);
       setPickedFile({
         uri: asset.uri,
         mimeType: asset.mimeType ?? "application/pdf",
@@ -1067,7 +1374,35 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
     }
   }
 
+  /**
+   * B: 건강보험 자격득실확인서를 "업로드하려 할 때만" 민감정보 별도동의를 요구한다.
+   * 이미 동의했거나 다른 서류 종류라면 곧바로 실제 파일 선택 액션시트를 연다.
+   * 거부해도 다른 서류 종류의 보관 기능은 전혀 영향받지 않는다 — 끼워팔기 금지.
+   */
+  function handleAttachPress() {
+    if (selectedType === "health_insurance" && !hasHealthInsuranceConsent) {
+      setShowHealthConsentModal(true);
+      return;
+    }
+    showAddOptions();
+  }
+
+  async function handleHealthConsentAgree() {
+    await agreeHealthInsurance();
+    setShowHealthConsentModal(false);
+    showAddOptions();
+  }
+
   async function handleSave() {
+    // C: RRN 마스킹 확인 체크박스 미체크 시 업로드(파일 저장) 불가
+    if (requiresMaskingConfirm && !maskingConfirmed) {
+      Alert.alert(
+        "확인이 필요해요",
+        "주민등록번호 뒷자리가 가려진 서류인지 확인 후 체크박스에 체크해주세요."
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       const id = generateId();
@@ -1115,6 +1450,7 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
       setPickedFile(null);
       setSelectedType("resident_register");
       setIssuedDate(new Date().toISOString().split("T")[0]);
+      setMaskingConfirmed(false);
     } catch (err) {
       Alert.alert("저장 실패", "서류를 저장하지 못했습니다. 다시 시도해주세요.");
     } finally {
@@ -1125,8 +1461,11 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
   function handleClose() {
     setPickedFile(null);
     setScanRawUri(null);
+    setMaskingConfirmed(false);
     onClose();
   }
+
+  const saveDisabled = isSaving || (requiresMaskingConfirm && !maskingConfirmed);
 
   return (
     <>
@@ -1134,6 +1473,11 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
         rawUri={scanRawUri}
         onRetake={handleScanRetake}
         onConfirm={handleScanConfirm}
+      />
+      <HealthInsuranceConsentModal
+        visible={showHealthConsentModal}
+        onCancel={() => setShowHealthConsentModal(false)}
+        onAgree={handleHealthConsentAgree}
       />
       <Modal
         visible={visible}
@@ -1145,6 +1489,7 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
         <Animated.View
           style={[
             modalStyles.sheet,
+            { maxHeight: sheetMaxHeight },
             { transform: [{ translateY: slideAnim }] },
           ]}
         >
@@ -1157,72 +1502,96 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
 
             <Text style={modalStyles.sheetTitle}>서류 추가</Text>
 
-            {/* Document type selector */}
-            <Text style={modalStyles.fieldLabel}>서류 종류</Text>
             <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={modalStyles.typeScrollContent}
-              style={modalStyles.typeScroll}
+              style={modalStyles.fieldsScroll}
+              contentContainerStyle={modalStyles.fieldsScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              {DOCUMENT_TYPE_OPTIONS.map((type) => {
-                const cfg = DOC_TYPE_CONFIG[type];
-                const isSelected = selectedType === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      modalStyles.typeChip,
-                      isSelected && modalStyles.typeChipSelected,
-                      { borderColor: isSelected ? cfg.accentColor : "transparent" },
-                    ]}
-                    onPress={() => setSelectedType(type)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                    accessibilityLabel={cfg.label}
-                  >
-                    <Text
+              {/* Document type selector */}
+              <Text style={modalStyles.fieldLabel}>서류 종류</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={modalStyles.typeScrollContent}
+                style={modalStyles.typeScroll}
+              >
+                {DOCUMENT_TYPE_OPTIONS.map((type) => {
+                  const cfg = DOC_TYPE_CONFIG[type];
+                  const isSelected = selectedType === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
                       style={[
-                        modalStyles.typeChipText,
-                        isSelected && { color: cfg.accentColor },
+                        modalStyles.typeChip,
+                        isSelected && modalStyles.typeChipSelected,
+                        { borderColor: isSelected ? cfg.accentColor : "transparent" },
                       ]}
+                      onPress={() => setSelectedType(type)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityLabel={cfg.label}
                     >
-                      {cfg.shortLabel}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        style={[
+                          modalStyles.typeChipText,
+                          isSelected && { color: cfg.accentColor },
+                        ]}
+                      >
+                        {cfg.shortLabel}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* C: 주민번호 마스킹 발급 가이드 — 서류 종류 선택 직후, 실제 발급받으러
+                  가기 전에 보이도록 배치 */}
+              <MaskingGuidanceCard type={selectedType} />
+
+              {/* Issued date — simple text representation (date picker is platform-specific;
+                  a full DateTimePicker is a future enhancement) */}
+              <Text style={modalStyles.fieldLabel}>발급일</Text>
+              <View style={modalStyles.dateDisplay}>
+                <Text style={modalStyles.dateDisplayText}>
+                  {issuedDate}
+                </Text>
+              </View>
+
+              {/* File picker area */}
+              <Text style={modalStyles.fieldLabel}>파일 첨부 (선택)</Text>
+              <TouchableOpacity
+                style={[
+                  modalStyles.filePicker,
+                  pickedFile && modalStyles.filePickerFilled,
+                ]}
+                onPress={handleAttachPress}
+                accessibilityRole="button"
+                accessibilityLabel={pickedFile ? "첨부 파일 변경" : "파일 또는 사진 추가"}
+              >
+                <Text style={modalStyles.filePickerIcon}>
+                  {pickedFile ? "✓" : "+"}
+                </Text>
+                <Text style={modalStyles.filePickerText}>
+                  {pickedFile
+                    ? pickedFile.name
+                    : "카메라 촬영 · 갤러리 · PDF 선택"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* C: 업로드 직전 확인 체크박스 — 파일이 첨부되고, 주민번호 위험이 있는
+                  서류 종류일 때만 노출. 미체크 시 handleSave에서 저장을 막는다. */}
+              {requiresMaskingConfirm && (
+                <View style={modalStyles.maskingCheckWrap}>
+                  <AgreementCheckbox
+                    checked={maskingConfirmed}
+                    onToggle={() => setMaskingConfirmed((v) => !v)}
+                    label="주민등록번호 뒷자리가 가려진 서류입니다"
+                    requirement="required"
+                  />
+                </View>
+              )}
             </ScrollView>
-
-            {/* Issued date — simple text representation (date picker is platform-specific;
-                a full DateTimePicker is a future enhancement) */}
-            <Text style={modalStyles.fieldLabel}>발급일</Text>
-            <View style={modalStyles.dateDisplay}>
-              <Text style={modalStyles.dateDisplayText}>
-                {issuedDate}
-              </Text>
-            </View>
-
-            {/* File picker area */}
-            <Text style={modalStyles.fieldLabel}>파일 첨부 (선택)</Text>
-            <TouchableOpacity
-              style={[
-                modalStyles.filePicker,
-                pickedFile && modalStyles.filePickerFilled,
-              ]}
-              onPress={showAddOptions}
-              accessibilityRole="button"
-              accessibilityLabel={pickedFile ? "첨부 파일 변경" : "파일 또는 사진 추가"}
-            >
-              <Text style={modalStyles.filePickerIcon}>
-                {pickedFile ? "✓" : "+"}
-              </Text>
-              <Text style={modalStyles.filePickerText}>
-                {pickedFile
-                  ? pickedFile.name
-                  : "카메라 촬영 · 갤러리 · PDF 선택"}
-              </Text>
-            </TouchableOpacity>
 
             {/* Action buttons */}
             <View style={modalStyles.actions}>
@@ -1235,12 +1604,12 @@ function AddDocModal({ visible, onClose, onAdd }: AddDocModalProps) {
                 <Text style={modalStyles.cancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[modalStyles.saveBtn, isSaving && modalStyles.saveBtnDisabled]}
+                style={[modalStyles.saveBtn, saveDisabled && modalStyles.saveBtnDisabled]}
                 onPress={handleSave}
-                disabled={isSaving}
+                disabled={saveDisabled}
                 accessibilityRole="button"
                 accessibilityLabel="서류 저장하기"
-                accessibilityState={{ disabled: isSaving }}
+                accessibilityState={{ disabled: saveDisabled }}
               >
                 {isSaving ? (
                   <ActivityIndicator size="small" color={colors.onPrimary} />
@@ -1270,9 +1639,22 @@ const modalStyles = StyleSheet.create({
     ...shadows.floating,
   },
   sheetInner: {
+    flex: 1,
     padding: spacing[6],
     paddingBottom: spacing[8],
     gap: spacing[3],
+  },
+  fieldsScroll: {
+    flex: 1,
+  },
+  fieldsScrollContent: {
+    gap: spacing[3],
+    paddingBottom: spacing[2],
+  },
+  maskingCheckWrap: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing[3],
   },
   handle: {
     width: 40,
@@ -1691,8 +2073,8 @@ export default function DocumentVaultScreen() {
           {/* Encryption status note */}
           <View style={styles.todoNote}>
             <Text style={styles.todoNoteText}>
-              서류 파일은 기기 내 암호화(XOR/SHA-256 키 파생)하여 저장됩니다.{"\n"}
-              향후 업데이트에서 AES-256 암호화 및 클라우드 보관 기능이 제공될 예정이에요.
+              서류 파일은 기기 내에서 AES-256 암호화되어 저장되며, 서버로 전송되지
+              않아요. 회사는 서류의 평문 내용을 열람할 수 없습니다.
             </Text>
           </View>
         </ScrollView>

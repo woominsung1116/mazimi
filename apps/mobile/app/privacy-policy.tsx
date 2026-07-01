@@ -56,7 +56,7 @@ export default function PrivacyPolicyScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.effectiveDate}>시행일: 2026년 3월 21일</Text>
+        <Text style={styles.effectiveDate}>시행일: 2026년 7월 2일 (서류보관함 조항 개정)</Text>
 
         <Text style={styles.intro}>
           마지미(이하 "회사")는 이용자의 개인정보를 소중히 여기며, 「개인정보
@@ -78,8 +78,9 @@ export default function PrivacyPolicyScreen() {
             ]}
           />
           <Para style={styles.noteText}>
-            서류 보관함에 등록하는 파일(증명서 등)은 이용자 기기 내에만 암호화
-            저장되며, 회사 서버로 전송·저장되지 않습니다(MVP 단계 기준).
+            서류 보관함에 등록하는 파일(증명서 등)은 이용자 기기 내에서 단말기
+            고유 키로 AES-256 암호화되어 저장되며, 회사 서버로 전송·저장되지
+            않습니다. 자세한 내용은 제6조를 참고하세요.
           </Para>
         </Section>
 
@@ -142,16 +143,50 @@ export default function PrivacyPolicyScreen() {
           />
         </Section>
 
-        <Section title="제6조 서류 보관 및 기기 내 데이터">
-          <Para>
-            이용자가 서류 보관함에 등록한 파일은 이용자 본인의 기기 내
-            암호화된 저장소(expo-secure-store / AsyncStorage)에만 보관됩니다.
-          </Para>
+        <Section title="제6조 서류 보관함(Document Vault) 관련 개인정보 처리">
+          <Para style={styles.subHeading}>수집 서류 항목</Para>
           <BulletList
             items={[
-              "서버 전송 없음: 해당 파일은 회사 서버로 전송되거나 저장되지 않습니다.",
+              "주민등록등본·초본, 가족관계증명서, 소득증명원, 재학·휴학·졸업증명서, 건강보험료 납부확인서·자격득실확인서, 통장사본, 장애인증명서 등 이용자가 직접 등록하는 서류 파일 및 그 메타데이터(서류 종류·발급일·만료일)",
+            ]}
+          />
+          <Para style={[styles.subHeading, { marginTop: spacing[3] }]}>처리 목적</Para>
+          <BulletList
+            items={[
+              "신청 서류 체크리스트 관리 및 신청 지원",
+              "보유 서류 기반 신청 가능 혜택 매칭",
+              "서류 발급일 기준 갱신 시점 안내",
+            ]}
+          />
+          <Para style={[styles.subHeading, { marginTop: spacing[3] }]}>보유 기간 및 파기</Para>
+          <BulletList
+            items={[
+              "이용자가 보관함에서 직접 삭제하는 즉시 기기에서 파기됩니다.",
+              "회원 탈퇴 또는 앱 삭제 시 기기에 저장된 모든 서류 파일이 함께 파기됩니다.",
+              "서류의 만료일이 지나거나 발급 후 90일이 경과하면 '갱신 필요' 상태로 표시되며, 파기 여부는 이용자가 직접 결정합니다(자동 삭제되지 않음).",
+            ]}
+          />
+          <Para style={[styles.subHeading, { marginTop: spacing[3] }]}>제3자 제공</Para>
+          <BulletList
+            items={[
+              "서류 보관함에 등록된 파일 및 메타데이터는 어떠한 제3자에게도 제공되지 않습니다.",
+            ]}
+          />
+          <Para style={[styles.subHeading, { marginTop: spacing[3] }]}>민감정보(건강 관련 서류) 별도 동의</Para>
+          <BulletList
+            items={[
+              "건강보험료 납부확인서·자격득실확인서 등 건강 상태를 유추할 수 있는 서류를 업로드하려는 경우, 다른 서류와 분리된 별도의 동의 절차를 거칩니다(개인정보 보호법 제23조).",
+              "해당 동의를 거부하더라도 등본·소득증명 등 다른 서류의 보관·이용 기능은 동일하게 제공됩니다. 필수 서비스 이용에 민감정보 동의를 조건으로 걸지 않습니다.",
+            ]}
+          />
+          <Para style={[styles.subHeading, { marginTop: spacing[3] }]}>보관 위치 및 안전조치</Para>
+          <BulletList
+            items={[
+              "서버 전송 없음: 서류 파일은 회사 서버로 전송·저장되지 않고 이용자 기기 내에만 보관됩니다.",
+              "클라이언트 측 AES-256 암호화: 파일은 기기에 저장되기 전 단말기 고유 키(Keychain/Keystore 파생)로 AES-256 암호화되며, 평문 원본은 암호화 직후 삭제됩니다.",
+              "회사 서버는 서류의 평문 내용을 열람할 수 없는 구조입니다(Zero-Knowledge에 준하는 설계) — 서버로 전송되는 데이터 자체가 없으므로 회사 직원을 포함해 누구도 서버를 통해 서류 원본에 접근할 수 없습니다.",
               "기기 분실·초기화 시 복구 불가: 이용자가 직접 관리에 책임을 집니다.",
-              "앱 삭제 시: 기기에 저장된 모든 로컬 데이터가 함께 삭제됩니다.",
+              "앱 삭제 시: 기기에 저장된 모든 로컬 서류 데이터가 함께 삭제됩니다.",
             ]}
           />
         </Section>
@@ -192,6 +227,7 @@ export default function PrivacyPolicyScreen() {
               "전송 구간 암호화: HTTPS/TLS 1.2 이상 적용",
               "접근 통제: 개인정보 취급 직원 최소화 및 권한 관리",
               "기기 내 저장 데이터: iOS Keychain / Android Keystore를 통한 암호화",
+              "서류 보관함 파일: 서버로 전송되지 않고 이용자 기기 내에서만 AES-256으로 암호화되어 저장됩니다 — 회사 서버는 애초에 평문 서류를 전송받거나 열람할 수 없는 구조입니다.",
               "정기적 보안 점검 및 취약점 분석",
             ]}
           />
@@ -214,8 +250,14 @@ export default function PrivacyPolicyScreen() {
             items={[
               "변경 시 앱 내 공지사항 또는 알림을 통해 사전 고지합니다 (최소 7일 전, 중요 변경 시 30일 전).",
               "변경된 방침의 시행일 이후에도 서비스를 계속 이용하는 경우 변경 내용에 동의한 것으로 봅니다.",
+              "단, 새로운 개인정보 처리 목적이 추가되는 등 중요한 변경의 경우 앱 실행 시 재동의 절차를 통해 별도로 동의를 받습니다.",
             ]}
           />
+          <Para style={styles.noteText}>
+            개정 이력 — 2026.07.02: 서류보관함(Document Vault) 관련 수집 항목, 보유·파기
+            기준, 민감정보(건강보험) 별도 동의, 클라이언트 AES-256 암호화 안전조치 조항 추가
+            (제1조, 제6조, 제9조).
+          </Para>
         </Section>
 
         <Section title="제12조 개인정보 보호책임자">
@@ -242,7 +284,7 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <Text style={styles.footer}>
-          본 개인정보처리방침은 2026년 3월 21일부터 적용됩니다.
+          본 개인정보처리방침은 2026년 7월 2일부터 적용됩니다.
         </Text>
       </ScrollView>
     </View>
@@ -381,6 +423,12 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.regular,
     color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  subHeading: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.onSurface,
     lineHeight: 20,
   },
   noteText: {

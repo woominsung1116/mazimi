@@ -10,6 +10,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useAuthStore } from "../store/auth";
+import { useConsentStore } from "../store/consent";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,27 @@ function SessionRestore() {
   }, []);
 
   return null;
+}
+
+/**
+ * Kicks off the one-time AsyncStorage read for consent state. Kept separate
+ * from the gating decision itself (see RootLayout) so the loading trigger and
+ * the render branch are easy to reason about independently.
+ */
+function useConsentGate() {
+  const isLoaded = useConsentStore((s) => s.isLoaded);
+  const hasRequiredConsent = useConsentStore((s) => s.hasRequiredConsent());
+  const loadConsent = useConsentStore((s) => s.loadConsent);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!started.current) {
+      started.current = true;
+      loadConsent();
+    }
+  }, [loadConsent]);
+
+  return { isLoaded, hasRequiredConsent };
 }
 
 interface ErrorBoundaryState {
@@ -132,6 +154,18 @@ const errorStyles = StyleSheet.create({
 });
 
 export default function RootLayout() {
+  const { isLoaded, hasRequiredConsent } = useConsentGate();
+
+  // Avoid a false "not agreed" flash while the AsyncStorage read resolves —
+  // render nothing but the background until we actually know the state.
+  if (!isLoaded) {
+    return (
+      <GlobalErrorBoundary>
+        <View style={consentLoadingStyles.root} />
+      </GlobalErrorBoundary>
+    );
+  }
+
   return (
     <GlobalErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -146,56 +180,71 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: "#f3f4f5" },
           }}
         >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="onboarding/index"
-            options={{ title: "기본 정보", headerLeft: () => null }}
-          />
-          <Stack.Screen
-            name="onboarding/step1"
-            options={{ title: "거주 지역" }}
-          />
-          <Stack.Screen
-            name="onboarding/step2"
-            options={{ title: "추가 정보" }}
-          />
-          <Stack.Screen
-            name="onboarding/step3"
-            options={{ title: "취업 상태" }}
-          />
-          <Stack.Screen
-            name="preview"
-            options={{ title: "맞춤 추천", headerLeft: () => null }}
-          />
-          <Stack.Screen
-            name="calculator"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="programs/[id]"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="stack-calculator"
-            options={{ title: "혜택 중복 계산기" }}
-          />
-          <Stack.Screen
-            name="region-compare"
-            options={{ title: "조건 시뮬레이터" }}
-          />
-          <Stack.Screen
-            name="document-vault"
-            options={{ title: "서류 보관함" }}
-          />
-          <Stack.Screen
-            name="auto-fill"
-            options={{ title: "신청 정보 준비" }}
-          />
-          <Stack.Screen
-            name="apply-assistant"
-            options={{ headerShown: false }}
-          />
+          {/* 필수 동의(이용약관+개인정보) 전에는 이 화면만 보여진다. 뒤로가기로 빠져나갈
+              수 없도록 gestureEnabled: false. 동의 완료 시 hasRequiredConsent가 true로
+              바뀌면서 아래 그룹으로 자동 전환된다. */}
+          <Stack.Protected guard={!hasRequiredConsent}>
+            <Stack.Screen
+              name="consent"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+          </Stack.Protected>
+
+          <Stack.Protected guard={hasRequiredConsent}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="onboarding/index"
+              options={{ title: "기본 정보", headerLeft: () => null }}
+            />
+            <Stack.Screen
+              name="onboarding/step1"
+              options={{ title: "거주 지역" }}
+            />
+            <Stack.Screen
+              name="onboarding/step2"
+              options={{ title: "추가 정보" }}
+            />
+            <Stack.Screen
+              name="onboarding/step3"
+              options={{ title: "취업 상태" }}
+            />
+            <Stack.Screen
+              name="preview"
+              options={{ title: "맞춤 추천", headerLeft: () => null }}
+            />
+            <Stack.Screen
+              name="calculator"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="programs/[id]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="stack-calculator"
+              options={{ title: "혜택 중복 계산기" }}
+            />
+            <Stack.Screen
+              name="region-compare"
+              options={{ title: "조건 시뮬레이터" }}
+            />
+            <Stack.Screen
+              name="document-vault"
+              options={{ title: "서류 보관함" }}
+            />
+            <Stack.Screen
+              name="auto-fill"
+              options={{ title: "신청 정보 준비" }}
+            />
+            <Stack.Screen
+              name="apply-assistant"
+              options={{ headerShown: false }}
+            />
+          </Stack.Protected>
+
+          {/* 정책 전문은 동의 게이트 화면과 로그인 화면 양쪽에서 링크로 열어야 하므로
+              항상(동의 여부와 무관하게) 접근 가능해야 한다. */}
           <Stack.Screen
             name="privacy-policy"
             options={{ headerShown: false }}
@@ -209,3 +258,10 @@ export default function RootLayout() {
     </GlobalErrorBoundary>
   );
 }
+
+const consentLoadingStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#F3F0EB",
+  },
+});
