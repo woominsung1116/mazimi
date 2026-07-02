@@ -3,7 +3,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::PgPool;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -99,10 +99,30 @@ async fn process_source<S: DataSource>(
         Vec::new()
     };
 
+    // youth_center-only: refUrlAddr1/2 values reused across 2+ distinct
+    // records within this batch are untrusted as deep links (see
+    // `collect_shared_youth_center_ref_urls` doc comment). Computed once per
+    // run, not once per record — it's a single pass over the batch already
+    // held in memory.
+    let shared_youth_center_ref_urls: HashSet<String> = if source_name == "youth_center" {
+        collect_shared_youth_center_ref_urls(&records)
+    } else {
+        HashSet::new()
+    };
+
     let mut changed = 0usize;
 
     for record in &records {
-        match process_record(pool, source_name, run_id, record, &youth_center_cache).await {
+        match process_record(
+            pool,
+            source_name,
+            run_id,
+            record,
+            &youth_center_cache,
+            &shared_youth_center_ref_urls,
+        )
+        .await
+        {
             Ok(was_changed) => {
                 if was_changed {
                     changed += 1;
@@ -142,6 +162,7 @@ async fn process_record(
     run_id: Uuid,
     record: &RawRecord,
     youth_center_cache: &[YouthCenterCacheEntry],
+    shared_youth_center_ref_urls: &HashSet<String>,
 ) -> Result<bool> {
     // 2. Compare content hash against last snapshot
     let existing_hash: Option<String> = sqlx::query_scalar(
@@ -189,7 +210,12 @@ async fn process_record(
     }
 
     // 3. Normalize the raw payload
-    let norm = normalize(source_name, &record.source_id, &record.payload);
+    let norm = normalize(
+        source_name,
+        &record.source_id,
+        &record.payload,
+        shared_youth_center_ref_urls,
+    );
 
     // 3b. Cross-source duplicate check (national_welfare ↔ youth_center only).
     // If this welfare record is a high-confidence duplicate of an existing
@@ -358,9 +384,10 @@ fn normalize(
     source_name: &str,
     _source_id: &str,
     payload: &serde_json::Value,
+    shared_youth_center_ref_urls: &HashSet<String>,
 ) -> NormalizedProgram {
     match source_name {
-        "youth_center" => normalize_youth_center(payload),
+        "youth_center" => normalize_youth_center(payload, shared_youth_center_ref_urls),
         "gov_benefits" => normalize_gov_benefits(payload),
         "scholarship" => normalize_scholarship(payload),
         // local_scraper payloads come from HTML-scraped portals.
@@ -388,7 +415,10 @@ fn normalize(
     }
 }
 
-fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
+fn normalize_youth_center(
+    p: &serde_json::Value,
+    shared_ref_urls: &HashSet<String>,
+) -> NormalizedProgram {
     let title = p["plcyNm"].as_str().unwrap_or("Unknown").to_string();
 
     // plcySprtCn (지원 내용) → plcyExplnCn (정책 설명) 순 fallback
@@ -411,6 +441,7 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
         p["refUrlAddr1"].as_str(),
         p["refUrlAddr2"].as_str(),
         p["plcyNo"].as_str(),
+        shared_ref_urls,
     );
 
     // 신청 가이드 텍스트 필드 (모바일 가이드 카드용 원문 캡처)
@@ -485,11 +516,23 @@ fn normalize_youth_center(p: &serde_json::Value) -> NormalizedProgram {
 /// A bare homepage like `https://example.go.kr` or `https://example.go.kr/`
 /// is NOT specific.
 ///
+/// `shared_ref_urls` is the batch-wide set of refUrlAddr1/2 values that were
+/// observed on 2+ distinct records (see
+/// `collect_shared_youth_center_ref_urls`). 온통청년 occasionally copy-pastes
+/// the same refUrl into unrelated policy records — e.g. two different
+/// plcyNo both pointing at the same 경남 detail page (policy_no=1816). A
+/// refUrl in this set is untrusted as a deep link and is skipped as if it
+/// weren't specific, even though its shape passes `is_specific_url`.
+/// aplyUrlAddr is never subject to this guard — it's the provider's own
+/// authoritative apply link, not a copy-pasted reference. Pass an empty set
+/// to disable the guard entirely (existing callers/behavior unaffected).
+///
 /// Priority order:
 ///   1. specific aplyUrlAddr
-///   2. specific refUrlAddr1
-///   3. specific refUrlAddr2
-///   4. (no specific candidate) 온통청년 detail page built from plcyNo —
+///   2. specific refUrlAddr1, unless it's in `shared_ref_urls`
+///   3. specific refUrlAddr2, unless it's in `shared_ref_urls`
+///   4. (no specific/trusted candidate) 온통청년 detail page built from
+///      plcyNo —
 ///      `https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/{plcyNo}`.
 ///      Verified via curl to return 200 for records with a plcyNo, and always
 ///      renders a real detail/apply page (never a bare homepage).
@@ -503,6 +546,7 @@ fn select_official_url(
     ref_url1: Option<&str>,
     ref_url2: Option<&str>,
     plcy_no: Option<&str>,
+    shared_ref_urls: &HashSet<String>,
 ) -> Option<String> {
     fn clean(s: Option<&str>) -> Option<&str> {
         s.map(|s| s.trim())
@@ -516,10 +560,10 @@ fn select_official_url(
     if let Some(u) = aply.filter(|u| is_specific_url(u)) {
         return Some(u.to_string());
     }
-    if let Some(u) = ref1.filter(|u| is_specific_url(u)) {
+    if let Some(u) = ref1.filter(|u| is_specific_url(u) && !is_shared_ref_url(u, shared_ref_urls)) {
         return Some(u.to_string());
     }
-    if let Some(u) = ref2.filter(|u| is_specific_url(u)) {
+    if let Some(u) = ref2.filter(|u| is_specific_url(u) && !is_shared_ref_url(u, shared_ref_urls)) {
         return Some(u.to_string());
     }
 
@@ -542,6 +586,72 @@ fn select_official_url(
 /// bare homepage or empty.
 fn youth_center_detail_url(plcy_no: &str) -> String {
     format!("https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/{plcy_no}")
+}
+
+/// Aggregate refUrlAddr1/2 values that appear as a *specific* URL (see
+/// `is_specific_url`) on 2+ distinct records (identified by `source_id`,
+/// i.e. plcyNo — see `youth_center::fetch_all`) within a single youth_center
+/// ingestion batch.
+///
+/// This exists because the upstream API occasionally copy-pastes the same
+/// refUrl into unrelated policy records — observed in production: two
+/// different plcyNo values both carrying the same 경남 detail page as their
+/// refUrl (policy_no=1816). Trusting that refUrl as a deep link sends the
+/// user to the wrong policy's detail page. `select_official_url` consults
+/// the returned set (via `is_shared_ref_url`) and refuses to use a refUrl
+/// found here as a deep link, falling back to 온통청년's own plcyNo detail
+/// page instead.
+///
+/// Only meaningful for the youth_center source — see the call site in
+/// `process_source`, which only computes a non-empty set when
+/// `source_name == "youth_center"`. No effect on national_welfare,
+/// local_welfare, gov_benefits, etc.
+///
+/// Normalization for the dedup comparison is deliberately minimal (trim +
+/// strip trailing slash, via `normalize_ref_url_for_dedup`) so we don't mask
+/// genuinely different URLs as duplicates. Only "specific" candidates are
+/// tracked — a bare homepage shared across many unrelated policies is
+/// common and legitimate (it was never going to win the "specific" priority
+/// tier anyway), so including it here would just be noise.
+fn collect_shared_youth_center_ref_urls(records: &[RawRecord]) -> HashSet<String> {
+    let mut owners: HashMap<String, HashSet<&str>> = HashMap::new();
+
+    for record in records {
+        for field in ["refUrlAddr1", "refUrlAddr2"] {
+            let Some(raw) = record.payload[field].as_str() else {
+                continue;
+            };
+            let trimmed = raw.trim();
+            if trimmed.is_empty() || !is_http_url(trimmed) || !is_specific_url(trimmed) {
+                continue;
+            }
+            owners
+                .entry(normalize_ref_url_for_dedup(trimmed))
+                .or_default()
+                .insert(record.source_id.as_str());
+        }
+    }
+
+    owners
+        .into_iter()
+        .filter(|(_, source_ids)| source_ids.len() >= 2)
+        .map(|(url, _)| url)
+        .collect()
+}
+
+/// Returns true if `url` (after minimal normalization) is in the batch-wide
+/// shared/untrusted refUrl set produced by
+/// `collect_shared_youth_center_ref_urls`.
+fn is_shared_ref_url(url: &str, shared_ref_urls: &HashSet<String>) -> bool {
+    shared_ref_urls.contains(&normalize_ref_url_for_dedup(url))
+}
+
+/// Minimal normalization for refUrl dedup comparison: trim whitespace and
+/// strip trailing slash(es). Deliberately does NOT lowercase, strip query
+/// strings, or otherwise touch the URL — over-normalizing risks treating
+/// genuinely different pages as the same shared/untrusted URL.
+fn normalize_ref_url_for_dedup(url: &str) -> String {
+    url.trim().trim_end_matches('/').to_string()
 }
 
 /// Returns true if `s` starts with an http/https scheme.
@@ -1094,6 +1204,11 @@ mod dedup_tests {
 mod official_url_tests {
     use super::*;
 
+    /// Shorthand for "guard disabled" — matches pre-guard call sites/behavior.
+    fn no_shared() -> HashSet<String> {
+        HashSet::new()
+    }
+
     // ── is_specific_url ──────────────────────────────────────────────────
 
     #[test]
@@ -1124,6 +1239,7 @@ mod official_url_tests {
             Some("https://example.go.kr/notice/view.do?id=42"),
             Some("https://example.go.kr/board/detail?no=7"),
             Some("12345"),
+            &no_shared(),
         );
         assert_eq!(
             result,
@@ -1138,6 +1254,7 @@ mod official_url_tests {
             Some("https://example.go.kr/notice/view.do?id=42"),
             None,
             Some("12345"),
+            &no_shared(),
         );
         assert_eq!(
             result,
@@ -1152,6 +1269,7 @@ mod official_url_tests {
             Some("https://example.go.kr/"),
             Some("https://example.go.kr/board/detail?no=7"),
             Some("12345"),
+            &no_shared(),
         );
         assert_eq!(
             result,
@@ -1170,6 +1288,7 @@ mod official_url_tests {
             Some("https://example.go.kr/"),
             None,
             Some("12345"),
+            &no_shared(),
         );
         assert_eq!(
             result,
@@ -1185,7 +1304,13 @@ mod official_url_tests {
         // No ref URLs at all, only a bare aply homepage + plcyNo. The detail
         // page template still takes priority over falling back to the bare
         // aply URL.
-        let result = select_official_url(Some("https://example.go.kr/"), None, None, Some("999"));
+        let result = select_official_url(
+            Some("https://example.go.kr/"),
+            None,
+            None,
+            Some("999"),
+            &no_shared(),
+        );
         assert_eq!(
             result,
             Some(
@@ -1202,13 +1327,20 @@ mod official_url_tests {
             Some("https://example.go.kr/"),
             None,
             None,
+            &no_shared(),
         );
         assert_eq!(result, Some("https://example.go.kr".to_string()));
     }
 
     #[test]
     fn falls_back_to_ref_url1_when_aply_is_empty_and_no_plcy_no() {
-        let result = select_official_url(Some(""), Some("https://example.go.kr"), None, None);
+        let result = select_official_url(
+            Some(""),
+            Some("https://example.go.kr"),
+            None,
+            None,
+            &no_shared(),
+        );
         assert_eq!(result, Some("https://example.go.kr".to_string()));
     }
 
@@ -1216,15 +1348,24 @@ mod official_url_tests {
     fn blank_plcy_no_is_treated_as_absent() {
         // Whitespace-only plcyNo must not produce a bogus detail URL; it
         // should fall through to the bare-URL fallback tier.
-        let result = select_official_url(Some("https://example.go.kr"), None, None, Some("   "));
+        let result = select_official_url(
+            Some("https://example.go.kr"),
+            None,
+            None,
+            Some("   "),
+            &no_shared(),
+        );
         assert_eq!(result, Some("https://example.go.kr".to_string()));
     }
 
     #[test]
     fn returns_none_when_everything_is_empty_or_missing() {
-        assert_eq!(select_official_url(None, None, None, None), None);
         assert_eq!(
-            select_official_url(Some(""), Some(""), Some(""), Some("")),
+            select_official_url(None, None, None, None, &no_shared()),
+            None
+        );
+        assert_eq!(
+            select_official_url(Some(""), Some(""), Some(""), Some(""), &no_shared()),
             None
         );
     }
@@ -1234,8 +1375,13 @@ mod official_url_tests {
         // Non-http scheme and plain Korean text (e.g. "전화문의") must be
         // discarded entirely, even though they're non-empty. With no plcyNo
         // either, the result is None.
-        let result =
-            select_official_url(Some("ftp://example.com/file"), Some("전화문의"), None, None);
+        let result = select_official_url(
+            Some("ftp://example.com/file"),
+            Some("전화문의"),
+            None,
+            None,
+            &no_shared(),
+        );
         assert_eq!(result, None);
     }
 
@@ -1247,7 +1393,208 @@ mod official_url_tests {
         // ref_url2 still wins earlier in the priority chain. This test
         // covers the case where ref_url2 is itself just a bare homepage: no
         // candidate should be returned.
-        let result = select_official_url(None, None, Some("https://example.go.kr"), None);
+        let result = select_official_url(
+            None,
+            None,
+            Some("https://example.go.kr"),
+            None,
+            &no_shared(),
+        );
         assert_eq!(result, None);
+    }
+
+    // ── shared/untrusted refUrl guard ─────────────────────────────────────
+
+    #[test]
+    fn shared_specific_ref_url1_is_skipped_in_favor_of_plcy_no_fallback() {
+        // The real-world bug this guards against: two different plcyNo
+        // records both carry the same (specific) refUrlAddr1, e.g. a
+        // copy-pasted 경남 detail page. That refUrl must not be trusted as
+        // this record's deep link — the plcyNo detail-page fallback wins
+        // instead, even though ref1 passes is_specific_url.
+        let shared: HashSet<String> = ["https://example.go.kr/policy?no=1816".to_string()].into();
+        let result = select_official_url(
+            None,
+            Some("https://example.go.kr/policy?no=1816"),
+            None,
+            Some("12345"),
+            &shared,
+        );
+        assert_eq!(
+            result,
+            Some(
+                "https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/12345"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn shared_specific_ref_url1_falls_through_to_specific_ref_url2_when_ref2_is_untainted() {
+        // ref1 is shared/untrusted but ref2 is a distinct, non-shared,
+        // specific URL — ref2 should still win over jumping straight to the
+        // plcyNo fallback.
+        let shared: HashSet<String> = ["https://example.go.kr/policy?no=1816".to_string()].into();
+        let result = select_official_url(
+            None,
+            Some("https://example.go.kr/policy?no=1816"),
+            Some("https://example.go.kr/board/detail?no=7"),
+            Some("12345"),
+            &shared,
+        );
+        assert_eq!(
+            result,
+            Some("https://example.go.kr/board/detail?no=7".to_string())
+        );
+    }
+
+    #[test]
+    fn shared_ref_url_guard_ignores_unrelated_urls() {
+        // Regression safety: a shared set containing some other URL must not
+        // affect selection of an unrelated, non-shared ref1.
+        let shared: HashSet<String> = ["https://other.go.kr/detail?no=1".to_string()].into();
+        let result = select_official_url(
+            None,
+            Some("https://example.go.kr/notice/view.do?id=42"),
+            None,
+            Some("12345"),
+            &shared,
+        );
+        assert_eq!(
+            result,
+            Some("https://example.go.kr/notice/view.do?id=42".to_string())
+        );
+    }
+
+    #[test]
+    fn shared_ref_url_guard_normalizes_trailing_slash_before_matching() {
+        // collect_shared_youth_center_ref_urls normalizes with a trailing
+        // slash stripped; select_official_url must compare using the same
+        // normalization so a trailing-slash mismatch doesn't let a shared
+        // URL slip through.
+        let shared: HashSet<String> = ["https://example.go.kr/policy/1816".to_string()].into();
+        let result = select_official_url(
+            None,
+            Some("https://example.go.kr/policy/1816/"),
+            None,
+            Some("12345"),
+            &shared,
+        );
+        assert_eq!(
+            result,
+            Some(
+                "https://www.youthcenter.go.kr/youthPolicy/ythPlcyTotalSearch/ythPlcyDetail/12345"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn aply_url_is_never_guarded_even_if_present_in_shared_set() {
+        // aplyUrlAddr is the provider's own authoritative apply link, never a
+        // copy-pasted reference — the shared-refUrl guard must not apply to
+        // it even if (hypothetically) the exact same string shows up in the
+        // shared set.
+        let shared: HashSet<String> = ["https://apply.example.go.kr/apply/123".to_string()].into();
+        let result = select_official_url(
+            Some("https://apply.example.go.kr/apply/123"),
+            None,
+            None,
+            Some("12345"),
+            &shared,
+        );
+        assert_eq!(
+            result,
+            Some("https://apply.example.go.kr/apply/123".to_string())
+        );
+    }
+
+    // ── collect_shared_youth_center_ref_urls ──────────────────────────────
+
+    fn raw_record(source_id: &str, ref1: Option<&str>, ref2: Option<&str>) -> RawRecord {
+        RawRecord {
+            source_id: source_id.to_string(),
+            payload: serde_json::json!({
+                "refUrlAddr1": ref1,
+                "refUrlAddr2": ref2,
+            }),
+            content_hash: "irrelevant".to_string(),
+        }
+    }
+
+    #[test]
+    fn flags_ref_url_shared_across_two_distinct_plcy_no() {
+        let records = vec![
+            raw_record("111", Some("https://example.go.kr/policy?no=1816"), None),
+            raw_record("222", Some("https://example.go.kr/policy?no=1816"), None),
+        ];
+        let shared = collect_shared_youth_center_ref_urls(&records);
+        assert!(shared.contains("https://example.go.kr/policy?no=1816"));
+    }
+
+    #[test]
+    fn flags_ref_url_shared_across_ref1_and_ref2_slots() {
+        // The bug isn't tied to a specific field — the same URL value can
+        // land in refUrlAddr1 on one record and refUrlAddr2 on another.
+        let records = vec![
+            raw_record("111", Some("https://example.go.kr/policy?no=1816"), None),
+            raw_record("222", None, Some("https://example.go.kr/policy?no=1816")),
+        ];
+        let shared = collect_shared_youth_center_ref_urls(&records);
+        assert!(shared.contains("https://example.go.kr/policy?no=1816"));
+    }
+
+    #[test]
+    fn does_not_flag_ref_url_appearing_once_per_record_even_in_both_slots() {
+        // Same plcyNo (single distinct owner) using the identical URL in
+        // both ref1 and ref2 is not the bug pattern — only 2+ *distinct*
+        // records sharing a URL should be flagged.
+        let records = vec![raw_record(
+            "111",
+            Some("https://example.go.kr/policy?no=1816"),
+            Some("https://example.go.kr/policy?no=1816"),
+        )];
+        let shared = collect_shared_youth_center_ref_urls(&records);
+        assert!(shared.is_empty());
+    }
+
+    #[test]
+    fn does_not_flag_distinct_ref_urls() {
+        let records = vec![
+            raw_record("111", Some("https://example.go.kr/policy?no=1816"), None),
+            raw_record("222", Some("https://example.go.kr/policy?no=2000"), None),
+        ];
+        let shared = collect_shared_youth_center_ref_urls(&records);
+        assert!(shared.is_empty());
+    }
+
+    #[test]
+    fn does_not_flag_shared_bare_homepage() {
+        // Many unrelated policies legitimately share the same provider
+        // homepage as refUrlAddr1 — that's not the copy-paste bug and must
+        // not be flagged (it wouldn't win the "specific" priority tier
+        // anyway, but keeping it out of the set keeps the guard's intent
+        // clear).
+        let records = vec![
+            raw_record("111", Some("https://example.go.kr"), None),
+            raw_record("222", Some("https://example.go.kr"), None),
+        ];
+        let shared = collect_shared_youth_center_ref_urls(&records);
+        assert!(shared.is_empty());
+    }
+
+    #[test]
+    fn matches_shared_url_regardless_of_trailing_slash_variance() {
+        let records = vec![
+            raw_record("111", Some("https://example.go.kr/policy/1816"), None),
+            raw_record("222", Some("https://example.go.kr/policy/1816/"), None),
+        ];
+        let shared = collect_shared_youth_center_ref_urls(&records);
+        assert!(shared.contains("https://example.go.kr/policy/1816"));
+    }
+
+    #[test]
+    fn empty_batch_yields_empty_set() {
+        assert!(collect_shared_youth_center_ref_urls(&[]).is_empty());
     }
 }
